@@ -92,7 +92,6 @@ Configure your output mode (Half Side-by-Side, Anaglyph, etc.) and any other set
 | FATE | DX8 | x86 | ✕ | Untested |  |
 | Mega Man X8 | DX8 | x86 | ✓ | Untested |  |
 | Mercedes-Benz World Racing | DX8 | x86 | ✓ | Untested |  |
-| Rocko's Quest | DX7 | x86 | ✕ | Untested | aka Grouch  |
 | Sniper Elite | DX8 | x86 | ✓ | ❌ Not Working | Game crashes. |
 | The Lord of the Rings: The Return of the King | DX8 | x86 | ✓ | Untested |  |
 | Thief: Deadly Shadows | DX8 | x86 | ✓ | ⚠️ Partial | In-game, also heavy artifacts |
