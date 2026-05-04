@@ -244,6 +244,7 @@ Configure your output mode (Half Side-by-Side, Anaglyph, etc.) and any other set
 | Prince of Persia: The Forgotten Sands | DX9 | x86 | ✓ | Untested |  |
 | Pro Evolution Soccer 2017 | DX9 | x86 | ✕ | ✅ Working | Might need shader fix. |
 | ProtoGalaxy | DX9 | x86 | ✓ | Untested |  |
+| Rayman Legends | DX9 | x86 | ✕ | ✅ Working | Might need shader fix. |
 | RefRain - prism memories - | DX9/DX9 | x86 | ✕ | ❌ Not Working | Fails to boot. |
 | Richard Burns Rally | DX9 | x86 | ✓ | Untested |  |
 | Rise and Fall: Civilizations at War | DX9 | x86 | ✓ | Untested |  |
