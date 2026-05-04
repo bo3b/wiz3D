@@ -300,7 +300,7 @@ Configure your output mode (Half Side-by-Side, Anaglyph, etc.) and any other set
 | Tom Clancy's Splinter Cell: Conviction | DX9 | x86 | ✓ | Untested |  |
 | Tomb Raider: Legend | DX9 | x86 | ✓ | Untested |  |
 | Tomb Raider: Anniversary | DX9 | x86 | ✓ | ✅ Working |  |
-| Tomb Raider: Underworld | DX9 | x86 | ✓ | Untested |  |
+| Tomb Raider: Underworld | DX9 | x86 | ✓ | ✅ Working |  |
 | Torchlight | DX9 | x86 | ✓ | Untested |  |
 | TrackMania Nations Forever | DX9 | x86 | ✓ | Untested |  |
 | Trine (2009) | DX9 | x86 | ✓ | Untested |  |
