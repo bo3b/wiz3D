@@ -1,0 +1,8 @@
+LIBRARY "SimulatedRealityWeaveOutput"
+EXPORTS
+	CreateOutputDX9	@1
+	CreateOutputDX10	@2
+	CreateOutputDX11	@3
+	GetOutputCaps	@4
+	GetOutputName	@5
+	EnumOutputModes	@6

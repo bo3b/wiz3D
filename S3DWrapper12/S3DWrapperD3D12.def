@@ -1,0 +1,4 @@
+LIBRARY S3DWrapperD3D12
+EXPORTS
+    InitializeExchangeServer  @1  PRIVATE
+    D3D12CreateDevice         @2

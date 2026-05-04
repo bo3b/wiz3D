@@ -1,0 +1,10 @@
+LIBRARY d3d12
+EXPORTS
+    D3D12CreateDevice                              @1
+    D3D12CreateRootSignatureDeserializer           @2
+    D3D12CreateVersionedRootSignatureDeserializer  @3
+    D3D12EnableExperimentalFeatures                @4
+    D3D12GetDebugInterface                         @5
+    D3D12GetInterface                              @6
+    D3D12SerializeRootSignature                    @7
+    D3D12SerializeVersionedRootSignature           @8

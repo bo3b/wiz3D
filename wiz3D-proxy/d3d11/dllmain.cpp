@@ -1,0 +1,328 @@
+/* wiz3D - d3d11.dll Proxy Loader
+ *
+ * Drop this d3d11.dll into a game's folder alongside S3DWrapperD3D10.dll
+ * and the output plugins. Forwards every d3d11.dll export to the real
+ * system d3d11.dll. Intercepts D3D11CreateDevice and
+ * D3D11CreateDeviceAndSwapChain — Stage 1 just logs and passes through;
+ * Stage 2 will route the swap-chain creation through the wrapper.
+ *
+ * The DX10 wrapper (S3DWrapperD3D10) handles both DX10 and DX11 in this
+ * codebase — there's no separate S3DWrapperD3D11.
+ */
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <stdio.h>
+#include <stdarg.h>
+
+// ---------------------------------------------------------------------------
+// Log to wiz3D_proxy.log (append) shared with the d3d10 / d3d9 / dxgi proxies.
+// ---------------------------------------------------------------------------
+static FILE* g_logFile = nullptr;
+
+static void LogOpen(void)
+{
+    if (g_logFile) return;
+    WCHAR dir[MAX_PATH];
+    GetModuleFileNameW(NULL, dir, MAX_PATH);
+    WCHAR* pSlash = wcsrchr(dir, L'\\');
+    if (pSlash) *(pSlash + 1) = L'\0';
+    lstrcatW(dir, L"wiz3D_proxy.log");
+    g_logFile = _wfopen(dir, L"a");
+}
+
+static void Log(const char* fmt, ...)
+{
+    if (!g_logFile) LogOpen();
+    if (!g_logFile) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(g_logFile, fmt, ap);
+    va_end(ap);
+    fflush(g_logFile);
+}
+
+// ---------------------------------------------------------------------------
+static HMODULE g_hRealD3D11 = nullptr;
+static HMODULE g_hWrapper   = nullptr;
+static HMODULE g_hProxy     = nullptr;
+
+static BOOL LoadRealD3D11(void)
+{
+    if (g_hRealD3D11) return TRUE;
+    WCHAR sysDir[MAX_PATH];
+    GetSystemDirectoryW(sysDir, MAX_PATH);
+    WCHAR path[MAX_PATH];
+    wcscpy_s(path, sysDir);
+    wcscat_s(path, L"\\d3d11.dll");
+    g_hRealD3D11 = LoadLibraryW(path);
+    if (!g_hRealD3D11)
+    {
+        Log("FAIL: real d3d11.dll load (err=%lu)\n", GetLastError());
+        return FALSE;
+    }
+    Log("OK: Real d3d11.dll loaded from %ls\n", path);
+    return TRUE;
+}
+
+static FARPROC GetReal(FARPROC* pCache, const char* name)
+{
+    if (*pCache) return *pCache;
+    if (!LoadRealD3D11()) return nullptr;
+    *pCache = GetProcAddress(g_hRealD3D11, name);
+    return *pCache;
+}
+
+#define DECLARE_FWD(name) static FARPROC g_pfn_##name = nullptr
+
+DECLARE_FWD(CreateDirect3D11DeviceFromDXGIDevice);
+DECLARE_FWD(CreateDirect3D11SurfaceFromDXGISurface);
+DECLARE_FWD(D3D11CoreCreateDevice);
+DECLARE_FWD(D3D11CoreCreateLayeredDevice);
+DECLARE_FWD(D3D11CoreGetLayeredDeviceSize);
+DECLARE_FWD(D3D11CoreRegisterLayers);
+DECLARE_FWD(D3D11CreateDevice);
+DECLARE_FWD(D3D11CreateDeviceAndSwapChain);
+DECLARE_FWD(D3D11CreateDeviceForD3D12);
+DECLARE_FWD(D3D11On12CreateDevice);
+DECLARE_FWD(D3DKMTCloseAdapter);
+DECLARE_FWD(D3DKMTCreateAllocation);
+DECLARE_FWD(D3DKMTCreateContext);
+DECLARE_FWD(D3DKMTCreateDevice);
+DECLARE_FWD(D3DKMTCreateSynchronizationObject);
+DECLARE_FWD(D3DKMTDestroyAllocation);
+DECLARE_FWD(D3DKMTDestroyContext);
+DECLARE_FWD(D3DKMTDestroyDevice);
+DECLARE_FWD(D3DKMTDestroySynchronizationObject);
+DECLARE_FWD(D3DKMTEscape);
+DECLARE_FWD(D3DKMTGetContextSchedulingPriority);
+DECLARE_FWD(D3DKMTGetDeviceState);
+DECLARE_FWD(D3DKMTGetDisplayModeList);
+DECLARE_FWD(D3DKMTGetMultisampleMethodList);
+DECLARE_FWD(D3DKMTGetRuntimeData);
+DECLARE_FWD(D3DKMTGetSharedPrimaryHandle);
+DECLARE_FWD(D3DKMTLock);
+DECLARE_FWD(D3DKMTOpenAdapterFromHdc);
+DECLARE_FWD(D3DKMTOpenResource);
+DECLARE_FWD(D3DKMTPresent);
+DECLARE_FWD(D3DKMTQueryAdapterInfo);
+DECLARE_FWD(D3DKMTQueryAllocationResidency);
+DECLARE_FWD(D3DKMTQueryResourceInfo);
+DECLARE_FWD(D3DKMTRender);
+DECLARE_FWD(D3DKMTSetAllocationPriority);
+DECLARE_FWD(D3DKMTSetContextSchedulingPriority);
+DECLARE_FWD(D3DKMTSetDisplayMode);
+DECLARE_FWD(D3DKMTSetDisplayPrivateDriverFormat);
+DECLARE_FWD(D3DKMTSetGammaRamp);
+DECLARE_FWD(D3DKMTSetVidPnSourceOwner);
+DECLARE_FWD(D3DKMTSignalSynchronizationObject);
+DECLARE_FWD(D3DKMTUnlock);
+DECLARE_FWD(D3DKMTWaitForSynchronizationObject);
+DECLARE_FWD(D3DKMTWaitForVerticalBlankEvent);
+DECLARE_FWD(D3DPerformance_BeginEvent);
+DECLARE_FWD(D3DPerformance_EndEvent);
+DECLARE_FWD(D3DPerformance_GetStatus);
+DECLARE_FWD(D3DPerformance_SetMarker);
+DECLARE_FWD(EnableFeatureLevelUpgrade);
+DECLARE_FWD(OpenAdapter10);
+DECLARE_FWD(OpenAdapter10_2);
+
+// ---------------------------------------------------------------------------
+// Special: D3D11CreateDevice / D3D11CreateDeviceAndSwapChain — Stage 1 logs
+// + passes through. Stage 2 will route through S3DWrapperD3D10's exported
+// entry point so the returned device/swap chain can be wrapped for stereo.
+// ---------------------------------------------------------------------------
+typedef HRESULT(WINAPI* PFN_D3D11CreateDevice)(
+    void*, int, HMODULE, UINT, const void*, UINT, UINT,
+    void**, void*, void**);
+extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDevice(
+    void* pAdapter, int DriverType, HMODULE Software, UINT Flags,
+    const void* pFeatureLevels, UINT FeatureLevels, UINT SDKVersion,
+    void** ppDevice, void* pFeatureLevel, void** ppImmediateContext)
+{
+    Log("D3D11CreateDevice called (DriverType=%d, Flags=0x%X, SDKVersion=%u)\n",
+        DriverType, Flags, SDKVersion);
+    auto p = (PFN_D3D11CreateDevice)GetReal(&g_pfn_D3D11CreateDevice, "D3D11CreateDevice");
+    if (!p) return E_FAIL;
+    HRESULT hr = p(pAdapter, DriverType, Software, Flags, pFeatureLevels,
+                   FeatureLevels, SDKVersion, ppDevice, pFeatureLevel, ppImmediateContext);
+    Log("  D3D11CreateDevice returned 0x%08lX, *ppDevice=%p\n",
+        hr, ppDevice ? *ppDevice : nullptr);
+    return hr;
+}
+
+typedef HRESULT(WINAPI* PFN_D3D11CreateDeviceAndSwapChain)(
+    void*, int, HMODULE, UINT, const void*, UINT, UINT,
+    const void*, void**, void**, void*, void**);
+extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
+    void* pAdapter, int DriverType, HMODULE Software, UINT Flags,
+    const void* pFeatureLevels, UINT FeatureLevels, UINT SDKVersion,
+    const void* pSwapChainDesc, void** ppSwapChain, void** ppDevice,
+    void* pFeatureLevel, void** ppImmediateContext)
+{
+    Log("D3D11CreateDeviceAndSwapChain called (DriverType=%d, Flags=0x%X, SDKVersion=%u)\n",
+        DriverType, Flags, SDKVersion);
+    auto p = (PFN_D3D11CreateDeviceAndSwapChain)GetReal(
+        &g_pfn_D3D11CreateDeviceAndSwapChain, "D3D11CreateDeviceAndSwapChain");
+    if (!p) return E_FAIL;
+    HRESULT hr = p(pAdapter, DriverType, Software, Flags, pFeatureLevels,
+                   FeatureLevels, SDKVersion, pSwapChainDesc, ppSwapChain,
+                   ppDevice, pFeatureLevel, ppImmediateContext);
+    Log("  D3D11CreateDeviceAndSwapChain returned 0x%08lX, *ppSwapChain=%p, *ppDevice=%p\n",
+        hr, ppSwapChain ? *ppSwapChain : nullptr, ppDevice ? *ppDevice : nullptr);
+    return hr;
+}
+
+// ---------------------------------------------------------------------------
+// Plain pass-through forwarders. Macro generates a typedef + extern-C export
+// that lazy-resolves and calls through with the same signature.
+// ---------------------------------------------------------------------------
+#define FWD_RET(rt, name, params, args)                                       \
+    typedef rt(WINAPI* PFN_##name) params;                                    \
+    extern "C" __declspec(dllexport) rt WINAPI name params {                  \
+        auto p = (PFN_##name)GetReal(&g_pfn_##name, #name);                   \
+        if (!p) return (rt)0;                                                 \
+        return p args;                                                        \
+    }
+
+// WinRT/UWP factory exports (DX11.1+)
+FWD_RET(HRESULT, CreateDirect3D11DeviceFromDXGIDevice,
+    (void* dxgiDevice, void** graphicsDevice),
+    (dxgiDevice, graphicsDevice))
+
+FWD_RET(HRESULT, CreateDirect3D11SurfaceFromDXGISurface,
+    (void* dgxiSurface, void** graphicsSurface),
+    (dgxiSurface, graphicsSurface))
+
+// Core/layered device APIs (used by the runtime)
+FWD_RET(HRESULT, D3D11CoreCreateDevice,
+    (void* pFactory, void* pAdapter, UINT Flags, const void* pFeatureLevels,
+     UINT FeatureLevels, void** ppDevice),
+    (pFactory, pAdapter, Flags, pFeatureLevels, FeatureLevels, ppDevice))
+
+FWD_RET(HRESULT, D3D11CoreCreateLayeredDevice,
+    (const void* a, DWORD b, const void* c, const IID* d, void** e),
+    (a, b, c, d, e))
+
+FWD_RET(SIZE_T, D3D11CoreGetLayeredDeviceSize,
+    (const void* a, DWORD b), (a, b))
+
+FWD_RET(HRESULT, D3D11CoreRegisterLayers,
+    (const void* a, DWORD b), (a, b))
+
+FWD_RET(HRESULT, D3D11CreateDeviceForD3D12,
+    (void* a, void* b, UINT c, const void* d, UINT e, UINT f,
+     const void* g, void** h, void** i),
+    (a, b, c, d, e, f, g, h, i))
+
+FWD_RET(HRESULT, D3D11On12CreateDevice,
+    (void* pDevice, UINT Flags, const void* pFeatureLevels, UINT FeatureLevels,
+     void* const* ppCommandQueues, UINT NumQueues, UINT NodeMask,
+     void** ppDevice, void** ppImmediateContext, void* pChosenFeatureLevel),
+    (pDevice, Flags, pFeatureLevels, FeatureLevels, ppCommandQueues,
+     NumQueues, NodeMask, ppDevice, ppImmediateContext, pChosenFeatureLevel))
+
+// D3DKMT* — kernel-mode thunks. Each takes a pointer to a D3DKMT_* struct
+// and returns an NTSTATUS. Treating as opaque single-arg.
+typedef LONG NTSTATUS_;
+#define KMT_FWD(name)                                                         \
+    typedef NTSTATUS_(WINAPI* PFN_##name)(void*);                             \
+    extern "C" __declspec(dllexport) NTSTATUS_ WINAPI name(void* pData) {     \
+        auto p = (PFN_##name)GetReal(&g_pfn_##name, #name);                   \
+        return p ? p(pData) : (NTSTATUS_)0xC0000001L;                         \
+    }
+
+KMT_FWD(D3DKMTCloseAdapter)
+KMT_FWD(D3DKMTCreateAllocation)
+KMT_FWD(D3DKMTCreateContext)
+KMT_FWD(D3DKMTCreateDevice)
+KMT_FWD(D3DKMTCreateSynchronizationObject)
+KMT_FWD(D3DKMTDestroyAllocation)
+KMT_FWD(D3DKMTDestroyContext)
+KMT_FWD(D3DKMTDestroyDevice)
+KMT_FWD(D3DKMTDestroySynchronizationObject)
+KMT_FWD(D3DKMTEscape)
+KMT_FWD(D3DKMTGetContextSchedulingPriority)
+KMT_FWD(D3DKMTGetDeviceState)
+KMT_FWD(D3DKMTGetDisplayModeList)
+KMT_FWD(D3DKMTGetMultisampleMethodList)
+KMT_FWD(D3DKMTGetRuntimeData)
+KMT_FWD(D3DKMTGetSharedPrimaryHandle)
+KMT_FWD(D3DKMTLock)
+KMT_FWD(D3DKMTOpenAdapterFromHdc)
+KMT_FWD(D3DKMTOpenResource)
+KMT_FWD(D3DKMTPresent)
+KMT_FWD(D3DKMTQueryAdapterInfo)
+KMT_FWD(D3DKMTQueryAllocationResidency)
+KMT_FWD(D3DKMTQueryResourceInfo)
+KMT_FWD(D3DKMTRender)
+KMT_FWD(D3DKMTSetAllocationPriority)
+KMT_FWD(D3DKMTSetContextSchedulingPriority)
+KMT_FWD(D3DKMTSetDisplayMode)
+KMT_FWD(D3DKMTSetDisplayPrivateDriverFormat)
+KMT_FWD(D3DKMTSetGammaRamp)
+KMT_FWD(D3DKMTSetVidPnSourceOwner)
+KMT_FWD(D3DKMTSignalSynchronizationObject)
+KMT_FWD(D3DKMTUnlock)
+KMT_FWD(D3DKMTWaitForSynchronizationObject)
+KMT_FWD(D3DKMTWaitForVerticalBlankEvent)
+
+// D3DPerformance_* — debug markers for PIX/profilers
+FWD_RET(int, D3DPerformance_BeginEvent,
+    (DWORD Color, LPCWSTR Name), (Color, Name))
+
+FWD_RET(int, D3DPerformance_EndEvent, (void), ())
+
+FWD_RET(DWORD, D3DPerformance_GetStatus, (void), ())
+
+// D3DPerformance_SetMarker returns void — written manually since the FWD_RET
+// macro casts the missing function pointer to (rt)0 which doesn't work for void.
+typedef void(WINAPI* PFN_D3DPerformance_SetMarker)(DWORD, LPCWSTR);
+extern "C" __declspec(dllexport) void WINAPI D3DPerformance_SetMarker(
+    DWORD Color, LPCWSTR Name)
+{
+    auto p = (PFN_D3DPerformance_SetMarker)GetReal(
+        &g_pfn_D3DPerformance_SetMarker, "D3DPerformance_SetMarker");
+    if (p) p(Color, Name);
+}
+
+FWD_RET(HRESULT, EnableFeatureLevelUpgrade,
+    (void* a, UINT b, void* c), (a, b, c))
+
+FWD_RET(HRESULT, OpenAdapter10,
+    (void* pData), (pData))
+
+FWD_RET(HRESULT, OpenAdapter10_2,
+    (void* pData), (pData))
+
+// ---------------------------------------------------------------------------
+// DllMain
+// ---------------------------------------------------------------------------
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
+{
+    switch (reason)
+    {
+    case DLL_PROCESS_ATTACH:
+        g_hProxy = hModule;
+        DisableThreadLibraryCalls(hModule);
+        LogOpen();
+        {
+            WCHAR exePath[MAX_PATH];
+            GetModuleFileNameW(NULL, exePath, MAX_PATH);
+            Log("\n=== wiz3D d3d11 proxy loaded ===\n");
+            Log("Game exe: %ls\n", exePath);
+            WCHAR proxyPath[MAX_PATH];
+            GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
+            Log("Proxy DLL: %ls\n", proxyPath);
+        }
+        break;
+
+    case DLL_PROCESS_DETACH:
+        Log("=== wiz3D d3d11 proxy unloading ===\n");
+        if (g_hWrapper)   { FreeLibrary(g_hWrapper);   g_hWrapper   = nullptr; }
+        if (g_hRealD3D11) { FreeLibrary(g_hRealD3D11); g_hRealD3D11 = nullptr; }
+        if (g_logFile)    { fclose(g_logFile);         g_logFile    = nullptr; }
+        break;
+    }
+    return TRUE;
+}

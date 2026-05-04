@@ -1,0 +1,4 @@
+LIBRARY S3DWrapperVK
+EXPORTS
+    InitializeExchangeServer  @1  PRIVATE
+    vkCreateInstance          @2

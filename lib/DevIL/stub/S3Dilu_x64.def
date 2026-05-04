@@ -1,0 +1,5 @@
+LIBRARY S3Dilu.dll
+EXPORTS
+    iluFlipImage
+    iluInit
+    iluScale

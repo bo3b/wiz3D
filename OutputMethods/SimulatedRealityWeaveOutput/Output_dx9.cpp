@@ -1,0 +1,262 @@
+/*
+* Project : iZ3D Stereo Driver
+* Simulated Reality Weave Output for Samsung Odyssey 3D / Acer SpatialLabs
+* Copyright (C) iZ3D Inc. 2002 - 2025
+*/
+
+#include "stdafx.h"
+#include "Output_dx9.h"
+#include "S3DWrapper9\BaseSwapChain.h"
+#include <tinyxml.h>
+
+// SR SDK headers — identical include paths for both platforms:
+// x64: LeiaSR-SDK-1.36.2-win64  (IDX9Weaver1 / CreateDX9Weaver factory API)
+// Win32: simulatedreality-1.34.10-win32-Release  (same IDX9Weaver1 / CreateDX9Weaver factory API)
+#include "sr/weaver/dx9weaver.h"
+#include "sr/management/srcontext.h"
+#include "sr/utility/exception.h"
+
+using namespace DX9Output;
+
+#ifdef _MANAGED
+#pragma managed(push, off)
+#endif
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
+{
+    switch (ul_reason_for_call)
+    {
+    case DLL_PROCESS_ATTACH:
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+    case DLL_PROCESS_DETACH:
+        break;
+    }
+    return TRUE;
+}
+
+#ifdef _MANAGED
+#pragma managed(pop)
+#endif
+
+OUTPUT_API void* CALLBACK CreateOutputDX9(DWORD mode, DWORD spanMode)
+{
+    return new SimulatedRealityWeaveOutput(mode, spanMode);
+}
+
+OUTPUT_API void* CALLBACK CreateOutputDX10(DWORD mode, DWORD spanMode)
+{
+    return nullptr;
+}
+
+OUTPUT_API void* CALLBACK CreateOutputDX11(DWORD mode, DWORD spanMode)
+{
+    return nullptr;
+}
+
+OUTPUT_API DWORD CALLBACK GetOutputCaps()
+{
+    return 0;
+}
+
+OUTPUT_API void CALLBACK GetOutputName(char* name, DWORD size)
+{
+    strcpy_s(name, size, "SimulatedRealityWeave");
+}
+
+OUTPUT_API BOOL CALLBACK EnumOutputModes(DWORD num, char* name, DWORD size)
+{
+    switch(num)
+    {
+    case 0:
+        strcpy_s(name, size, "Default");
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
+
+SimulatedRealityWeaveOutput::SimulatedRealityWeaveOutput(DWORD mode, DWORD spanMode)
+    : OutputMethod(mode, spanMode)
+    , m_Weaver(nullptr)
+    , m_pSRContext(nullptr)
+    , m_pSBSTexture(nullptr)
+    , m_ViewWidth(0)
+    , m_ViewHeight(0)
+    , m_ViewFormat(D3DFMT_A8R8G8B8)
+    , m_WeaverInitialized(false)
+    , m_WeavingEnabled(true)
+    , m_bSRGB(true)        // Default sRGB on — matches SR SDK directx9_weaving sample (eColorSpace::sRGBHardware) and modern engines (Source, Unreal, Unity)
+{
+}
+
+SimulatedRealityWeaveOutput::~SimulatedRealityWeaveOutput(void)
+{
+    CleanupWeaver();
+}
+
+UINT SimulatedRealityWeaveOutput::GetOutputChainsNumber()
+{
+    return 1;
+}
+
+HRESULT SimulatedRealityWeaveOutput::InitializeSCData(CBaseSwapChain* pSwapChain)
+{
+    if (!pSwapChain)
+        return E_INVALIDARG;
+
+    HRESULT hr = OutputMethod::InitializeSCData(pSwapChain);
+    if (FAILED(hr))
+        return hr;
+
+    // Release existing SBS texture — will be recreated below for new dimensions
+    if (m_pSBSTexture) {
+        m_pSBSTexture->Release();
+        m_pSBSTexture = nullptr;
+    }
+    // Invalidate weaver D3D pool resources so they can be recreated at new dimensions
+    if (m_WeaverInitialized) {
+        if (m_Weaver)
+            m_Weaver->invalidateDeviceObjects();
+        m_WeaverInitialized = false;
+    }
+
+    if (!m_pd3dDevice || !pSwapChain->m_pPrimaryBackBuffer)
+        return S_OK;
+
+    D3DSURFACE_DESC desc;
+    if (SUCCEEDED(pSwapChain->m_pPrimaryBackBuffer->GetDesc(&desc))) {
+        m_ViewWidth  = desc.Width;
+        m_ViewHeight = desc.Height;
+        m_ViewFormat = desc.Format;
+
+        // SBS texture: left eye occupies [0, ViewWidth), right eye [ViewWidth, ViewWidth*2)
+        m_pd3dDevice->CreateTexture(
+            m_ViewWidth * 2, m_ViewHeight,
+            1, D3DUSAGE_RENDERTARGET, m_ViewFormat,
+            D3DPOOL_DEFAULT, &m_pSBSTexture, nullptr);
+    }
+
+    return S_OK;
+}
+
+HRESULT SimulatedRealityWeaveOutput::InitializeWeaver(IDirect3DDevice9* pDevice, HWND hWnd, UINT width, UINT height)
+{
+    // Tear down any previously created weaver (re-init path after device reset / resize)
+    if (m_Weaver) {
+        m_Weaver->destroy();
+        m_Weaver = nullptr;
+    }
+    if (m_pSRContext) {
+        SR::SRContext::deleteSRContext(m_pSRContext);
+        m_pSRContext = nullptr;
+    }
+
+    try {
+        // NonBlockingClientMode: connects once, throws ServerNotAvailableException if SR Service is not running
+        m_pSRContext = SR::SRContext::create();
+    }
+    catch (const SR::ServerNotAvailableException&) {
+        return E_FAIL;
+    }
+    catch (...) {
+        return E_FAIL;
+    }
+
+    // IDX9Weaver1 factory API (SDK 1.36.2 x64 / SDK 1.34.10 Win32): no explicit SBS dimensions needed
+    WeaverErrorCode result = SR::CreateDX9Weaver(m_pSRContext, pDevice, hWnd, &m_Weaver);
+    if (result != WeaverSuccess) {
+        SR::SRContext::deleteSRContext(m_pSRContext);
+        m_pSRContext = nullptr;
+        return E_FAIL;
+    }
+
+    // initialize() must be called after all weavers/senses are created
+    m_pSRContext->initialize();
+    m_WeaverInitialized = true;
+    return S_OK;
+}
+
+void SimulatedRealityWeaveOutput::CleanupWeaver()
+{
+    if (m_Weaver) {
+        m_Weaver->destroy();
+        m_Weaver = nullptr;
+    }
+    if (m_pSRContext) {
+        SR::SRContext::deleteSRContext(m_pSRContext);
+        m_pSRContext = nullptr;
+    }
+    if (m_pSBSTexture) {
+        m_pSBSTexture->Release();
+        m_pSBSTexture = nullptr;
+    }
+    m_WeaverInitialized = false;
+}
+
+HRESULT SimulatedRealityWeaveOutput::Output(CBaseSwapChain* pSwapChain)
+{
+    if (!pSwapChain || !m_WeavingEnabled)
+        return S_OK;
+
+    if (!m_pd3dDevice)
+        return S_OK;
+
+    // Lazy-initialize the weaver on the first Output call (device and window are ready by then)
+    if (!m_WeaverInitialized) {
+        HWND hWnd = pSwapChain->GetAppWindow();
+        HRESULT hr = InitializeWeaver(m_pd3dDevice, hWnd, m_ViewWidth, m_ViewHeight);
+        if (FAILED(hr))
+            return S_OK;  // SR Service not available; output passthrough
+    }
+
+    if (!m_Weaver || !m_pSBSTexture)
+        return S_OK;
+
+    IDirect3DSurface9* pLeft  = pSwapChain->GetLeftBackBufferRT();
+    IDirect3DSurface9* pRight = pSwapChain->GetRightBackBufferRT();
+    RECT* pLeftRect  = pSwapChain->GetLeftBackBufferRect();
+    RECT* pRightRect = pSwapChain->GetRightBackBufferRect();
+
+    if (!pLeft || !pRight)
+        return S_OK;
+
+    IDirect3DSurface9* pSBSSurface = nullptr;
+    if (FAILED(m_pSBSTexture->GetSurfaceLevel(0, &pSBSSurface)))
+        return S_OK;
+
+    // Blit left eye into left half and right eye into right half of the SBS texture
+    RECT leftDst  = { 0,                 0, (LONG)m_ViewWidth,     (LONG)m_ViewHeight };
+    RECT rightDst = { (LONG)m_ViewWidth, 0, (LONG)m_ViewWidth * 2, (LONG)m_ViewHeight };
+
+    m_pd3dDevice->StretchRect(pLeft,  pLeftRect,  pSBSSurface, &leftDst,  D3DTEXF_NONE);
+    m_pd3dDevice->StretchRect(pRight, pRightRect, pSBSSurface, &rightDst, D3DTEXF_NONE);
+    pSBSSurface->Release();
+
+    // Route weaved output to the primary back buffer
+    m_pd3dDevice->SetRenderTarget(0, pSwapChain->m_pPrimaryBackBuffer);
+
+    // IDX9Weaver1: supply the SBS texture per-frame, then weave with no size args.
+    // sRGB pairing matches the SR SDK directx9_weaving sample — both flags must agree
+    // or weave-edge interpolation goes non-linear and colours look clipped/banded.
+    m_Weaver->setInputViewTexture(m_pSBSTexture, m_ViewWidth, m_ViewHeight, m_ViewFormat, m_bSRGB);
+    m_Weaver->setOutputSRGBWrite(m_bSRGB);
+    m_Weaver->weave();
+
+    return S_OK;
+}
+
+void SimulatedRealityWeaveOutput::ReadConfigData(TiXmlNode* config)
+{
+    // Optional override under <Outputs><SimulatedRealityWeaveOutput><sRGB Value="0|1"/>.
+    // Default (no element) keeps m_bSRGB at the constructor value (true).
+    if (!config)
+        return;
+    TiXmlElement* el = config->FirstChildElement("sRGB");
+    if (el)
+    {
+        int v = 1;
+        if (el->QueryIntAttribute("Value", &v) == TIXML_SUCCESS)
+            m_bSRGB = (v != 0);
+    }
+}

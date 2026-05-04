@@ -1,0 +1,4 @@
+LIBRARY
+EXPORTS
+    nvapi_QueryInterface
+    NvAPI_QueryInterface

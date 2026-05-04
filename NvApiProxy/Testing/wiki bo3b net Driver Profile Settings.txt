@@ -1,0 +1,1282 @@
+This page is a work in progress - feel free to expand it with extra knowledge, before & after screenshots, etc.
+
+
+== Tools ==
+
+The recommended tool for working with profiles is [https://ci.appveyor.com/project/Orbmu2k/nvidiaprofileinspector/build/2.1.2.12/artifacts NVIDIA Profile Inspector 2.1.2.12] or later due to its ability to decrypt internal settings.
+
+[https://ci.appveyor.com/project/Orbmu2k/nvidiaprofileinspector/build/artifacts Latest continuous integration build]
+
+[https://github.com/Orbmu2k/nvidiaProfileInspector Source code]
+
+[http://forums.guru3d.com/showthread.php?t=403676 Forum thread] (note that the download linked from here does not yet support decrypting internal settings)
+
+3DMigoto 1.2.50 now has built in support for working with driver profiles, including decrypting and logging the current profile in d3d11_log.txt, and making any changes necessary when the game is launched.
+
+==== Obsolete tools: ====
+
+NVIDIA Profile Inspector 2.1.2.6 or older
+
+[http://orbmu2k.de/tools/nvidia-inspector-tool NVIDIA Inspector] 1.9.7.5 or older ([http://www.guru3d.com/files-details/nvidia-inspector-download.html English mirror])
+
+[http://nvidia.custhelp.com/app/answers/detail/a_id/2625/kw/Profile GeForce 3D Profile Manager]
+
+== NVIDIA Inspector Custom Stereo Settings Names ==
+
+NVIDIA Inspector (old versions): Download this [https://raw.githubusercontent.com/DarkStarSword/3d-fixes/master/CustomSettingNames_en-EN.xml CustomSettingNames_en-EN.xml] file to replace the one from NVIDIA Inspector, which will add all the settings listed on this page to the Stereo category.
+
+NVIDIA Profile Inspector: This program automatically decodes most setting names (you may need to select "Show unknown settings from NVIDIA predefined profiles" to see them) '''Edit: This no longer works as recent drivers have removed the DLLs that the tool relied on to find the stereo settings names'''. There are some exceptions - most notably the all important StereoProfile setting is missing. You can use the XML file linked above, but name it 'CustomSettingNames.xml' (i.e. remove the '_en-EN').
+
+== Important note about encoding of "Internal" Settings ==
+
+Some profiles are shipped with the internal settings flag set on certain settings. These show up with "InternalSettingFlag=V0" in Geforce Profile Manager, but there is no easy way to distinguish them in NVIDIA Inspector. These settings are encrypted and the values read out with these tools will not match any of the documentation here. Further, if they are written back with NVIDIA Inspector, the flag will be cleared and they will become corrupt. Geforce Profile Manager allows them to be written back with the flag intact avoiding the corruption, but still does not help understand them.
+
+A script to decipher these values from Geforce Profile Manager is available: [https://raw.githubusercontent.com/DarkStarSword/3d-fixes/master/__profiles__/sanitise_nv_profiles.py here]
+
+NVIDIA Profile Inspector 2.1.2.7 or later can correctly decode these, and is now the recommended tool for working with driver profiles. [https://ci.appveyor.com/project/Orbmu2k/nvidiaprofileinspector/build/2.1.2.7/artifacts Version 2.1.2.7] [https://ci.appveyor.com/project/Orbmu2k/nvidiaprofileinspector/build/artifacts Latest build]
+
+3DMigoto 1.2.50 and later includes support for logging and updating driver profiles, and correctly handles encrypted settings. The undocumented option [Logging] dump_all_profiles=1 can be used to have it decrypt and log every profile instead of just the ones relevant to the game being run.
+
+== Notes on settings with multiple IDs ==
+
+Some settings on this page are listed with two or three IDs. This is not fully understood yet. Generally you should stick to the first value listed, but if a profile also lists the second or third value in this list it might be used in place of the first (however a given profile will only use a specific ID out of the second or third in the list).
+
+The following settings have multiple IDs:
+{| class="wikitable"
+! Name || Primary ID || 1st Alternate ID || 2nd Alternate ID
+|-
+| StereoConvergence || 0x708DB8C5 || 0x7077BACE || 0x7084807E
+|-
+| LaserSight || 0x7058B6E1 || 0x7031A2E7 || 0x7045B752
+|-
+| FrustumAdjustMode || 0x70A1411A || 0x70ED1DA7 || 0x70F475A0
+|-
+| StereoTextureEnable || 0x70EDB381 || 0x70E1518C || 0x70C0125E
+|-
+| Rhwinf || 0x706E1913 || 0x70CC286A || 0x70A3FEE6
+|-
+| Rhwscr || 0x70A4995C || 0x7030B071 || 0x70B57ED1
+|-
+| InGameLaserSight || 0x7064F0C2 || 0x70DD2585 || 0x70E7ADAD
+|-
+| StereoCutoffDepthNear || 0x7050E011 || 0x704EF483 || 0x7031DE06
+|-
+| StereoCutoff || 0x709A1DDF || 0x704FCF5C || 0x7053569A
+|-
+| DX10VSCBNumber || 0x70F8E408 ||     || 0x70F64A32
+|}
+
+== StereoProfile (AKA The Mystery Stereo Setting) 0x701EB457 ==
+
+This setting is known to be very important to stereo profiles. We now know it's official name is STEREO_STEREOPROFILE, and will be referred to as "StereoProfile" in future releases of NVIDIA Profile Inspector.
+
+<u> Observations </u>
+
+- The mere existance of this setting on a DX9 profile will enable Stereo in windowed mode, regardless of the value.
+
+- This setting is required to enable a lot of stereo related code in the driver.
+
+- Certain other stereo settings (e.g. StereoTextureEnable) may be ignored without this setting.
+
+- If this is missing in a profile, attempting to save the profile with Ctrl+F7 will not work, and will restore the default convergence instead. It has been noted that adding this setting to the base profile can solve this globally, but may cause the monitor to switch to stereo mode when using certain 2D applications (e.g. VS2015), which may be undesirable in some cases.
+
+<u>Bit Definitions</u>
+
+{| class="wikitable"
+|Missing    || Not a stereo profile (Certain things will not work, including saving the profile via Ctrl+F7)
+|-
+|0x00000000 || Not a stereo profile (Certain things will not work - need to confirm exactly what differs compared to missing)
+|-
+|0x00000001 || Stereo profile (everything will work)
+|-
+|0x2241AB21 || Encrypted, upgrade NVIDIA Profile Inspector
+|}
+
+== Notable Settings ==
+
+=== StereoTextureEnable (0x70edb381 / 0x70e1518c / 0x70c0125e) ===
+
+- Controls the heuristics that determines which render targets & Z buffers are stereoised and which are not.
+
+- Controls the heuristics that determines in what situations the stereo correction formula will be applied.
+
+- Some bits are used for specific games.
+
+<u> Observations </u>
+
+- Setting this to all F's will turn a game into mono, suggesting that some high bits might filter out some render targets, rather than enabling them.
+
+<u> Bit Definitions </u>
+
+Chiri determined a number of these (see [https://forums.geforce.com/default/topic/506784/3d-vision/l-a-noire-official-3d-vision-thread/post/3613599/#3613599 this post])
+
+{| class="wikitable"
+|0x00000001 || COMMON_STEREO_TEXTURE_ENABLED || The texture surfaces used as render targets are stereorized ( If their size >to window size and NOT square)
+|-
+|0x00000002 || SMALL_STEREO_TEXTURE_ENABLED || Enable the smaller texture surfaces to be stereorized ( If their size < to the window size and NOT square)
+|-
+|0x00000004 || SQUARE_STEREO_TEXTURE_ENABLED || The SQUARE texture surfaces are stereorized.
+|-
+|0x00000008 || DISABLE_BB_SEPARATION_IF_STEREO_TEX || When drawing in a Back buffer surface, the stereo separation is disabled if the draw call fetches from a stereo texture
+|-
+|0x00000010 || DISABLE_BB_SEPARATION_COMPLETELY || When drawing in a Back buffer surface, the stereo separation is disabled all the time
+|-
+|0x00000020 || COMMON_STEREO_PLANERT_ENABLED || Enable the common surface to be stereorized
+|-
+|0x00000040 || ORTHO_PROJECTION_DISABLED || Deprecated (only used for fixed pipe in d3d9 in ortho)
+|-
+|0x00000080 || ENABLE_SEPARATION_IF_ZBNULL || Enable the stereo separation when drawing in a stereo render target without using a Z buffer
+|-
+|0x00000100 || RESERVED_BY_DX10 || Specific value to disable Geometry Shader under DX10 (Call of Juarez)
+|-
+|0x00000200 || DISABLE_TEX_SEPARATION_IF_STEREO_TEX || When drawing in a Texture surface, the stereo separation is disabled if the draw call fetches from a stereo texture
+|-
+|0x00000400 || ENABLE_SEPARATION_IF_MONORT || Enable the stereo separation when drawing in a mono render target, but in a stereorized Z buffer.
+This should be enabled when doing a Z pass with a non valid render target (NULL format or 1x1 surface)
+|-
+|0x00000800 || DISABLE_FULLSCREEN_A8R8G8B8_STEREO_TEXTURES || The A8R8G8B8 full screen texture used as render target are not stereorized. Used for particular games
+|-
+|0x00001000 || DISABLE_SMALL_SQUARE_STEREO_TEXTURES || Do NOT stereorize the SQUARE texture if the width is smaller than the window width
+|-
+|0x00002000 || ENABLE_ALL_STEREO_ZB_SIZES || All the Z buffer are stereorized whitout any check on their size
+|-
+|0x00004000 || ENABLE_NULLFORMAT_PRIMSIZE_RT || Stereorize NULL format render target surfaces if their size is equal to the window size
+|-
+|0x00008000 || DISABLE_ALL_NULLFORMAT_RT || The NULL format render target surfaces are never stereorized
+|-
+|0x00040000 || ENABLE_VSSTEREO_SHADERS_WITHOUT_CONST || This bit allows to stereoize DX1x vs shaders if there are no const in a shader (i.e. vertices prerendered). By default these shaders are skipped
+|}
+
+
+
+
+<u> Known Values </u>
+
+This only lists known values of games using the high bits (0x10000 and above), since the meaning of the low bits are all known. These high bits are believed to be for game specific quirks:
+
+{| class="wikitable"
+|0x0001xxxx || MX vs. ATV Reflex, Prince of Persia - The Forgotten Sands, Prince of Persia(gameinterpreters_rd.exe)
+|-
+|0x0002xxxx || Call of Duty: Modern Warfare 2, EverQuest II, F.E.A.R. 2: Project Origin, F.E.A.R. 2: Project Origin(Demo), Lost Planet: Colonies Edition, Serious Sam II, Vizerra Viewer
+|-
+|0x0003xxxx || Time of Shadows
+|-
+|0x0004xxxx || BioShock 2
+|-
+|0x0010xxxx || Kane & Lynch 2: Dog days, Need for Speed: World, R.U.S.E., Super Street Fighter IV
+|-
+|0x0020xxxx || Tom Clancy's H.A.W.X. 2
+|-
+|0x00c0xxxx || Battlefield: Bad Company 2, BFBC2Game_dx10
+|-
+|0x0100xxxx || AngleLib
+|-
+|0x0200xxxx || Ashes of the Singularity, F1 2015 DX12, Fable Legends, Sid Meier's Civilization VI
+|-
+|0x0400xxxx || Rise of the Tomb Raider
+|-
+|0x0800xxxx || Gears of War 4
+|-
+|0x2000xxxx || World of Tanks
+|-
+|0x8000xxxx || Need for Speed: Shift, Resident Evil 5
+|}
+
+
+<u> Default Value </u>
+
+If not specified in a profile, the driver appears to use 0x23 as the default.
+
+=== StereoUseMatrix (0x70e34a78) ===
+
+- Able to automatically fix halo type issues in many games
+
+<u> Known Values </u>
+{| class="wikitable"
+|0x00000000 || Disabled (only vertex output position will be adjusted by the driver)
+|-
+|0x00000001 || Enabled (other texcoord outputs based on the position will be adjusted by the driver)
+|-
+|0x1945B570 || Encrypted, upgrade NVIDIA Profile Inspector
+|}
+
+=== StereoFlagsDX10 (0x702442fc) ===
+
+- Able to resolve mono depth buffer issues in DirectX 11 games, such as Far Cry 4 and Ryse: Son of Rome.
+
+<u> Bit Definitions </u>
+
+{| class="wikitable"
+|0x00000008 || Allows the reverse stereo blit (e.g. stereo2mono and the SBS/TB output modes of 3DMigoto) to work in SLI
+|-
+|0x00000020 || Negates the separation value passed to 3DMigoto effectively breaking/inverting any fix.
+|-
+|0x00001000 || Believed to force graphics shaders to run in both eyes regardless of the bound render target heuristic (alternative fix: use 3DMigoto to bind a dummy render or depth target to the broken shaders)
+|-
+|0x00004000 || STEREO_COMPUTE_ENABLE - enables running compute shaders once for each eye. Fixes mono depth buffer issue in Far Cry 4 (SLI users can alternatively resolve this with custom SLI compatibility bits), Witcher 3, and other games.
+|-
+|0x00008000 || STEREO_COMPUTE_SAME_RESOURCES_AS_GRAPHICS - "stereorize the same resources as for graphics (do not mark all UAVs as stereorizable)". WARNING: Using this value will prevent StructuredBuffer resources from being stereoised - prefer using 3DMigoto 1.2.70's fuzzy texture override matching.
+|}
+
+<u> Known Values </u>
+
+{| class="wikitable"
+|0x00000001 || Far Cry 2 (DX10 version)
+|-
+|0x00000004 || Crysis, Civilisation V
+|-
+|0x00000008 || 3DMark Vantage
+|-
+|0x000000E0 || Resident Evil 5
+|-
+|0x00000200 || Crysis 3, Battlefield 3
+|-
+|0x00000400 || Batman: Arkham City, Metro 2033
+|-
+|0x00001000 || Passion Leads Army Benchmark
+|-
+|0x00002000 || Titanfall
+|-
+|0x00002004 || Crysis Warhead
+|-
+|0x00004000 || Max Payne 3, Far Cry 4 (352.86+), The Witcher 3, Batman: Arkham Knight, The Park
+|-
+|0x00034000 || Metro: Last Light
+|-
+|0x1C22FE24 || Encrypted, upgrade NVIDIA Profile Inspector
+|}
+
+<u>Observations</u>
+
+Kaimasta found that 0x00005000 fixed GameWorks effects in The Surge (SLI?). That will be stereo compute shaders + something else:
+
+https://forums.geforce.com/default/topic/1010253/3d-vision/the-surge-3d-vision-fix/post/5214378/#5214378
+
+Kaimasta noted some performance differences in Mass Effect: Andromeda with differing flags. My reading of his results is that STEREO_COMPUTE_SAME_RESOURCES_AS_GRAPHICS regains some (up to 5fps) of the performance lost with STEREO_COMPUTE_ENABLE on single GPU (which makes sense, since some compute shaders will then only be run once), and whatever 0x00001000 is has an additional performance cost of up to 3fps:
+
+https://forums.geforce.com/default/topic/998781/3d-vision/mass-effect-andromeda-3d-vision-fix-3d-vision-partial-fix-released-/post/5216274/#5216274
+
+DarkStarSword performed some detailed analysis on how this setting affects our ability to stereoise buffers and structured buffers:
+
+https://forums.geforce.com/default/topic/1029242/3d-vision/mass-effect-andromeda-3d-vision-fix-placeholder-/post/5274436/#5274436
+
+=== StereoCutoff (0x709a1ddf / 0x704fcf5c / 0x7053569a) ===
+
+Present in almost all Stereo profiles, but meaning unknown. My complete guess is that it may be related to driver heuristics to decide when the stereo correction formula is applied (e.g. for UI elements)?
+
+<u> Possible Values </u>
+
+{| class="wikitable"
+| 0x00000000 || Unknown
+|-
+| 0x00000001 || Default
+|-
+| 0x00000002 || Use StereoCutoffDepthNear
+|-
+| 0x00000004 || Use StereoCutoffDepthFar
+|-
+| 0x00000008 || Unknown
+|}
+
+Other values are invalid.
+
+<u> Observations </u>
+
+- Setting this to 0x00000000 broke shadows in Miasmata
+
+<u> Observations from D-Man11 (see [https://forums.geforce.com/default/topic/801771/3d-vision/tomb-raider-triology/post/4785703/#4785703 this post]) </u>
+
+Note: the values below have been edited from the original post to use the setting names and their decrypted values.
+
+Interesting thing is, if you apply the TR: Underworld profile, the UI text doesn't split, just the background.
+
+Messing around with Legend, I found that StereoCutoffDepthNear = 25.0 and Setting StereoCutoff = 0x00000002 were the responsible flags from the Anniversary profile to stop the UI from splitting. Either by itself would not do anything.
+
+If I just added them to the existing Legend profile, it wouldn't work, something was stopping it. (DarkStarSword's note - this may have been because they were encrypted. This experiment should be repeated)
+
+If I deleted everything from the Legend profile, excluding StereoProfile = 0x00000001 (which is needed, if you remove it, the profile defaults to generic) and added the 2 flags from Anniversary, the UI would not split.
+
+    StereoCutoffDepthNear = 0x41c80000 (25.0) // is exclusive to TR: Anniversary
+    StereoCutoff          = 0x00000002 // is found in 26 other profiles
+    StereoProfile         = 0x00000001 // is found in 2110 profiles
+
+So the above 3 settings need to be present and there must not be any current settings in the profile to block the effect.
+
+I did not bother to find the offending setting in the original Legend profile.
+
+=== StereoCutoffDepthNear (0x7050e011 / 0x704ef483 / 0x7031de06) ===
+
+Floating point value used when StereoCutoff is set to 2 to set a threshold depth to stop the UI splitting when it is rendered nearer than this value (someone confirm if that is entirely correct and if this can affect other things besides the UI).
+
+=== StereoCutoffDepthFar (0x70add220) ===
+
+Floating point value used when StereoCutoff is set to 1 to set a threshold depth to stop the UI splitting when it is rendered further away than this value (someone confirm if that is entirely correct and if this can affect other things besides the UI).
+
+=== GameSpecific0 (0x702244b7) ===
+
+For a DX9 game, this defines which constant register the driver injects the stereo settings in with x = -separation*convergence, y = separation (making the stereo correction formula pos.x += c255.x + c255.y * pos.w). Only vertex shaders that the driver modifies will have anything injected at all. The default is c255, and StereoProfile must be set for this setting to have any effect. Note that unlike the equivelent options for DX11 games, merely accessing this register will *not* neutralise the driver's stereo correction.
+
+More info: https://forums.geforce.com/default/topic/766890/3d-vision/bo3bs-school-for-shaderhackers/post/4786821/#4786821
+
+<u> Known Values </u>
+
+{| class="wikitable"
+|19 || MLB2K10
+|-
+|25 || NBA 2K9
+|-
+|28 || MLB 2K12, Pro Baseball 2K, NBA 2K12, NBA 2K13
+|-
+|198 || Alaska, Diablo III
+|-
+|236 || World Of Warcraft (but note that this profile may be outdated from the old DX9 version)
+|-
+|248 || Rogue Warrior
+|-
+|254 || Mafia II, Serious Sam II
+|}
+
+=== DX10VSCBNumber (0x70f8e408 / 0x70f64a32) ===
+For a DX10/11 game, this defines which constant buffer the driver uses to inject the stereo parameters into vertex shaders. The first float in the buffer is -separation*convergence, the second is separation, the third seems to be unused and the fourth indicates that 3D Vision is enabled. The default value is cb12. Note that in contrast to the equivelent DX9 option, merely declaring this constant buffer in a shader will disable the driver's built in stereo correction for that shader (for a HLSL shader the buffer must be accessed and the result used in a meaningful way otherwise the compiler will optimise out the declaration).
+
+More info: https://forums.geforce.com/default/topic/766890/3d-vision/bo3bs-school-for-shaderhackers/post/4786821/#4786821
+
+Note that constant buffer 14 is reserved for "internal use" and not normally accessible through HLSL (it is defined in shader model 4/5 and declaring it in assembly proves that it does exist and can be used for this purpose, but it is not clear if that might ever interfere with anything else).
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 6 || Metro 2033, Middle-Earth: Shadow of Mordor
+|-
+| 8 || Assassin's Creed, Fallout 4, Just Cause 3
+|-
+| 9 || The Witcher 3
+|-
+| 13 || Mirror's Edge: Catalyst
+|-
+| 14 || Assassin's Creed: Syndicate, Assassin's Creed: Unity, Dark Souls III, Dead Rising 4, F1 2015 DX12, Grand Theft Auto V, Homefront, Homefront(HOMEFRONT_DX10.exe), Homefront: The Revolution, Rise of the Tomb Raider
+|}
+
+=== DX10DSCBNumber (0x70092d4a) ===
+As above, but for tessellation domain shaders.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 8 || Fallout 4, Just Cause 3, Middle-Earth: Shadow of Mordor
+|-
+| 9 || The Witcher 3
+|-
+| 13 || Mirror's Edge: Catalyst
+|-
+| 14 || Assassin's Creed: Syndicate, Assassin's Creed: Unity, Dark Souls III, Dead Rising 4, F1 2015 DX12, Homefront: The Revolution, Rise of the Tomb Raider
+|}
+
+=== StereoMiscFlags (0x70ccb5f0) ===
+<u> Bit Definitions </u>
+{| class="wikitable"
+|0x00000001 || Reverses eyes (does not apply to shader fixes). Can be used along with StereoFlagsDX10 (0x702442fc) = 0x00000020 which reverses shader fixes.
+|-
+|0x00000400 || Disables 3D Vision Direct mode, alternate to setting automatic_mode=1 that does not require our nvapi wrapper. Use for CryEngine games.
+
+|}
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0x00000006 || PixEVRComponentTest
+|-
+| 0x00000008 || Assassin's Creed: Unity, Diablo III
+|-
+| 0x00000010 || Depth Hunter, Elder Scrolls V: Skyrim, End of Nations, Strike Suit Zero, The Walking Dead 2, The Walking Dead
+|-
+| 0x00000020 || Star Trek
+|-
+| 0x00000080 || Stereoscopic Player
+|-
+| 0x00000086 || Cyberlink PowerDVD10, VFTV
+|-
+| 0x00000100 || Biohazard 5, Devil May Cry 4(DX9), Lost Planet 2, Resident Evil 5
+|-
+| 0x00000400 || Homefront: The Revolution, Kingdom Come: Deliverance
+|-
+| 0x00000c06 || Cyberlink PowerDVD
+|-
+| 0x00000c86 || Cyberlink PowerDVD9
+|}
+
+== More Settings ==
+
+=== StereoConvergence (0x708db8c5 / 0x7077bace / 0x7084807e) ===
+Stores the convergence value of a profile as a floating point value.
+
+Default Value: 4.0
+
+=== Comments (0x704d456e) - text ===
+Stores the comments displayed in the green text by the driver.
+
+
+=== Developer_Issues (0x704f5928) - text ===
+Alternate setting for the comments displayed in the green text by the driver.
+
+
+=== StereoMemoEnabled (0x707f4b45) ===
+{| class="wikitable"
+| 0x00000000 || Green text disabled
+|-
+| 0x00000001 || Green text enabled
+|}
+
+
+=== Compat (0x7051e5f5) - text ===
+
+Selects the 3D Vision rating in the green text:
+
+"0": "3D Vision Ready"
+
+"1": "Excellent"
+
+"2": "Good"
+
+"3": "Fair"
+
+"4": "Not Recommended"
+
+"5": "Not Recommended"
+
+Other observed values: "-1", "101", "102"
+
+Default value? (crashes): "1000"
+
+=== PF_Issues (0x704cde5a) - text ===
+Comma separated list of letters corresponding to the following issues listed in the green text:
+
+A: "Incorrect 3D object placement"
+
+B: "Text/Objects are small and difficult to use"
+
+C: "Objects clipped at sides of monitor"
+
+D: "Incorrect clipping of subviews"
+
+E: "Mixed 2D and 3D objects in Pop-up or HUD"
+
+F: "Gunsight or Pointer is 2D object"
+
+G: "Issues with setup screens with stereo on"
+
+H: "Text highlight for 3D objects is at incorrect depth"
+
+I: "Bright colors on dark background produce ghosting"
+
+J: "Excessive use of 2D makes stereo look flat"
+
+K: Nothing (any more?), but a lot of profiles still mention this
+
+=== StereoDefaultOn (0x70ab30a7) ===
+Defines whether stereo is enabled automatically when the game is launched, or must be manually enabled with Ctrl+T. Useful to set to 0 if having stereo enabled when launching the game breaks something but works when enabled later.
+
+=== FrustumAdjustMode (0x70a1411a / 0x70ed1da7 / 0x70f475a0) ===
+Frustum adjust mode normally adjusted with Ctrl+F11
+
+{| class="wikitable"
+| 0 || No adjustment
+|-
+| 1 || Stretch
+|-
+| 2 || Crop
+|}
+
+
+== Compatibility Mode Settings ==
+
+Helifax created a guide with more information about these settings: [https://forums.geforce.com/default/topic/791450/3d-vision/guide-how-to-enable-and-tweak-3d-compatibility-mode-in-any-dx11-game/ Guide: How to Enable and TWEAK 3D Compatibility Mode in any DX11 Game]
+
+=== 2DDHUDSettings (0x709adada) ===
+Controls the compatibility mode settings - overall 3D strength, heuristics to pin the HUD at screen depth, rating.
+
+Bizarrely, enabling compatibility mode in a profile via this setting (can still be disabled via Disable2DD) allows the reverse stereo blit to work in SLI, but this is probably better off being done with StereoFlagsDX10.
+
+<u> Observations </u>
+
+- Deleting this setting from the Far Cry Primal profile breaks a lot of geometry (becomes 2D) even outside of CM. Based on the reverse stereo blit observation I would hazard a guess that this setting implies various other settings.
+
+<u> Observations from Losti </u>
+
+The below post has been decrypted. The original post is [https://forums.geforce.com/default/topic/791450/3d-vision/guide-how-to-enable-and-tweak-3d-compatibility-mode-in-any-dx11-game/post/4377990/#4377990 here].
+
+So i have did some investigations with the nvidia used values and i discovered that:
+
+<u>'''(For Dragon Age: Inquisition)'''</u>
+
+-----------------------
+{| class=wikitable
+| 0x10000002 || high depth UI and world
+|-
+| 0x1000000a || high depth UI and world
+|-
+| 0x1000001a || high depth UI and world
+|-
+| 0x20000002 || high depth UI and world
+|-
+| 0x2000000a || high depth UI and world
+|}
+    
+{| class=wikitable
+| 0x10000015 || no Depth, UI only right eye
+|-
+| 0x10000102 || low depth UI and world
+|}
+    
+{| class=wikitable
+| 0x20000006 || UI @ screen depth world high depth
+|}
+    
+{| class=wikitable
+| 0x51000002 || Game will not have CM
+|-
+| 0x11000006 || Game will not have CM
+|-
+| 0x11000002 || Game will not have CM
+|-
+| 0x41000002 || Game will not have CM
+|-
+| 0x21000006 || Game will not have CM
+|-
+| 0x21000002 || Game will not have CM
+|}
+    
+own tests:
+{| class=wikitable
+| 0x20000006 || UI @ screen dempth world high deph
+|-
+| 0x20000007 || high depth UI and world
+|-
+| 0x10000036 || UI @ screen depth world high deph
+|-
+| 0x10000106 || UI @ screen depth world very-LOW deph || EXCELLENT RATING-TEXT
+|-
+| 0x20000106 || UI @ screen depth world very-LOW deph || GOOD RATING-TEXT
+|-
+| 0x20000306 || application unknown, no CM
+|-
+| 0x10000306 || very low Depth, UI only right eye
+|-
+| 0x10000606 || UI @ screen depth world high deph
+|-
+| 0x10000706 || very low Depth, UI only right eye
+|-
+| 0x10000007 || UI @ screen depth world high deph, UI only rigth eye
+|-
+| 0x10000001 || all is 2D
+|-
+| 0x10000000 || all is 2D, ALT+TAB=crash
+|-
+| 0x10000003 || crash
+|-
+| 0x1000000d || all is 2D, UI only right eye
+|-
+| 0x1000000c || all is 2D, UI only right eye
+|}
+    
+    
+i think the use of the numbers at the begining (0x20 and 0x10 is fot he GOD or EXCELLENT rating text display)
+
+'''006''' at the end will give me UI at screen-depth and a 3D world.
+
+'''002''' at the end will give me UI and a 3D world.
+
+=== 2DDConvergence (0x709adadb) ===
+As the name implies, this is the convergence setting when in compatibility mode.
+
+=== Disable2DD (0x709adadd) ===
+User setting to disable compatibility mode, usually set via hotkey.
+{| class=wikitable
+| 0x00000000 || Compatibility mode enabled (if supported)
+|-
+| 0x00000001 || Compatibility mode disabled via Ctrl+Alt+F11
+|}
+
+=== 2DD_Notes (0x709adadc) - text ===
+Notes displayed when compatibility mode is enabled
+
+
+== VR Direct Settings ==
+
+These settings have appeared in recent drivers and are believed to be related to VR Direct:
+
+=== StereoVRConvergenceBias (0x708db8c6) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0x00001185 || Batman: Arkham Origins
+|-
+| 0x0000130b || Devil May Cry 4
+|-
+| 0x00001a24 || Fable: The Lost Chapters
+|-
+| 0x00001cdd || Dirt 3
+|-
+| 0x00002e6b || Portal 2
+|-
+| 0x0000377c || Nvidia Stereo Test App
+|-
+| 0x00003c0f || Oil Rush
+|-
+| 0x0000849d || Serious Sam III
+|-
+| 0x0000a1a7 || Batman: Arkham City
+|-
+| 0x0000cd04 || Half-Life 2
+|}
+
+=== StereoVRRefreshRateOverride (0x708db8c8) ===
+=== StereoVRVsync (0x708db8c9) ===
+
+
+=== 0x709d3ad2 === 
+Starting with driver branch R378, VR and 3D Vision are mutually exclusive, and 3D Vision is disabled when VR runtimes are detected.
+{| class=wikitable
+| 0x00000008 || disables mutual exclusion lock for VR runtimes and 3D Vision
+|}
+
+
+== Laser Sight Settings ==
+
+TsaebehT created a guide with more information about these settings: [https://forums.geforce.com/default/topic/813727/guide-correcting-off-centering-lasersight/  Guide: Correcting/Off-Centering LaserSight]
+
+
+=== LaserSightEnabled (0x7054837a) ===
+{| class="wikitable"
+| 0x00000000 || Laser sight disabled
+|-
+| 0x00000001 || Laser sight enabled
+|}
+
+
+=== LaserXAdjust (0x7057e831) ===
+Horizontal adjustment encoded as a hex float between 0.0 (left) and 2.0 (right). Default: 1.0 (center)
+
+
+=== LaserYAdjust (0x70225308) ===
+Horizontal adjustment encoded as a hex float between 0.0 (top) and 2.0 (bottom). Default: 1.0 (center)
+
+
+=== LaserZAdjust (0x7014fca2) ===
+{| class="wikitable"
+| 0x3f800000 || Enables dynamic laser sight depth
+|-
+| other || Laser sight is either at screen depth or infinity
+|}
+
+=== LaserSightProperty (0x7032243a) ===
+Governs the laser sight opacity
+
+
+=== LaserSightTrigger (0x70031b88) ===
+<u> Known Values </u>
+{| class="wikitable"
+| 0x00000002 || Gears of War
+|}
+
+=== InGameLaserSight (0x7064f0c2 / 0x70dd2585 / 0x70e7adad) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0x00000000 || Call of Duty: Modern Warfare 2, Call of Duty: Modern Warfare 3, Call of Duty: World at War, Crysis Warhead, Crysis, Divinity 2, Frontlines: Fuel of War, Medal of Honor: Airborne, Stranglehold, Tom Clancy's Rainbow Six: Vegas 2
+|-
+| 0x00000001 || BlackSite: Area 51, Delta Force: Black Hawk Down, Gears of War, Hellgate: London DX10, Hellgate: London, Kane & Lynch: Dead man, Postal 3, Unreal Tournament 2004
+|-
+| 0x00000005 || Code of Honor 2, Default.Archcfg, Shell Shock 2
+|-
+| 0x00000009 || Battlestrike/Armed Forces Series, Call of Duty 2, Call of Duty 4: Modern Warfare, Call of Duty: Ghosts, Left 4 Dead 2, Left 4 Dead, Medal of Honor, S.T.A.L.K.E.R.: Call of Pripyat, S.T.A.L.K.E.R.: Shadow of Chernobyl, Terrorist Takedown 2, TimeShift, Unreal Tournament III
+|-
+| 0x0000000b || F.E.A.R. Perseus Mandate
+|-
+| 0x0000000d || Borderlands, Half-Life 2
+|-
+| 0x80000009 || TitanFall
+|}
+
+=== InGameLaserSightDX9States (0x706139ad) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0x00023322 || Half-Life 2, Left 4 Dead, Left 4 Dead 2
+|}
+
+=== LaserSight (0x7058b6e1 / 0x7031a2e7 / 0x7045b752) ===
+Valid values are 0 and 1
+
+=== LaserSightFile (0x707ac50d) ===
+
+
+=== LaserSightIndex (0x70da83c6) ===
+
+
+=== StereoLaserSightMaxCount (0x70bc864d) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0x00000004 || Unreal Tournament III
+|-
+| 0x00000006 || Half-Life 2
+|-
+| 0x00000008 || Call of Duty: Ghosts, Call of Duty: World at War, UberSoldier
+|-
+| 0x0000000a || F.E.A.R. Perseus Mandate, Left 4 Dead, Left 4 Dead 2
+|-
+| 0x000000c8 || Tom Clancy's Rainbow Six: Vegas 2
+|}
+
+=== StereoLaserSightCount (0x70077042) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0x00000002 || Gears of War
+|-
+| 0x00000004 || Unreal Tournament III
+|-
+| 0x00000008 || Call of Duty 2, Call of Duty 4: Modern Warfare, Call of Duty: Ghosts, Call of Duty: Modern Warfare 3, Call of Duty: World at War, Medal of Honor
+|}
+
+=== Laser Sight Key Bindings ===
+==== ToggleLaserSight (0x70b7bd1f) ====
+Only works when set via the Registry and not via a Profile.
+
+
+==== LaserAdjustXMinus (0x7048b7dc) ====
+Doesn't seem to work via registry or profile.
+
+
+==== LaserAdjustXPlus (0x70d8bae6) ====
+Doesn't seem to work via registry or profile.
+
+
+==== LaserAdjustYMinus (0x70fb9e1e) ====
+Doesn't seem to work via registry or profile.
+
+
+==== LaserAdjustYPlus (0x7024eda4) ====
+Doesn't seem to work via registry or profile.
+
+== Misc Key Bindings ==
+
+These are believed to be key bindings due to their names. These will override the global key bindings in the registry. Some of these settings may not work at all in recent drivers.
+
+There is a good guide for how these are encoded here: [http://3dvision-blog.com/3053-modifying-all-3d-vision-control-key-combinations-as-you-need/ Modifying All 3D Vision Control Key Combinations as You Need]
+
+=== StereoToggle (0x70d76b8b) ===
+Toggles Stereo on and off (Default: Ctrl+T)
+
+=== StereoSeparationAdjustLess (0x705d1e02) ===
+Reduce separation (Default: Ctrl+F4)
+
+=== StereoSeparationAdjustMore (0x70ab8d32) ===
+Increase separation (Default: Ctrl+F5)
+
+=== StereoConvergenceAdjustLess (0x70d4add7) ===
+Reduce convergence (Default: Ctrl+F5)
+
+=== StereoConvergenceAdjustMore (0x701ed576) ===
+Increase Convergence (Default: Ctrl+F6)
+
+=== SaveStereoImage (0x70121853) ===
+Save a stereo screenshort (Default: Alt+F1)
+
+=== WriteConfig (0x700498b3) ===
+Save the current convergence to a user profile (Default: Ctrl+F7)
+
+=== DeleteConfig (0x70c73ba2) ===
+Delete the game's user profile (Default: Alt+F7)
+
+=== GammaAdjustMore (0x703f4521) ===
+=== GammaAdjustLess (0x70e8420c) ===
+
+=== StereoVerticalAdjustMore (0x7087fe61) ===
+=== StereoVerticalAdjustLess (0x703acfc6) ===
+=== StereoHorizontalAdjustMore (0x70062f07) ===
+=== StereoHorizontalAdjustLess (0x70871a39) ===
+
+=== ToggleAutoConvergence (0x70085de3) ===
+NOTE: AFAIK this was never implemented
+
+=== ToggleAutoConvergenceRestore (0x703bc51e) ===
+NOTE: AFAIK this was never implemented
+
+=== RHWAtScreenMore (0x7066a22e) ===
+=== RHWAtScreenLess (0x709139ad) ===
+=== RHWLessAtScreenMore (0x704e4bca) ===
+=== RHWLessAtScreenLess (0x70b378a1) ===
+
+=== CutoffNearDepthLess (0x70d1bdb5) ===
+=== CutoffNearDepthMore (0x7020c991) ===
+=== CutoffFarDepthLess (0x704c9a46) ===
+=== CutoffFarDepthMore (0x70fbc04d) ===
+=== CutoffStepLess (0x704b45c7) ===
+=== CutoffStepMore (0x700f2971) ===
+
+=== GlassesDelayPlus (0x701fc5b4) ===
+NOTE: Believed to no longer work in recent drivers
+
+=== GlassesDelayMinus (0x70b8a743) ===
+NOTE: Believed to no longer work in recent drivers
+
+
+== Unidentified Settings ==
+
+These setting names were found in the driver, but their purpose or whether they are even functional is unknown:
+
+=== Time (0x70ad05c8) ===
+Only present in a handful of profiles and appears to be a UNIX Time value:
+
+{| class="wikitable"
+| 0x53979bf4 || 2014-06-10 23:59:48 GMT || Murdered: Soul Suspect
+|-
+| 0x5398a3b4 || 2014-06-11 18:45:08 GMT || Enemy Front
+|-
+| 0x5398cbe8 || 2014-06-11 21:36:40 GMT || Heldric - The legend of the shoemaker
+|-
+| 0x5398d296 || 2014-06-11 22:05:10 GMT || Eterium
+|-
+| 0x5398df13 || 2014-06-11 22:58:27 GMT || Blackguards
+|-
+| 0x539a472e || 2014-06-13  0:34:54 GMT || Port Royale 3
+|-
+| 0x539f8bfb || 2014-06-17  0:29:47 GMT || Sniper Elite 3
+|-
+| 0x53ab4828 || 2014-06-25 22:07:36 GMT || GRID Autosport
+|}
+
+=== RunTimeName (0x701a8be4) - text ===
+Observed values:
+
+-007, ACS, armada, bzone, Client, CLIENT, Demo, Engine, FFORCE, game, Game, GameClient, heroes, launcher, LithTech, main, mainapp, NoName, PG3, PNOCOMP, Pool, Prism3d, program, rally, sw, SW, tm, UDK, wcdemo, WRUN,
+
+=== EnableConsumerStereoSupport (0x70cb9168) ===
+=== StereoViewer (0x704915a1) ===
+=== StereoViewerType (0x708f9ef7) ===
+=== ShowAllViewerTypes (0x708e5cb4) ===
+=== StereoAdjustEnable (0x70538ab1) ===
+=== StereoDisableTnL (0x70633bd9) ===
+=== StereoTransformationType (0x70c27e3c) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || ghost
+|}
+
+=== StereoSeparation (0x70933c00) ===
+This does not seem to have any affect on the separation in other games.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 2 || AngleLib
+|}
+
+=== StereoSeparationStep (0x7082555b) ===
+=== StereoConvergenceMultiplier (0x70efbb5b) ===
+Default value: 5.0
+
+=== RHW2DDetectionMin (0x7029432b) ===
+=== RHWGreaterAtScreen (0x702c861a) ===
+Floating point value
+
+=== RHWEqualAtScreen (0x70ab2e09) ===
+'''NOT''' a floating point value.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || V-Rally 2, h2wof
+|}
+
+=== RHWLessAtScreen (0x70381472) ===
+Floating point value
+
+=== AutoConvergence (0x702a0ab2) ===
+Looking over the list of games with this setting I suspect this is a very old feature that well and truly pre-dates DX9 and probably won't work in any modern game.
+
+<u> Known Values </u>
+
+A considerable number of profiles have this set to 0, which may be meaningless if 0 is the default, but that would be unusual to have so many profiles specify the default.
+
+{| class="wikitable"
+| 0 || "Alien vs Predator 2", "Archlords", "Arcsoft Media Converter", "Armies of Exigo", "Army Men RTS", "BackyardBaseball2005", "Battlefield 1942", "Battlefield 2", "Battlefield Vietnam", "Black and White 2", "Black and White 2: Battle of the Gods", "Boarder Zone", "Colin McRae Rally 5", "Comanche 4", "Combat Flight Simulator 3", "Combat Mission", "Cricket 2005", "Dark Messiah of Might and Magic", "Delta Force 3: Land Warrior(Dflw.exe)", "Delta Force: Xtreme", "Diplomacy", "Driver 3", "Elder Scrolls 3: Morrowind", "Evolva", "Expert Pool", "ExtConverter", "F.E.A.R.", "FIFA Soccer 2004(fifa2004.exe)", "FIFA Soccer 2005", "FIFA Soccer 2006", "Fable: The Lost Chapters", "Far Cry", "Firestarter", "Freelancer", "GUN", "Ghost Recon: Advanced Warfighter(Demo)", "Godfather: The game", "Google Chrome", "Gothic 2", "Ground Control 2", "Gun Metal", "Harry Potter And The Goblet Of Fire", "Harry Potter Quidditch World Cup", "Harry Potter and the Prizoner of Azkaban", "Hidden & Dangerous 2", "High Heat Major League Baseball 2004", "Hitman: Blood Money", "Impossible Creatures", "Independence War 2 - Edge of Chaos", "Jetfighter 2015", "Joint Operations: Typhoon Rising", "Knight Shift", "Kohan 2", "LEGO Star Wars", "LOTR bat2", "Lock On", "Lord of the Rings: Return of the King", "Lords of the Realm 3", "MVP Baseball 2003", "MVP Baseball 2004", "MVP Baseball 2005", "Mafia", "Manhunt", "Massive Assault", "Max Payne 2", "MechWarrior IV Mercenaries", "Men of Valor:Vietnam", "Microsoft Flight Simulator 2004", "Microsoft Train Simulator", "Midnight Club II", "Motocross Madness 2", "Mount & Blade: With Fire & Sword", "Movavi Video Converter", "Myst 4", "NASCAR SimRacing", "NBA Live 2004", "NBA Live 2005", "NBA Live 2006", "NHL 2003(nhl2003.exe)", "NHL 2005", "NHL 2006", "Nexus: The Jupiter Incident (DX9 version)", "No One Lives Forever 2", "No man's land", "Painkiller", "Paradise Cracked", "Pariah", "Perimeter", "Psychonauts", "Rainbow Six 3: Raven Shield", "Red Faction II", "Republic", "Rise and Fall: Civilizations at War", "RollerCoaster Tycoon 3", "Rome - Total War", "Roo Goo", "Roxio Video Converter", "Rugby2004", "SHGame", "Sid Meier's Pirates!", "Silent Hunter III", "Sims 2 - University", "Sims 2", "Sims 2: Nightlife", "Space Station Manager", "Spellforce 2", "Spellforce", "Splinter Cell: Chaos Theory", "Splinter Cell: Pandora Tomorrow", "Squad Assault - West Front", "Star Wars: Battlefront (2004)", "Star Wars: Battlefront II", "Star Wars: Republic Commando", "SupremeRuler", "Syberia 2", "Teenage Mutant Ninja Turtles", "Temple of Elemental Evil", "Terminator 3: War of the Machines", "The Bard's Tale", "The Incredibles", "The Simpsons: Hit and Run", "Tiger Woods PGA Tour 05", "Tiger Woods PGA Tour 06", "Tony Hawk's Underground", "Trackmania - Sunrise", "Unreal 2", "Vampire The Masquerade - Bloodlines", "WARHAMMER 40k Fire Warrior", "Warcraft III", "Warhammer 40000: Dawn of War - Winter Assault", "Warhammer 40000: Dawn of War", "Warrior Kings - Battles", "Webhead", "Winning Eleven 7", "X-Men Legends II: Rise of Apocolypse", "X2: Wolverine's Revenge", "ffvt3rd", "grand theft auto_sa"
+|-
+| 1 || "Apache: Air Assault", "Archlords", "Arcsoft Media Converter", "BlackSite: Area 51", "Championship BASS", "Combat Mission", "Crusaders of Might and Magic", "Dagoth Moor Zoological Gardens", "Darkstone", "Descent FreeSpace 2", "End of Nations", "European Air War", "Exodus from the Earth", "Expert Pool", "ExtConverter", "Extreme Biker", "Flesh Feast", "G-Police", "Grandia2", "Hot Chix 'n' Gear Stix", "Incomming", "Interstate '82", "Legends of the Seers", "Luftwaffe Commander", "Madden NFL Games", "Michelle Kwan Figure Skating(kwandemo.exe)", "Microsoft Baseball 2001", "Mount & Blade: With Fire & Sword", "Movavi Video Converter", "NASCAR 2000(NASCAR 2000 Demo.exe)", "NASCAR 2000(NASCAR 2000.exe)", "NASCAR Heat", "NASCAR Legends", "Omikron: The Nomad Soul(Nomad.exe)", "Pong", "Professional Bull Rider", "Renegade Racers(rrDemo.exe)", "Rocketsled", "Roo Goo", "Roxio Video Converter", "Test Drive 6", "Topspin", "True Crime: Streets of LA", "Up", "Wartorn"
+|}
+
+=== AutoConvergenceAdjustPace (0x70bf3c6b) ===
+Floating point value, which is almost always set to 0.05 (except for Combat Mission, where it is set to 1.0). Note that this is present in a number of profiles that lack AutoConvergence.
+
+=== StereoToggleMode (0x70d76b8c) ===
+=== StereoSuggestSettings (0x706315af) ===
+=== StereoUnsuggestSettings (0x7017861c) ===
+=== FavorSZ (0x705faed7) ===
+=== StereoPointer (0x70364596) ===
+Only seen in "Sims 2 - University" and "Sims 2: Nightlife", where this is set to 1. Note that this is not present in the base Sims 2 profile or any of the other Sims 2 profiles.
+
+=== MonitorSize (0x7086ebe9) ===
+=== MaxMonitorSize (0x7032022c) ===
+=== MaxVertexCount (0x709e4a94) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0x00000002 || Half-Life 2
+|-
+| 0x00010000 || Arabian Nights
+|}
+
+=== PartialClearMode (0x709794cc) ===
+=== StereoRefreshDefaultOn (0x702ba385) ===
+=== MixedTnL (0x70bd11e0) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "3DMark01", "3DMark03", "3DMark05", "James Bond Nightfire", "Need for Speed Hot Pursuit 2(Nfshp2.exe)", "Need for Speed Hot Pursuit 2(NFSHP2Demo.exe)"
+|}
+
+=== StereoGamma (0x70c8b5d1) ===
+=== LineCodeColor (0x70dc4a12) ===
+=== LeftAnaglyphFilter (0x70d51cd1) ===
+=== RightAnaglyphFilter (0x70f4a930) ===
+=== InterleavePattern0 (0x70b1c8cc) ===
+=== InterleavePattern1 (0x7091a772) ===
+=== StereoForceVSync (0x70aae185) ===
+=== StereoColorKey (0x70e5773b) ===
+Only present in the "NV Pinball" profile, where it is set to 0x00010101
+
+=== ZDirection (0x70b17872) ===
+=== StereoCompatibility (0x70a2000e) ===
+=== LeftColorFilter0 (0x70ac6888) ===
+=== LeftColorFilter1 (0x7090b6ca) ===
+=== RightColorFilter0 (0x70b9a2f7) ===
+=== RightColorFilter1 (0x70aca0cc) ===
+=== SharpVPI (0x706e0041) ===
+=== StereoMode (0x701baa09) ===
+=== Watchdog (0x700a5654) ===
+=== StereoOSDEnable (0x70f455aa) ===
+=== StereoOrthoEnable (0x703564f6) ===
+An Orthographic projection does not ordinarily involve a perspective divide, and therefore it stands to reason that these games may use a slightly different stereo correction formula.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "Halo", "Midnight Club II(mc2_demo.exe)", "Port Royale", "Sims 2 - University", "Sims 2", "Sims 2: Nightlife"
+|}
+
+=== StereoNotSupported (0x709aa171) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "3DMark Ice Storm", "3DMark", "3DMark11", "3DMark14", "All Play-On-line Games", "Evolve", "Final Fantasy XIV: A Realm Reborn", "NVIDIA NVFBC Applications", "NVKeystone", "Resident Evil: Revelations 2 / Biohazard Revelations 2", "Ryse: Son of Rome", "Sid Meier's Civilization: Beyond Earth", "VRP", "Windows Live Mail", "Windows Live Photo Gallery", "Windows Movie Maker", "WLXPGSS"
+|}
+
+=== ModesetWarning (0x70969bb0) ===
+=== StereoFirstTime (0x70af6400) ===
+=== StereoRefreshRate (0x70ded3c0) ===
+=== GameConfigs (0x704a905a) ===
+=== CompareEyes (0x70729e58) ===
+=== CompareFrom (0x70efb726) ===
+=== StereoImageType (0x7097906c) ===
+=== SnapShotQuality (0x7004e7a6) ===
+=== NoLockSubstitute (0x7005ad16) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "3DMark03", "3DMark05", "Bumper to Bumper", "S.T.A.L.K.E.R.: Shadow of Chernobyl", "Star Wraith 3: Shadows of Orion", "World Dance"
+|}
+
+=== PushbufSubstituteSize (0x7054fbf8) ===
+=== DiscardHotkeys (0x70175566) ===
+=== StereoLCDPatternType (0x707cfb97) ===
+=== GlassesSwitchDelay (0x70057bb6) ===
+
+Valid values appear to be between 5 <= GlassesSwitchDelay < 95
+
+=== StartZBit (0x7044d7a6) ===
+=== DisableOnOutOfMemory (0x70c71508) ===
+=== StereoWindowedEnable (0x709b3484) ===
+=== AllowNonExclusiveStereo (0x702c7709) ===
+=== Rhwinf (0x706e1913 / 0x70cc286a / 0x70a3fee6) ===
+Floating point value set in 26 profiles with values ranging from 0.00003125 to 0.04
+
+RHW stands for Reciprocal of Homogeneous W, really just a fancy term for 1 / linear depth. inf is presumably short for infinite depth.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0.00003125     || Gears of War
+|-
+| 0.000062500985 || Unreal Tournament III
+|-
+| 0.00006666667  || Call of Duty 2, Call of Duty 4: Modern Warfare, Call of Duty: Modern Warfare 3, Damnation, F.E.A.R. Perseus Mandate, Frontlines: Fuel of War, Left 4 Dead 2, Left 4 Dead, Medal of Honor, Mirror's Edge, TimeShift, Tom Clancy's Rainbow Six: Vegas 2
+|-
+| 0.0001         || F.E.A.R. 2: Project Origin, Gears of War(wargame-g4wlive_DX10.exe), Half-Life 2, Mass Effect 2, Mass Effect, Shell Shock 2, Stranglehold
+|-
+| 0.00025        || The haunted Hells Reach
+|-
+| 0.00066666666  || Q.U.B.E.
+|-
+| 0.01           || Kane & Lynch: Dead man, Serious Sam III
+|-
+| 0.04           || The Club
+|}
+
+=== Rhwscr (0x70a4995c / 0x7030b071 / 0x70b57ed1) ===
+Floating point value set in 29 profiles with values ranging from 0.05 to 1.0
+
+Presumably related to Rhwinf, and "scr" is likely short for screen depth.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0.05       || The Club, Tom Clancy's Rainbow Six: Vegas 2, Unreal Tournament III
+|-
+| 0.06666667 || Call of Duty 2, Call of Duty 4: Modern Warfare, Call of Duty: Modern Warfare 3, Gears of War, Medal of Honor, TimeShift
+|-
+| 0.1        || Damnation, F.E.A.R. 2: Project Origin, Frontlines: Fuel of War, Gears of War(wargame-g4wlive_DX10.exe), Half-Life 2, Mass Effect 2, Mass Effect, Mirror's Edge, Q.U.B.E., Shell Shock 2, Stranglehold, The haunted Hells Reach"
+|-
+| 0.11111111 || Left 4 Dead, Left 4 Dead 2
+|-
+| 0.125      || BlackSite: Area 51
+|-
+| 0.15       || TitanFall
+|-
+| 0.2        || Call of Duty: World at War, F.E.A.R. Perseus Mandate
+|-
+| 1.0        || Kane & Lynch: Dead man, Serious Sam III
+|}
+
+=== Zinf (0x70fc13ad) ===
+At a guess this is probably similar to Rhwinf, but uses the output Z coordinate of the vertex shader instead of the output W coordinate.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0.0 || Call of Duty: Ghosts
+|}
+
+=== Zscr (0x707f0e69) ===
+At a guess this is probably similar to Rhwscr, but uses the output Z coordinate of the vertex shader instead of the output W coordinate. Presumably related to Zinf in the same way Rhwscr is related to Rhwinf.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1.0 || Call of Duty: Ghosts
+|}
+
+=== EnableCE (0x702b8c95) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "Age of Empires III", "Age of Empires III - The War Chiefs", "Age of Empires III: The Asian Dynasties"
+|}
+
+=== MediaPlayer (0x70a8fc7f) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "BaoFeng / Storm Player", "Cyberlink PowerDVD", "Cyberlink PowerDVD10", "Cyberlink PowerDVD9", "Movie Studio Platinum 12", "PixEVRComponentTest", "Sony Media Gallery", "Sony Vegas Pro", "Stereoscopic Player", "VFTV", "Vegas Movie Studio HD Platinum 11", "Windows Media Center", "Windows Media Player"
+|}
+
+=== StereoDX9 (0x70d10d2b) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "AZMD! Scorepocalypse", "Adam's Venture Episode 1", "Afterfall: InSanity", "Alan Wake's American Nightmare", "All Zombies Must Die", "Battlefield: Bad Company 2", "Borderlands 2", "Bullet Run", "Choplifter HD", "Counter-strike: Global Offensive", "Crysis 2", "Da Vinci Online", "Dear Esther", "Deus Ex: Human Revolution", "Dishonored", "DmC-Devil May Cry", "Duke Nukem Forever", "End of Nations", "Far Cry 2", "Gears of War", "Hawken", "Mars", "Painkiller Hell & Damnation", "Q.U.B.E.", "Quan Qiu Shi Ming(MarsGame.exe)", "Red Orchestra 2: Heroes of Stalingrad", "Risen 2: Dark Waters", "Section 8: Prejudice", "Spec Ops: The Line", "The Ball", "The Witcher 2: Assassins of Kings", "The haunted Hells Reach", "Tony Hawk's Pro Skater HD", "Tribes Ascend", "WARP", "War of the Roses", "World in Conflict", "XCOM: Enemy Unknown"
+|}
+
+=== StereoMsgVerticalOffset (0x70160ebf) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 16 || Assassin's Creed(DX9)
+|}
+
+=== StereoEasyZCheck (0x70b6d6ed) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "Half-Life 2", "Kane & Lynch: Dead man", "Mass Effect 2", "Mass Effect", "Shell Shock 2", "Stranglehold", "The Club", "TimeShift", "Tom Clancy's Rainbow Six: Vegas 2"
+|}
+
+=== StereoStrictLSCheck (0x709bc378) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "Half-Life 2", "Tom Clancy's Rainbow Six: Vegas 2"
+|}
+
+=== StereoDisableAsync (0x70de5533) ===
+=== EnablePartialStereoBlit (0x7096eced) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "BaoFeng / Storm Player", "Flash(Firefox)", "NVIDIA Stereoscopic 3D video player", "NVStWiz", "Sony Media Gallery", "Stereoscopic Player", "Windows Media Center", "Windows Media Player"
+|}
+
+=== StereoNoDepthOverride (0x709dea62) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 1 || "NVIDIA Stereoscopic 3D video player", "Novlum Demes Editor", "NvStView", "Sony Media Gallery", "Stereoscopic Player", "Trine 3", "Windows Media Center", "Windows Media Player"
+|}
+
+=== StereoShaderMatrixCheck (0x7044f8fb) ===
+=== StereoLogShaders (0x7052bdd0) ===
+=== StereoEpsilon (0x70e5a749) ===
+Floating point value seen in 46 profiles. Observed values: 0.00000088, 0.0000088, 0.000088
+
+=== DelayedStereoDesktop (0x7042eef1) ===
+<u> Known Values </u>
+
+{| class="wikitable"
+| 0x00000001 || Half-Life 2, Tom Clancy's H.A.W.X.
+|-
+| 0x00140002 || Fallout 3
+|}
+
+=== StereoHiddenProfile (0x70e46f20) ===
+<u> Known Values </u>
+
+A considerable number of profiles have this set to 0, which may be meaningless if 0 is the default, but that would be unusual to have so many profiles specify the default.
+
+{| class="wikitable"
+| 0 || "ACS", "armada", "bzone", "Client.exe", "Crysis", "Demo", "Dragon : MMORPG", "Freedom Force", "Game.exe", "GameClient.exe", "Google Chrome", "Hunting 4", "LithTech", "Madden NFL Games", "Microsoft Internet Explorer", "Mozilla FireFox - Plugin Container", "Mozilla Firefox", "Nations", "nfs", "NoName", "Novlum Demes Editor", "Panzer General 3 Scorched Earth(PG3.exe)", "Pencil Whipped", "Prince of Persia", "program", "rally", "S.T.A.L.K.E.R.: Clear Sky", "Safari Congo", "Ship Simulator 2006", "SW", "Ultimate 8 Ball", "WRUN"
+|- 
+| 1 || "AngleLib", "engine", "heroes", "launcher", "UDK (Unreal Development Kit) based games"
+|}
+
+=== StereoLinkDll (0x70e46f2a) - text ===
+
+Appears to be a comma separated list of files to search for. At a guess, if this setting is present these files either must or must not exist for stereo to engage.
+
+=== EnableStereoCursor (0x70e46f2b) ===
+=== CreateStereoDTAfterPresentNum (0x70a7fc7f) ===
+To confirm, but presumably delays initialising 3D Vision until the game has drawn this number of frames, possibly to work around crashes on launch or other issues caused by 3D Vision being enabled when the game is launched, but works if enabled later.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| 3 || Cyberlink PowerDVD9
+|-
+| 50 || Call of Duty Online
+|}
+
+=== Date_Rel (0x705fafec) - text ===
+May contain the release date in the form YYYY-MM-DD 00:00:00
+
+=== Game (0x70c8d48e) - text ===
+=== Style (0x709cc5e0) - text ===
+
+Contains the game's genre, such as "Action", etc.
+
+=== Publisher (0x706c7030) - text ===
+
+Lists the game's publisher.
+
+=== Developer (0x703c4026) - text ===
+
+Lists the game's developer.
+
+=== API (0x70b5603f) - text ===
+Usually contains "D3D", other observed values include "d3d", "D3d", "D3D_", "OGL_" and "S/W"
+
+=== Value (0x7049c7ec) ===
+Observed values: "0", "0.0", "1", "1.0", "2", "2.0", "3", "3.0", "4", "4.0", "5", "5.0", "101.0", "102.0"
+
+=== P1SH0 (0x70998683) - text ===
+=== V1SH0 (0x70e6a3cf) - text ===
+=== PSH0 (0x7046516e) - text ===
+=== VSH0 (0x708b7af8) - text ===
+At a guess this might stand for "Vertex Shader Hash 0" and define some kind of override for a specific vertex shader, perhaps to force the stereo correction on or off for a particular shader.
+
+<u> Known Values </u>
+
+{| class="wikitable"
+| "1162e513 0 1" || Gears of War
+|-
+| "6e34f93f 0x01 0 0 0 0 0" || AngleLib
+|-
+| "D162E513 0 1" || Batman: Arkham Asylum
+|}
+
+=== VSH1 (0x708b7af9) - text ===
+=== VSH2 (0x708b7afa) - text ===
+=== VSH3 (0x708b7afb) - text ===
+=== VSH4 (0x708b7afc) - text ===
+=== VSH5 (0x708b7afd) - text ===
+=== VSH6 (0x708b7afe) - text ===
+=== VSH7 (0x708b7aff) - text ===
+=== VSH8 (0x708b7b00) - text ===
+=== VSH9 (0x708b7b01) - text ===
+=== VSH10 (0x708b7b02) - text ===
+
+== Registry Settings ==
+
+These are settings discovered in the 3D Vision driver that are not listed in the profile table, meaning they can only be set via the registry or (in some cases) control panel. Other settings on this page may (or may not) also be placed in the registry.
+
+On a 64bit OS these settings are under HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\NVIDIA Corporation\Global\Stereo3D
+
+This section is incomplete.
+
+=== MonitorSizeOverride ===
+Overrides MonitorSize, but is not reset constantly making it a superior option to depth hacks.
+
+=== DrsEnable ===
+Enables the use of driver profiles.
+
+=== 0x1800babe ===
+That's not a hex value - that's a literal name of a possible registry key, including the "0x".
+
+=== StereoAdvancedHKConfig ===
+=== StereoFullHKConfig ===
+In conjunction with "StereoAdvancedHKConfig", it allows the use of advanced hotkeys like "CutoffFarDepthMore".
+"StereoFullHKConfig" also unlocks the minimum separation setting, allowing the 0 value instead of 1.
+
+=== StereoCompatibility ===
+=== EnablePersistentStereoDesktop ===
+=== EnableWindowedMode ===
+=== StereoIROutput ===
+=== StereoFlywheelCycleState ===
+=== StereoFlywheelCycle ===
+=== StereoVBIOverride ===
+=== ContrastOverride ===
+=== MultiheadMode ===
+=== SOLPerf ===
+=== EnableAPILog ===
+=== EnableHDMICheckerboard ===
+=== ContrastOverrideLog ===
+=== StereoKiosk ===
+=== DisablePatternWindowedMode ===
+=== StereoForcePairFlip ===
+=== __S ===
+=== SDStereoType ===
+=== StereoAnaglyphType ===
+=== StereoDisabled ===
+=== HDMIBroadcast ===
+=== Broadcast3way ===
+=== IGBroadcast ===
+=== SLIOverride ===
+=== UseCE ===
+=== ResourceTracking ===
+=== EnableIE9HTML5 ===
+=== IE9HTML5Width ===
+=== IE9HTML5Height ===
+=== IE9HTML5Layout ===
+
+== More Registry Settings ==
+On a 64bit OS these settings are under HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\NVIDIA Corporation\Global\Stereo3DPersistent
+
+=== 3D Vision ===
+=== Count ===
+
+This page was last modified on 27 November 2019, at 17:11.
+This page has been accessed 744,900 times.
+Content is available under Creative Commons Attribution Non-Commercial Share Alike unless otherwise noted.
+
+https://wiki.bo3b.net/index.php?title=Driver_Profile_Settings
+https://web.archive.org/web/20250717025419/https://wiki.bo3b.net/index.php?title=Driver_Profile_Settings
