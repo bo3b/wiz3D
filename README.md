@@ -124,6 +124,7 @@ Configure your output mode (Half Side-by-Side, Anaglyph, etc.) and any other set
 | Beowulf: The Game | DX9 | x86 | ✓ | Untested |  |
 | Bet on Soldier | DX9 | x86 | ✓ | Untested |  |
 | Beyond Good & Evil | DX9 | x86 | ✓ | ✅ Mostly Working | Artifacts when paused. |
+| Bayonetta | DX9 | x86 | ✕ | ✅ Working | Performance issues. Might need shader fix. |
 | Bionic Commando (2009) | DX9 | x86 | ✕ | ✅ Mostly Working | Needs  HUD and shadow shader fix. |
 | Bionic Commando Rearmed | DX9 | x86 | ✓ | Untested |  |
 | Black & White 2 | DX9 | x86 | ✓ | Untested |  |
