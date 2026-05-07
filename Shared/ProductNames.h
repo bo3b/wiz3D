@@ -1,15 +1,15 @@
 #ifndef DRIVER_NAME_H
 #define DRIVER_NAME_H
 
-#define MONITOR_NAME			"iZ3D Monitor"
-#define MONITOR_INF_FILE		"iz3dmonitor.inf"
-#define FULL_PRODUCT_NAME		"iZ3D Driver"
-#define PRODUCT_NAME			"iZ3D Driver"
-#define COMPANY_NAME			"iZ3D Inc."
-#define SHORT_COMPANY_NAME		"iZ3D"
-#define CONTROL_CENTER			"iZ3D Control Center"
-#define COMPANY_SITE			"http://www.iz3d.com/"
-#define SETUP_FILE_NAME			"iZ3DDriverSetup"
+#define MONITOR_NAME			"wiz3D Monitor"
+#define MONITOR_INF_FILE		"wiz3dmonitor.inf"
+#define FULL_PRODUCT_NAME		"wiz3D"
+#define PRODUCT_NAME			"wiz3D"
+#define COMPANY_NAME			"wiz3D"
+#define SHORT_COMPANY_NAME		"wiz3D"
+#define CONTROL_CENTER			"wiz3D Control Center"
+#define COMPANY_SITE			"https://github.com/effcol/wiz3D"
+#define SETUP_FILE_NAME			"wiz3DSetup"
 
 //------------------------ section for C++ code only --------------
 #ifdef	_MSC_VER

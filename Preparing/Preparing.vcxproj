@@ -111,9 +111,10 @@
       </Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Command>cd "$(SolutionDir)\bin\"
-call update_version.bat
-call copy_profiles.bat "$(Configuration)" &gt; NUL</Command>
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(SolutionDir)bin\generate_version.ps1"
+pushd "$(SolutionDir)bin"
+call copy_profiles.bat "$(Configuration)" &gt; NUL
+popd</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>needed files generation</Message>
@@ -139,9 +140,10 @@ call copy_profiles.bat "$(Configuration)" &gt; NUL</Command>
       </Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Command>cd "$(SolutionDir)\bin\"
-call update_version.bat
-call copy_profiles.bat "$(Configuration)" &gt; NUL</Command>
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(SolutionDir)bin\generate_version.ps1"
+pushd "$(SolutionDir)bin"
+call copy_profiles.bat "$(Configuration)" &gt; NUL
+popd</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>needed files generation</Message>
@@ -171,9 +173,10 @@ call copy_profiles.bat "$(Configuration)" &gt; NUL</Command>
       </Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Command>cd "$(SolutionDir)\bin\"
-call update_version.bat
-call copy_profiles.bat "$(Configuration)" &gt; NUL</Command>
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(SolutionDir)bin\generate_version.ps1"
+pushd "$(SolutionDir)bin"
+call copy_profiles.bat "$(Configuration)" &gt; NUL
+popd</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>needed files generation</Message>
@@ -203,9 +206,10 @@ call copy_profiles.bat "$(Configuration)" &gt; NUL</Command>
       </Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Command>cd "$(SolutionDir)\bin\"
-call update_version.bat
-call copy_profiles.bat "$(Configuration)" &gt; NUL</Command>
+      <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(SolutionDir)bin\generate_version.ps1"
+pushd "$(SolutionDir)bin"
+call copy_profiles.bat "$(Configuration)" &gt; NUL
+popd</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>needed files generation</Message>

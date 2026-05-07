@@ -26,7 +26,7 @@ x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
-[Bb]in/
+[Bb]in/**
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
@@ -38,6 +38,11 @@ bld/
 !releases/
 !releases/**/
 !releases/**/*.bat
+
+# Track the version-generator script at the repo's bin/ root. Other contents
+# of bin/ stay ignored (build artefacts, unrelated tools).
+!/bin/
+!/bin/generate_version.ps1
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/

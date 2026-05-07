@@ -132,11 +132,11 @@
     <!-- x64 outputs -->
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)bin\$(Configuration)\Win64\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Win64\$(Configuration)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(MSBuildProjectDirectory)\..\releases\wiz3D_v0.1.0\hd3d\dx12 x64\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(MSBuildProjectDirectory)\..\releases\wiz3D\hd3d\dx12 x64\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Win64\$(Configuration)\</IntDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">$(SolutionDir)bin\$(Configuration)\Win64\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">Win64\$(Configuration)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='3DVision Release|x64'">$(MSBuildProjectDirectory)\..\releases\wiz3D_v0.1.0\3dvision\dx12 x64\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='3DVision Release|x64'">$(MSBuildProjectDirectory)\..\releases\wiz3D\3dvision\dx12 x64\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='3DVision Release|x64'">Win64\3DVision_Release\</IntDir>
   </PropertyGroup>
   <!-- Debug|Win32 -->
@@ -208,8 +208,8 @@
     </Link>
     <PostBuildEvent>
       <Message>Copying AmdQbProxy and AmdAdlProxy to dx12 x64 folder</Message>
-      <Command>copy /Y "$(MSBuildProjectDirectory)\..\releases\wiz3D_v0.1.0\hd3d\x64\atidxx64.dll" "$(OutDir)atidxx64.dll"
-copy /Y "$(MSBuildProjectDirectory)\..\releases\wiz3D_v0.1.0\hd3d\x64\atiadlxx.dll" "$(OutDir)atiadlxx.dll"</Command>
+      <Command>copy /Y "$(MSBuildProjectDirectory)\..\releases\wiz3D\hd3d\x64\atidxx64.dll" "$(OutDir)atidxx64.dll"
+copy /Y "$(MSBuildProjectDirectory)\..\releases\wiz3D\hd3d\x64\atiadlxx.dll" "$(OutDir)atiadlxx.dll"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <!-- 3DVision Release|Win32 (not deployed) -->
@@ -285,6 +285,9 @@ copy /Y "$(MSBuildProjectDirectory)\..\releases\wiz3D_v0.1.0\hd3d\x64\atiadlxx.d
   </ItemGroup>
   <ItemGroup>
     <None Include="D3d12VendorProxy.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="D3d12VendorProxy.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

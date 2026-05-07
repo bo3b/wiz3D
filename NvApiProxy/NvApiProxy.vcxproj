@@ -94,9 +94,9 @@
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Platform)\$(Configuration)\</IntDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)bin\$(Configuration)\Win64\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Win64\$(Configuration)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(MSBuildProjectDirectory)\..\releases\wiz3D_v0.1.0\dx9\x86\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(MSBuildProjectDirectory)\..\releases\wiz3D\dx9\x86\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Platform)\$(Configuration)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(MSBuildProjectDirectory)\..\releases\wiz3D_v0.1.0\dx9\x64\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(MSBuildProjectDirectory)\..\releases\wiz3D\dx9\x64\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Win64\$(Configuration)\</IntDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">$(SolutionDir)bin\$(Configuration)\$(Platform)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">$(Platform)\$(Configuration)\</IntDir>
@@ -210,6 +210,9 @@
   <ItemGroup>
     <None Include="NvApiProxy.def" />
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="NvApiProxy.rc" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
@@ -220,7 +223,7 @@
     <PropertyGroup>
       <_NvApiArchDir Condition="'$(Platform)'=='Win32'">x86</_NvApiArchDir>
       <_NvApiArchDir Condition="'$(Platform)'=='x64'">x64</_NvApiArchDir>
-      <_NvApiReleaseRoot>$(MSBuildProjectDirectory)\..\releases\wiz3D_v0.1.0</_NvApiReleaseRoot>
+      <_NvApiReleaseRoot>$(MSBuildProjectDirectory)\..\releases\wiz3D</_NvApiReleaseRoot>
     </PropertyGroup>
     <MakeDir Directories="$(_NvApiReleaseRoot)\dx10-11\$(_NvApiArchDir);$(_NvApiReleaseRoot)\opengl\$(_NvApiArchDir)" />
     <Copy SourceFiles="$(TargetPath)"

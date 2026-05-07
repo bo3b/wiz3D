@@ -390,13 +390,13 @@ Replaced global `g_nOrigHeight` with `std::unordered_map<IDXGISwapChain*, UINT>`
 ### HD3D Build (Release)
 - Preprocessor: `BLOCK_NVAPI_STEREO` defined
 - Blocks: nvapi.dll stub handle + Stereo3D/Stereo3DPersistent registry + display adapter class spoofing
-- Output: `releases/wiz3D_v0.1.0/hd3d/x86/` and `x64/`
+- Output: `releases/wiz3D/hd3d/x86/` and `x64/`
 - Function count: ~125-128 (x86/x64, varies with optimizer)
 
 ### 3DVision Build (3DVision Release)
 - Preprocessor: `BLOCK_NVAPI_STEREO` NOT defined
 - Blocks: Nothing — NvAPI loads freely, Stereo3D registry accessible
-- Output: `releases/wiz3D_v0.1.0/3dvision/x86/` and `x64/`
+- Output: `releases/wiz3D/3dvision/x86/` and `x64/`
 - Function count: 121 (x86), 123 (x64)
 - Purpose: Experimental hybrid investigation
 
@@ -413,9 +413,9 @@ The function difference between HD3D and 3DVision builds confirms `#ifdef` is wo
 
 Per copilot-instructions.md, the following are known-good backup copies and must NOT
 be updated with new builds:
-- `releases/wiz3D_v0.1.0/hd3d/Deus Ex Human Revolution/`
-- `releases/wiz3D_v0.1.0/hd3d/Deus Ex Human Revolution Director's Cut/`
-- `releases/wiz3D_v0.1.0/hd3d/Sleeping Dogs/` (confirmed working build)
+- `releases/wiz3D/hd3d/Deus Ex Human Revolution/`
+- `releases/wiz3D/hd3d/Deus Ex Human Revolution Director's Cut/`
+- `releases/wiz3D/hd3d/Sleeping Dogs/` (confirmed working build)
 
 Only update `x86/` and `x64/` folders with new builds.
 
