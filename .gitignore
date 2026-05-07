@@ -20,7 +20,7 @@ mono_crash.*
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
-[Rr]eleases/
+[Rr]eleases/**
 x64/
 x86/
 [Aa][Rr][Mm]/
@@ -30,6 +30,14 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+
+# Track wiz3D release uninstaller scripts (manual deployment artifacts).
+# Negations must come AFTER the broad excludes above (incl. x86/, x64/) so they
+# take precedence — order matters in .gitignore. Re-include the parent dirs so
+# git traverses into them, then re-include only the .bat files within.
+!releases/
+!releases/**/
+!releases/**/*.bat
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -365,6 +373,8 @@ lib/madCHook/*.lib
 
 # ----- WiZ3D: misc build/temp artifacts -----
 pp_out.xml
+# Generated shader headers (produced by compile_shaders_dx10.bat at build time)
+OutputMethods/*/Shaders_dx10/*.h
 
 # ----- WiZ3D: build configurations with spaces (don't match [Rr]elease/) -----
 Final Release/

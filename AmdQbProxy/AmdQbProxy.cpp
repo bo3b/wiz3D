@@ -122,6 +122,27 @@ enum AnaglyphMethod {
 };
 static AnaglyphMethod g_AnaglyphMethod = AM_DUBOIS;
 
+#ifdef SR_WEAVE_ENABLED
+// SEH-protected wrapper for SR::SRContext::create(). The SR runtime DLLs are
+// delay-loaded; if they're not installed, the call raises VcppException
+// 0xC06D007E (MOD_NOT_FOUND), which C++ try/catch can't intercept.
+// On delay-load failure, sets *pDllMissing=true and returns nullptr so the
+// caller can downgrade g_OutputMode. Other SEH propagates normally.
+static SR::SRContext* SafeSRContextCreate(bool* pDllMissing)
+{
+    *pDllMissing = false;
+    __try
+    {
+        return SR::SRContext::create();
+    }
+    __except (GetExceptionCode() == 0xC06D007E ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+    {
+        *pDllMissing = true;
+        return nullptr;
+    }
+}
+#endif
+
 static void LoadConfig()
 {
     wchar_t path[MAX_PATH] = {};
@@ -152,6 +173,37 @@ static void LoadConfig()
                 g_OutputMode = static_cast<OutputMode>(mode);
         }
     }
+
+#ifdef SR_WEAVE_ENABLED
+    // Some games crash if the SR runtime DLLs are loaded into their process
+    // (e.g. Tomb Raider 2013 dies during init when SimulatedRealityCore loads).
+    // For those, force the fallback to OM_SBS_HALF here at config time, before
+    // any SR code paths run. New entries can be added as more games are tested.
+    if (g_OutputMode == OM_SR_WEAVE)
+    {
+        wchar_t exePath[MAX_PATH] = {};
+        if (GetModuleFileNameW(nullptr, exePath, MAX_PATH))
+        {
+            for (wchar_t* p = exePath; *p; ++p) *p = towlower(*p);
+            const wchar_t* srBlacklist[] = {
+                L"tombraider.exe",   // TR2013: SR DllMain side-effects crash the game
+            };
+            for (size_t i = 0; i < _countof(srBlacklist); ++i)
+            {
+                if (wcsstr(exePath, srBlacklist[i]))
+                {
+                    WriteLog("[AmdQbProxy] SR-incompatible exe detected; forcing OM_SBS_HALF\n");
+                    g_OutputMode = OM_SBS_HALF;
+                    break;
+                }
+            }
+        }
+    }
+    // For SR-eligible games, SR DLLs are loaded lazily on first stereo present
+    // via the delay-load mechanism — so non-SR systems (Linux/Proton, no Leia
+    // runtime) won't load SR DLLs at all if the game never reaches a stereo
+    // present, and will downgrade gracefully via SEH if they do.
+#endif
 
     // Load SwapEyes setting
     p = strstr(buf, "SwapEyes");
@@ -1517,7 +1569,8 @@ static bool EnsureSRWeaver(HWND hWnd)
         g_pSRContext11 = nullptr;
     }
 
-    try { g_pSRContext11 = SR::SRContext::create(); }
+    bool srDllMissing = false;
+    try { g_pSRContext11 = SafeSRContextCreate(&srDllMissing); }
     catch (const SR::ServerNotAvailableException&)
     {
         static bool s_bLoggedNoServer = false;
@@ -1532,6 +1585,16 @@ static bool EnsureSRWeaver(HWND hWnd)
             WriteLog("[AmdQbProxy] SR: SRContext::create threw unknown exception\n"); }
         return false;
     }
+
+    if (srDllMissing)
+    {
+        static bool s_bLoggedDllMissing = false;
+        if (!s_bLoggedDllMissing) { s_bLoggedDllMissing = true;
+            WriteLog("[AmdQbProxy] SR runtime DLLs not installed; downgrading OM_SR_WEAVE -> OM_SBS_HALF\n"); }
+        g_OutputMode = OM_SBS_HALF;
+        return false;
+    }
+    if (!g_pSRContext11) return false;
 
     ID3D11DeviceContext* pCtx = nullptr;
     g_pDevice11->GetImmediateContext(&pCtx);
@@ -3056,9 +3119,37 @@ public:
         hr = pOutput->GetDisplayModeList(fmt, flags, pNum, pModes);
         pOutput->Release();
 
-        char buf[64];
-        wsprintfA(buf, "[AmdQbProxy] GetDisplayModeList: %u modes\n", *pNum);
+        char buf[256];
+        wsprintfA(buf, "[AmdQbProxy] GetDisplayModeList(fmt=%u flags=0x%X): %u modes\n",
+                  (UINT)fmt, flags, *pNum);
         WriteLog(buf);
+
+        // Diagnostic dump: when the game requests the actual mode list (pModes
+        // non-null), log each entry once per unique (format, flags, count) tuple.
+        // Helps diagnose game-side stereo validation that rejects our forwarded
+        // DXGI mode list (e.g. Thief looking for a 120Hz stereo refresh rate
+        // that real AMD HD3D would advertise but we don't synthesize).
+        if (pModes && *pNum > 0)
+        {
+            static UINT s_lastFmt   = 0xFFFFFFFFu;
+            static UINT s_lastFlags = 0xFFFFFFFFu;
+            static UINT s_lastNum   = 0xFFFFFFFFu;
+            if ((UINT)fmt != s_lastFmt || flags != s_lastFlags || *pNum != s_lastNum)
+            {
+                s_lastFmt = (UINT)fmt; s_lastFlags = flags; s_lastNum = *pNum;
+                for (UINT i = 0; i < *pNum; ++i)
+                {
+                    const DXGI_MODE_DESC& m = pModes[i];
+                    UINT hz_x100 = m.RefreshRate.Denominator
+                        ? (m.RefreshRate.Numerator * 100u) / m.RefreshRate.Denominator
+                        : 0u;
+                    wsprintfA(buf, "[AmdQbProxy]   mode[%u]: %ux%u @ %u.%02uHz fmt=%u scan=%u scale=%u\n",
+                              i, m.Width, m.Height, hz_x100 / 100u, hz_x100 % 100u,
+                              (UINT)m.Format, (UINT)m.ScanlineOrdering, (UINT)m.Scaling);
+                    WriteLog(buf);
+                }
+            }
+        }
 
         return hr;
     }
