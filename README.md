@@ -11,8 +11,7 @@ A universal stereoscopic 3D wrapper for DirectX 7-11, OpenGL, AMD HD3D, and Nvid
 ---
 
 ## What Is This?
-che
-wiz3D is an open-source stereoscopic 3D wrapper that hooks into DirectX, OpenGL, and AMD HD3D native games to generate real-time stereo 3D output (Half Side-by-Side, Top-and-Bottom, Anaglyph, etc.) without requiring kernel drivers or proprietary hardware.
+wiz3D is an open-source stereoscopic 3D wrapper that hooks into DirectX, OpenGL, and AMD HD3D native and Nvidia 3D Vision games to generate real-time stereo 3D output (Half Side-by-Side, Anaglyph, Simulated Reality, etc.) without requiring kernel drivers or proprietary hardware or software.
 
 iZ3D was a commercial product (~2002–2010) and one of the pioneers in modding games for stereoscopic 3D using kernel-level driver injection. The original developers kindly open-sourced the code under the MIT license, hosted by [bo3b/iZ3D](https://github.com/bo3b/iZ3D).
 
@@ -26,7 +25,7 @@ This project modernizes that source code, replaces kernel-level hooks with a pro
 * **DirectX 7:** ⚠️ **In Progress.** Wrapper to convert DX7 to use DX9's stereoization. DX7 to DX9 converstion is working. Here for testing.
 * **DirectX 10/11:** ⚠️ **Partial.** The DX10/11 wrapper was never completely finished by iZ3D Inc. Some games work, but implementation in wiz3D still has some way to go and hasn't got any games booting with stereo3D initialised yet.
 * **OpenGL:** ⚠️ **In Progress.** Basic build has been made, untested. 
-* **Nvidia 3D Vision 'Ready':** ✅ **Partially Worikng.** Still in very early stages, only a handful of games working atm, need to expand the wrapper to include more 3D Vision functions like in-game Seperaiton and Convergance sliders. Most 3D Vision Ready games don't have internal stereo rendering, they just have shader compatability toggles and sometimes some 3D toggles and sliders. This isn't using any of 3D Vision's stereoizer, it's relying on iZ3D instead to run 3d vision games.
+* **Nvidia 3D Vision 'Ready':** ✅ **Partially Working.** Still in very early stages, only a handful of games working atm, need to expand the wrapper to include more 3D Vision functions like in-game Seperaiton and Convergance sliders, as well as be compatible with 3D Vision shader fixes like GHelixMod and 3DMigoto. Most 3D Vision Ready games don't have internal stereo rendering, they just have shader compatability toggles and sometimes some 3D toggles and sliders. This isn't using any of 3D Vision's stereoizer, it's relying on iZ3D instead to run 3d vision games.
 
 ---
 
@@ -457,17 +456,29 @@ There are two solutions to build:
 
 | Solution | What it builds |
 |----------|---------------|
-| `S3DDriver.sln` | All stereo wrapper DLLs + output method DLLs |
-| `wiz3D-proxy/wiz3D-proxy.sln` | `d3d9.dll`, `d3d8.dll`, `ddraw.dll`, `opengl32.dll` proxy loaders |
+| `S3DDriver.sln` | All stereo wrapper DLLs, output method DLLs, NvApiProxy, vendor proxies |
+| `wiz3D-proxy/wiz3D-proxy.sln` | Entry-point proxy loaders: `d3d8.dll`, `d3d9.dll`, `d3d10.dll`, `d3d11.dll`, `d3d12.dll`, `ddraw.dll`, `dxgi.dll`, `opengl32.dll`, `vulkan-1.dll` |
 
 Build both in **Release \| Win32** for 32-bit games, or **Release \| x64** for 64-bit games.
 
-The `SimulatedRealityWeaveOutput` project in `OutputMethods/` is standalone and not yet added to `S3DDriver.sln` — build it separately if you need it.
+#### One-shot build + deploy (recommended)
+
+Run from the repo root in PowerShell:
+
+```powershell
+.\bin\build_and_deploy.ps1                # both archs, both solutions
+.\bin\build_and_deploy.ps1 -Arch Win32    # x86 only
+.\bin\build_and_deploy.ps1 -Arch x64      # x64 only
+.\bin\build_and_deploy.ps1 -SkipBuild     # deploy only (after a manual VS build)
+.\bin\build_and_deploy.ps1 -SkipProxy     # only build S3DDriver.sln
+```
+
+This builds both solutions and copies every freshly-built DLL into the right `releases/wiz3D/<api>/<arch>/` subfolder for you. If you'd rather drive MSBuild yourself (or use VS's F7), run `.\bin\deploy_to_releases.ps1` afterwards to populate the release tree.
 
 ### Testing a Build
 
-1. Build both solutions.
-2. Copy the **contents** of the appropriate `releases/wiz3D_vX.X.X/` subfolder (e.g. `dx9/x86/`) directly into the game's `.exe` folder.
+1. Build both solutions (or run `.\bin\build_and_deploy.ps1`).
+2. Copy the **contents** of the appropriate `releases/wiz3D/` subfolder (e.g. `dx9/x86/`) directly into the game's `.exe` folder.
 3. Set `wiz_Config.xml` or `HD3D_Config.xml` to match your display specifications
 4. For some games (L4D2, Portal, HL2), copy into the `bin/` subfolder instead.
 5. Launch the game. stereo should activate automatically.

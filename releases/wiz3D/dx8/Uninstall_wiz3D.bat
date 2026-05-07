@@ -29,6 +29,7 @@ if exist "CommunityProfile.xml" del /f /q "CommunityProfile.xml"
 echo Removing wiz3D runtime files...
 if exist "Statistic.xml" del /f /q "Statistic.xml"
 if exist "wiz3D_proxy.log" del /f /q "wiz3D_proxy.log"
+if exist "wiz3D_d3d8_proxy.log" del /f /q "wiz3D_d3d8_proxy.log"
 if exist "wiz3D_crash.dmp" del /f /q "wiz3D_crash.dmp"
 
 echo Removing OutputMethods folder...
