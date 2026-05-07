@@ -4,6 +4,7 @@
 #include "D3DDeviceWrapper.h"
 #include "DepthStencilViewWrapper.h"
 #include "RenderTargetViewWrapper.h"
+#include "..\AdapterFunctions.h"  // DDILog
 
 namespace 
 {
@@ -57,7 +58,7 @@ namespace Commands
 	
 	bool xxSetRenderTargets::IsUsedStereoResources( D3DDeviceWrapper* pWrapper ) const
 	{
-		if (bNeedCheckStereoResources_) 
+		if (bNeedCheckStereoResources_)
 		{
 			bIsRTStereo_ = false;
 			if (!Values_.empty())
@@ -80,6 +81,31 @@ namespace Commands
 				InitWrapper(hDSV, pDSWrp);
 				if ( pDSWrp->IsStereo() )
 					bIsDSStereo_ = true;
+			}
+
+			// Diagnostic: log the first time RT stereo flips true and the
+			// first time it stays false despite the check running. Tells us
+			// whether scene-render-target binds ever bring the wrapper into
+			// the stereo-replay path or never.
+			{
+				static bool s_loggedFirstRTTrue  = false;
+				static bool s_loggedFirstRTFalse = false;
+				if (bIsRTStereo_ && !s_loggedFirstRTTrue)
+				{
+					s_loggedFirstRTTrue = true;
+					D3D10DDI_HRENDERTARGETVIEW hRTV0 = Values_.empty() ? NULL_RENDER_TARGET_VIEW : Values_[0];
+					DDILog("IsUsedStereoResources: bIsRTStereo_ FIRST TRUE  (NumValues_=%u, RTV0=%p, DS=%p, DSStereo=%d)\n",
+						(unsigned)NumValues_, hRTV0.pDrvPrivate,
+						hDepthStencilView_.pDrvPrivate, (int)bIsDSStereo_);
+				}
+				else if (!bIsRTStereo_ && !s_loggedFirstRTFalse)
+				{
+					s_loggedFirstRTFalse = true;
+					D3D10DDI_HRENDERTARGETVIEW hRTV0 = Values_.empty() ? NULL_RENDER_TARGET_VIEW : Values_[0];
+					DDILog("IsUsedStereoResources: bIsRTStereo_ FIRST FALSE (NumValues_=%u, RTV0=%p, DS=%p, DSStereo=%d)\n",
+						(unsigned)NumValues_, hRTV0.pDrvPrivate,
+						hDepthStencilView_.pDrvPrivate, (int)bIsDSStereo_);
+				}
 			}
 
 			bNeedCheckStereoResources_ = false;

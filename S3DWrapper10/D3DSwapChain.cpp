@@ -1181,7 +1181,26 @@ void D3DSwapChain::PresentData( )
 	else
 	{
 		ResolveMethodResources(pRes);
+		// Diagnostic: bracket the SBS/non-shutter Output call so we can tell
+		// whether the wrapper finished compositing before the host process
+		// crashed. Multiple games (BioShock/FC2/JC2/Batman/Dragon Age/Max
+		// Payne 3) crash in their own code immediately after PresentData[0],
+		// and the question is whether Output() is on the stack at fault time
+		// or whether it returned cleanly first. First 5 calls only.
+		static int s_outputCallCount = 0;
+		int thisOutputCall = s_outputCallCount;
+		if (s_outputCallCount < 5)
+		{
+			DDILog("Output ENTER (call #%d) pSC=%p outputMethod=%p\n",
+				thisOutputCall, (void*)this, (void*)m_pD3DDeviceWrapper->m_pOutputMethod);
+			++s_outputCallCount;
+		}
 		m_pD3DDeviceWrapper->m_pOutputMethod->Output( this );
+		if (thisOutputCall < 5)
+		{
+			DDILog("Output EXIT  (call #%d) pSC=%p\n",
+				thisOutputCall, (void*)this);
+		}
 	}
 }
 

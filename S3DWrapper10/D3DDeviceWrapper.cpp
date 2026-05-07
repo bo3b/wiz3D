@@ -1349,8 +1349,30 @@ void D3DDeviceWrapper::ProcessCB()
 	CriticalSectionLocker locker(m_CSCB);
 
 	CommandBuffer* cb = m_StereoBuffer->Processing() ? (CommandBuffer*)m_StereoBuffer.get() : (CommandBuffer*)m_MonoBuffer.get();
+
+	// Diagnostic: which buffer is flushing this round, and what stereo gating
+	// would say right now? Rate-limited to first 10 calls + every 200th after,
+	// so a long session doesn't bloat the log.
+	{
+		static int s_processCBCount = 0;
+		bool wantStereo = UseStereoCommandBuffer();
+		bool isStereoBuffer = (cb == (CommandBuffer*)m_StereoBuffer.get());
+		if (s_processCBCount < 10 || (s_processCBCount % 200) == 0)
+		{
+			DDILog("ProcessCB[%d]: flush=%s wouldFinalizeAs=%s IsStereoActive=%d IsRTStereo=%d IsDSStereo=%d IsUAVStereo=%d\n",
+				s_processCBCount,
+				isStereoBuffer ? "Stereo" : "Mono",
+				wantStereo ? "Stereo" : "Mono",
+				(int)IsStereoActive(),
+				(int)m_DeviceState.m_IsRTStereo,
+				(int)m_DeviceState.m_IsDSStereo,
+				(int)m_DeviceState.m_IsUAVStereo);
+		}
+		++s_processCBCount;
+	}
+
 	cb->FlushAll();
-	if ( cb->WantFinalize() ) 
+	if ( cb->WantFinalize() )
 	{
 		cb->Finalize();
 		if ( UseStereoCommandBuffer() ) {

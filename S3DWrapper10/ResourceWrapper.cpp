@@ -5,6 +5,7 @@
 #include "D3DDeviceWrapper.h"
 #include "ConstantBufferWrapperUsageDefault.h"
 #include "ConstantBufferWrapperUsageDynamic.h"
+#include "AdapterFunctions.h"  // DDILog
 
 #ifndef FINAL_RELEASE
 UINT ResourceWrapper::m_nLastResourceID = 0;
@@ -389,6 +390,31 @@ void ResourceWrapper::CreateLeftResource( D3DDeviceWrapper* pWrapper )
 
 void ResourceWrapper::CreateRightResource( D3DDeviceWrapper* pWrapper )
 {
+	// Diagnostic: which resources actually become "stereo" (i.e. get a right
+	// eye copy) drives the entire stereo-buffer gating downstream. Without
+	// this we can't tell whether scene-RTs are being marked stereo or only
+	// the BB. Cap output to first 64 calls to bound log size.
+	{
+		static int s_createRCount = 0;
+		if (s_createRCount < 64)
+		{
+			UINT W = 0, H = 0;
+			if (!m_MipInfoList.empty()) {
+				W = m_MipInfoList[0].TexelWidth;
+				H = m_MipInfoList[0].TexelHeight;
+			}
+			const char* origin = "RT?";
+			if (m_BindFlags & D3D10_DDI_BIND_PRESENT)              origin = "BB";
+			else if (m_BindFlags & D3D10_DDI_BIND_DEPTH_STENCIL)   origin = "DS";
+			else if (m_BindFlags & D3D10_DDI_BIND_RENDER_TARGET)   origin = "RT";
+			DDILog("CreateRightResource[%d]: origin=%s bindFlags=0x%X format=%u dim=%u WxH=%ux%u SampleCount=%u\n",
+				s_createRCount, origin,
+				(unsigned)m_BindFlags, (unsigned)m_CreateResource.Format,
+				(unsigned)m_CreateResource.ResourceDimension,
+				W, H, (unsigned)m_CreateResource.SampleDesc.Count);
+			++s_createRCount;
+		}
+	}
 	CreateResourceInstance( pWrapper, m_hRightHandle );
 }
 
