@@ -29,6 +29,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include "..\Shared\version.h"
 #include <new>
 #include <stdio.h>
 #include <d3d11.h>
@@ -3266,7 +3267,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             BYTE xorMask[128]; memset(xorMask, 0x00, sizeof(xorMask));
             g_hBlankCursor = CreateCursor(hModule, 0, 0, 32, 32, andMask, xorMask);
         }
-        WriteLog("[AmdQbProxy] DLL_PROCESS_ATTACH: atidxx loaded OK\n");
+        WriteLog("[AmdQbProxy] DLL_PROCESS_ATTACH: atidxx loaded OK (wiz3D " DISPLAYED_VERSION ")\n");
         break;
 
     case DLL_PROCESS_DETACH:

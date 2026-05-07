@@ -26,6 +26,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include "..\Shared\version.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -630,7 +631,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
     {
         g_hSelf = hModule;
         DisableThreadLibraryCalls(hModule);
-        WriteLog("[NvApiProxy] DLL_PROCESS_ATTACH\n");
+        WriteLog("[NvApiProxy] DLL_PROCESS_ATTACH (wiz3D " DISPLAYED_VERSION ")\n");
     }
     else if (reason == DLL_PROCESS_DETACH)
     {

@@ -33,6 +33,7 @@
 #include <windows.h>
 #include <dxgi.h>
 #include "MinHook.h"
+#include "..\Shared\version.h"
 
 static HMODULE g_hReal = nullptr;
 
@@ -392,8 +393,8 @@ BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID)
         wcscat_s(sysDir, MAX_PATH, L"\\dxgi.dll");
         g_hReal = LoadLibraryW(sysDir);
         WriteLog(g_hReal
-            ? "[DxgiProxy] DLL_PROCESS_ATTACH: real dxgi.dll loaded OK\n"
-            : "[DxgiProxy] DLL_PROCESS_ATTACH: FAILED to load real dxgi.dll\n");
+            ? "[DxgiProxy] DLL_PROCESS_ATTACH: real dxgi.dll loaded OK (wiz3D " DISPLAYED_VERSION ")\n"
+            : "[DxgiProxy] DLL_PROCESS_ATTACH: FAILED to load real dxgi.dll (wiz3D " DISPLAYED_VERSION ")\n");
         MH_Initialize();
     }
     else if (reason == DLL_PROCESS_DETACH)

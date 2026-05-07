@@ -13,6 +13,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include "..\Shared\version.h"
 #include <cstring>
 
 // ---- ADL constants and types ------------------------------------------------
@@ -473,7 +474,7 @@ BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID)
     {
         g_hSelf = hInst;
         DisableThreadLibraryCalls(hInst);
-        WriteLog("[AmdAdlProxy] DLL_PROCESS_ATTACH\n");
+        WriteLog("[AmdAdlProxy] DLL_PROCESS_ATTACH (wiz3D " DISPLAYED_VERSION ")\n");
     }
     else if (reason == DLL_PROCESS_DETACH)
     {

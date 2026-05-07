@@ -8,6 +8,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include "../proxy_version.h"
 #include <stdio.h>
 #include <psapi.h>
 #include <dbghelp.h>
@@ -700,7 +701,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
         {
             WCHAR exePath[MAX_PATH];
             GetModuleFileNameW(NULL, exePath, MAX_PATH);
-            Log("=== wiz3D d3d9 proxy loaded ===\n");
+            Log("=== wiz3D " DISPLAYED_VERSION " - d3d9 proxy loaded ===\n");
             Log("Game exe: %ls\n", exePath);
             WCHAR proxyPath[MAX_PATH];
             GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
