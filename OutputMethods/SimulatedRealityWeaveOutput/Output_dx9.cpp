@@ -177,6 +177,25 @@ HRESULT SimulatedRealityWeaveOutput::InitializeWeaver(IDirect3DDevice9* pDevice,
     return S_OK;
 }
 
+// Called by the wrapper's StopEngine() before each device Reset (and during
+// shutdown). The base OutputMethod::Clear() doesn't know about SR-specific
+// resources, so without this override the weaver and our DEFAULT-pool SBS
+// texture would survive Reset as dangling pointers - next Output() crashes
+// inside m_Weaver->weave() when SR tries to bind its now-invalid vertex
+// shader (Max Payne 3 -stereo 1 reproducer, 2026-05-08). After Clear,
+// the wrapper's StartEngine() calls Initialize()/InitializeSCData() to
+// rebuild for the new device state.
+void SimulatedRealityWeaveOutput::Clear()
+{
+	CleanupWeaver();
+	if (m_pSBSTexture)
+	{
+		m_pSBSTexture->Release();
+		m_pSBSTexture = nullptr;
+	}
+	OutputMethod::Clear();
+}
+
 void SimulatedRealityWeaveOutput::CleanupWeaver()
 {
     if (m_Weaver) {

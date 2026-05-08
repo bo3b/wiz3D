@@ -27,6 +27,7 @@ public:
     virtual UINT    GetOutputChainsNumber();
     virtual HRESULT Output(CBaseSwapChain* pSwapChain);
     virtual HRESULT InitializeSCData(CBaseSwapChain* pSwapChain);
+    virtual void    Clear();
     virtual void    ReadConfigData(TiXmlNode* config);
 
 private:
