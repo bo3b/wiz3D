@@ -1,9 +1,11 @@
 # wiz3D - deploy_to_releases.ps1
 #
-# Copies freshly-built DLLs from bin/Release/<arch>/ (S3DDriver.sln) and
-# wiz3D-proxy/bin/Release/<arch>/ (wiz3D-proxy.sln) into the appropriate
-# releases/wiz3D/<api>/<arch>/ subfolders so a release is ready to install
-# into a game directory. Run AFTER building both solutions.
+# Copies freshly-built DLLs from:
+#   - bin/Release/<arch>/                 (S3DDriver.sln)
+#   - wiz3D-proxy/bin/Release/<arch>/     (wiz3D-proxy.sln)
+#   - NvDirectMode/bin/Release/<arch>/    (NvDirectMode.sln)
+# into the appropriate releases/wiz3D/<api>/<arch>/ subfolders so a release is
+# ready to install into a game directory. Run AFTER building all three slns.
 #
 # This script does NOT handle:
 # - Vendor-path proxy DLLs that auto-deploy via their own vcxproj OutDir:
@@ -85,7 +87,8 @@ foreach ($archName in $archs) {
     # Vendored upstream DevIL artifacts (S3DDevIL.dll, S3Dilu.dll) — not built by sln
     $devilFallback = Join-Path $repoRoot "lib\DevIL\lib\$archAlias"
     # wiz3D-proxy.sln output (entry-point DLLs games actually load: d3d9.dll, etc)
-    $proxyBinDir = Join-Path $repoRoot "wiz3D-proxy\bin\Release\$archName"
+    $proxyBinDir       = Join-Path $repoRoot "wiz3D-proxy\bin\Release\$archName"
+    $nvDirectModeBin   = Join-Path $repoRoot "NvDirectMode\bin\Release\$archName"
 
     if (-not (Test-Path $binDir)) {
         Write-Warning "Skipping ${archName}: $binDir not found (build first?)"
@@ -168,6 +171,33 @@ foreach ($archName in $archs) {
                -Files @('vulkan-1.dll')                                   `
                -Tag   "vulkan/$archAlias proxy"
 
+    # --- NvDirectMode (3D Vision Direct Mode proxies) ---
+    # Layout: releases/wiz3D/3d-vision-direct/<api>/<archAlias>/<dll>
+    # Each leaf gets its API-specific proxy DLL; nvapi[64].dll gets spread
+    # in by the Spread-File loop after the per-arch loops finish.
+    if (Test-Path $nvDirectModeBin) {
+        $ndmBase = Join-Path $repoRoot "releases\wiz3D\3d-vision-direct"
+        if (-not (Test-Path $ndmBase)) { New-Item -ItemType Directory -Path $ndmBase -Force | Out-Null }
+        # Top-level ReadMe — install instructions, test targets, known limits.
+        # Source is checked-in at NvDirectMode\ReadMe.txt; release tree is
+        # gitignored, so it gets re-laid each deploy.
+        $ndmReadmeSrc = Join-Path $repoRoot 'NvDirectMode\ReadMe.txt'
+        if (Test-Path $ndmReadmeSrc) {
+            Copy-Item -Path $ndmReadmeSrc -Destination (Join-Path $ndmBase 'ReadMe.txt') -Force
+        }
+
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir (Join-Path $ndmBase "dx9\$archAlias")    `
+                   -Files @('d3d9.dll')      -Tag "ndm/dx9/$archAlias"
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir (Join-Path $ndmBase "dx10\$archAlias")   `
+                   -Files @('d3d10.dll')     -Tag "ndm/dx10/$archAlias"
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir (Join-Path $ndmBase "dx11\$archAlias")   `
+                   -Files @('d3d11.dll')     -Tag "ndm/dx11/$archAlias"
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir (Join-Path $ndmBase "opengl\$archAlias") `
+                   -Files @('opengl32.dll')  -Tag "ndm/opengl/$archAlias"
+    } else {
+        Write-Host ("  ndm/$archAlias            SKIP (NvDirectMode bin not built: $nvDirectModeBin)") -ForegroundColor Yellow
+    }
+
     # hd3d/* not handled here — those vendor proxy DLLs auto-deploy via vcxproj OutDir.
 }
 
@@ -199,9 +229,19 @@ $relRoot = Join-Path $repoRoot 'releases\wiz3D'
 foreach ($archAlias in $archs | ForEach-Object { if ($_ -eq 'Win32') { 'x86' } else { 'x64' } }) {
     $nvapiName = if ($archAlias -eq 'x86') { 'nvapi.dll' } else { 'nvapi64.dll' }
     $srcNvapi  = Join-Path $relRoot "dx9\$archAlias\$nvapiName"
-    Spread-File -SrcPath $srcNvapi `
-        -DstDirs @("$relRoot\dx10-11\$archAlias", "$relRoot\opengl\$archAlias", "$relRoot\3dvision\$archAlias") `
-        -Tag "$nvapiName ($archAlias)"
+    # nvapi spreads into:
+    #   - regular wiz3D dx10-11 / opengl folders (3D Vision-aware games using passive)
+    #   - all four 3d-vision-direct/<api>/<arch>/ leaves (Direct Mode games need NvApiProxy
+    #     beside the NvDirectMode proxy DLL because they call NvAPI_Stereo_SetActiveEye etc.)
+    $nvapiTargets = @(
+        "$relRoot\dx10-11\$archAlias",
+        "$relRoot\opengl\$archAlias",
+        "$relRoot\3d-vision-direct\dx9\$archAlias",
+        "$relRoot\3d-vision-direct\dx10\$archAlias",
+        "$relRoot\3d-vision-direct\dx11\$archAlias",
+        "$relRoot\3d-vision-direct\opengl\$archAlias"
+    )
+    Spread-File -SrcPath $srcNvapi -DstDirs $nvapiTargets -Tag "$nvapiName ($archAlias)"
 }
 
 Write-Host ""

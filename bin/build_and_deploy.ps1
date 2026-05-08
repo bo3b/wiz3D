@@ -1,29 +1,33 @@
 # wiz3D - build_and_deploy.ps1
 #
-# One-shot: builds both wiz3D solutions (S3DDriver.sln + wiz3D-proxy.sln) for
-# one or both architectures (Release), then runs deploy_to_releases.ps1 to
-# copy every freshly-built DLL into releases/wiz3D/<api>/<arch>/.
+# One-shot: builds all three wiz3D solutions (S3DDriver.sln, wiz3D-proxy.sln,
+# NvDirectMode.sln) for one or both architectures (Release), then runs
+# deploy_to_releases.ps1 to copy every freshly-built DLL into the appropriate
+# releases/wiz3D/ subfolder.
 #
 # Usage:
-#   .\bin\build_and_deploy.ps1                # both Win32 + x64, both slns
-#   .\bin\build_and_deploy.ps1 -Arch Win32    # x86 only
-#   .\bin\build_and_deploy.ps1 -Arch x64      # x64 only
-#   .\bin\build_and_deploy.ps1 -SkipBuild     # deploy only (no rebuild)
-#   .\bin\build_and_deploy.ps1 -SkipProxy     # only build S3DDriver.sln
+#   .\bin\build_and_deploy.ps1                       # all slns, both archs
+#   .\bin\build_and_deploy.ps1 -Arch Win32           # x86 only
+#   .\bin\build_and_deploy.ps1 -Arch x64             # x64 only
+#   .\bin\build_and_deploy.ps1 -SkipBuild            # deploy only
+#   .\bin\build_and_deploy.ps1 -SkipProxy            # only build S3DDriver.sln (+ NvDirectMode if not skipped)
+#   .\bin\build_and_deploy.ps1 -SkipNvDirectMode     # skip the Direct Mode proxies
 
 [CmdletBinding()]
 param(
     [ValidateSet('Win32', 'x64', 'both')]
     [string]$Arch = 'both',
     [switch]$SkipBuild,
-    [switch]$SkipProxy
+    [switch]$SkipProxy,
+    [switch]$SkipNvDirectMode
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$mainSln  = Join-Path $repoRoot 'S3DDriver.sln'
-$proxySln = Join-Path $repoRoot 'wiz3D-proxy\wiz3D-proxy.sln'
-$msbuild  = 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
+$repoRoot         = Split-Path -Parent $PSScriptRoot
+$mainSln          = Join-Path $repoRoot 'S3DDriver.sln'
+$proxySln         = Join-Path $repoRoot 'wiz3D-proxy\wiz3D-proxy.sln'
+$nvDirectModeSln  = Join-Path $repoRoot 'NvDirectMode\NvDirectMode.sln'
+$msbuild          = 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
 
 if (-not (Test-Path $msbuild)) {
     throw "MSBuild not found at $msbuild. Install VS2026 (v145) or edit the path in this script."
@@ -37,6 +41,9 @@ $archs = if ($Arch -eq 'both') { @('Win32', 'x64') } else { @($Arch) }
 $slnsToBuild = @($mainSln)
 if (-not $SkipProxy -and (Test-Path $proxySln)) {
     $slnsToBuild += $proxySln
+}
+if (-not $SkipNvDirectMode -and (Test-Path $nvDirectModeSln)) {
+    $slnsToBuild += $nvDirectModeSln
 }
 
 if (-not $SkipBuild) {
