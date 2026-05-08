@@ -189,11 +189,25 @@ HRESULT CBaseStereoRenderer::SetModifiedShaderConstants()
 }
 
 template <VIEWINDEX view>
-void CBaseStereoRenderer::SetViewStages() 
+void CBaseStereoRenderer::SetViewStages()
 {
 	HRESULT hResult = S_OK;
 
 	m_CurrentView = view;
+
+	// Refresh the HelixMod-compatible stereo-params texture for this eye, but
+	// only bind it to sampler stages when the *current* shader actually reads
+	// from those samplers via `texldl`. Binding unconditionally clobbers
+	// games that legitimately use VS texture sampler 0 or PS sampler 13
+	// (e.g. Valkyria Chronicles renders black with unconditional binding).
+	const bool needStereoSampler =
+		m_VSPipelineData.m_CurrentShaderData.hasStereoTexldl ||
+		m_PSPipelineData.m_CurrentShaderData.hasStereoTexldl;
+	if (needStereoSampler)
+	{
+		UpdateStereoParamsTexture(view);
+		BindStereoParamsSamplers();
+	}
 
 	if (!DEBUG_SKIP_SET_STEREO_RENDERTARGET)
 		SetStereoRenderTarget<view>();
@@ -215,9 +229,16 @@ void CBaseStereoRenderer::SetViewStages()
 
 	if (m_bRenderInStereo)
 	{
-		if (m_Pipeline == Shader) 
+		if (m_Pipeline == Shader)
 		{
-			if(m_VSPipelineData.m_CurrentShaderData.stereoShader == NULL)
+			// Self-stereo'd shader (HelixMod-style fix using `texldl r, c, s0`)
+			// does its own per-eye offset by reading from our stereo-params
+			// texture. wiz3D must not also adjust the projection matrix here.
+			if (m_VSPipelineData.m_CurrentShaderData.hasStereoTexldl)
+			{
+				// no-op: shader handles its own stereo offset
+			}
+			else if(m_VSPipelineData.m_CurrentShaderData.stereoShader == NULL)
 			{
 				if (gInfo.CheckOnlyProjectionMatrix && m_bOnlyProjectionMatrix)
 					hResult = ModifyVSMatricesP<view>();
@@ -257,7 +278,7 @@ void CBaseStereoRenderer::SetViewStages()
 		}
 	}
 
-	if(m_bRenderInStereoPS)
+	if(m_bRenderInStereoPS && !m_PSPipelineData.m_CurrentShaderData.hasStereoTexldl)
 	{
 		float m31 = m_CurrentPSMultiplier * m_StereoCamera.GetCamera(view).TransformBeforeViewport._31;
 		float m41 = m_CurrentPSMultiplier * m_StereoCamera.GetCamera(view).TransformBeforeViewport._41;

@@ -24,6 +24,13 @@ struct SHADER_PRIVATE_DATA
 	ShaderMatrices matricesData;
 	Q*		stereoShader;
 
+	// True when the shader contains the canonical HelixMod stereo pattern
+	// `texldl <reg>, <const>, sN` reading from VS sampler 0 / PS sampler 13.
+	// In that case the shader is doing its own per-eye projection-X offset via
+	// the stereo-params texture wiz3D provides at those samplers, so wiz3D
+	// must NOT also apply its matrix-based offset (would cause double-shift).
+	bool    hasStereoTexldl;
+
 	void Clear()
 	{
 		shaderGlobalIndex = 0;
@@ -31,6 +38,7 @@ struct SHADER_PRIVATE_DATA
 		textures = 0xFFFFFFFF;
 		stereoShader = NULL;
 		matricesData.matrixSize = 0;
+		hasStereoTexldl = false;
 	}
 };
 

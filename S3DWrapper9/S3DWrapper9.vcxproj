@@ -367,6 +367,8 @@
     <ClInclude Include="BackgroundPresenterThread.h" />
     <ClInclude Include="BasePresenter.h" />
     <ClInclude Include="CommandDumper.h" />
+    <ClInclude Include="ShaderOverrideLoader.h" />
+    <ClInclude Include="Wiz3DStereoApi.h" />
     <ClInclude Include="D3DInterfaceMethods.h" />
     <ClInclude Include="DeviceState.h" />
     <ClInclude Include="DX9OsdDrawer.h" />
@@ -431,6 +433,8 @@
     <ClCompile Include="BackgroundPresenterThread.cpp" />
     <ClCompile Include="BasePresenter.cpp" />
     <ClCompile Include="CommandDumper.cpp" />
+    <ClCompile Include="ShaderOverrideLoader.cpp" />
+    <ClCompile Include="Wiz3DStereoApi.cpp" />
     <ClCompile Include="DeviceState.cpp" />
     <ClCompile Include="DX9OsdDrawer.cpp" />
     <ClCompile Include="Presenter.cpp" />

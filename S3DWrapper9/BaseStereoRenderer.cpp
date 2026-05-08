@@ -81,6 +81,10 @@ BOOL WINAPI Hooked_GetDeviceGammaRamp(HDC hDC, LPVOID lpRamp)
 		return TRUE;
 }
 
+// Forward decl rather than #include to keep the header dependency tight.
+extern "C" void Wiz3D_RegisterActiveRenderer(class CBaseStereoRenderer* pRenderer);
+extern "C" void Wiz3D_UnregisterActiveRenderer(class CBaseStereoRenderer* pRenderer);
+
 CBaseStereoRenderer::CBaseStereoRenderer()
 :	CMonoRenderer()
 ,	m_MainThreadId(0)
@@ -143,6 +147,10 @@ CBaseStereoRenderer::CBaseStereoRenderer()
 ,	m_RendererEvents(reNone)
 #endif
 {
+	// Register as the active renderer so the wiz3D-stereo bridge (consumed by
+	// NvApiProxy) can read/write our preset state.
+	Wiz3D_RegisterActiveRenderer(this);
+
 	QueryPerformanceFrequency(&m_nFreq);
 #ifndef FINAL_RELEASE
 	HMODULE hD3D9Lib = GetD3D9HMODULE();
@@ -611,6 +619,7 @@ void CBaseStereoRenderer::InitATIShutterMode()
 		m_pATICommSurface = 0;
 		{
 			SetUMEvent UMEvent(this, reResetingDevice);
+			ReleaseStereoParamsTexture(); // D3DPOOL_DEFAULT must be released before Reset
 			NSCALL_TRACE1(m_Direct3DDevice.Reset(pPresParam), DEBUG_MESSAGE(_T("Reset(pPresParam = %s)"),
 						  GetPresentationParametersString(pPresParam)));
 		}
@@ -1499,15 +1508,17 @@ HRESULT CBaseStereoRenderer::CheckEngine()
 	return hResult;
 }
 
-CBaseStereoRenderer::~CBaseStereoRenderer() 
+CBaseStereoRenderer::~CBaseStereoRenderer()
 {
 	INSIDE;
+	Wiz3D_UnregisterActiveRenderer(this);
 	gKbdHook.clear();
 	
 	{
 		RouterTypeHookCallGuard<ProxyDevice9> RT(&m_Direct3DDevice);
 
 		m_pATICommSurface = 0;
+		ReleaseStereoParamsTexture();
 		_aligned_free(m_VertexShaderRegister);
 		m_VertexShaderRegister = NULL;
 
@@ -2153,6 +2164,125 @@ HRESULT CBaseStereoRenderer::SendStereoCommand( ATIDX9STEREOCOMMAND stereoComman
 	pCommPacket->dwInBufferSize = dwInBufferSize;
 	m_pATICommSurface->UnlockRect();
 	return hr;
+}
+
+//-------------------------------------------------------------------------------------------------------
+// HelixMod-compatible stereo parameters texture
+//-------------------------------------------------------------------------------------------------------
+//
+// HelixMod fixes (and 3DMigoto/Geo-11) embed instructions like
+//
+//     def c247, 0, 0, 0.0625, 0
+//     dcl_2d s0
+//     ...
+//     texldl r24, c247.z, s0   ; sample (separation, convergence, ?, ?)
+//     add r24.y, r1.w, -r24.y   ; W - convergence
+//     mul r24.x, r24.x, r24.y   ; separation * (W - convergence)
+//     add r0.x, r0.x, r24.x    ; X += offset
+//
+// They expect a small 2D texture bound to VS sampler 0 (= D3DVERTEXTEXTURESAMPLER0
+// at runtime) and PS sampler 13. The texel at U=0, V=1/16 holds
+// (separation, convergence, ...) for the eye currently being rendered.
+//
+// Historically NVIDIA's stereo driver populated this texture; on AMD/Intel/etc
+// it never existed, which is why HelixMod fixes only worked on NVIDIA.
+// wiz3D mimics the texture in user code so HelixMod fixes function on any
+// vendor's hardware - we never call NVAPI for this and it does not depend
+// on any vendor-specific runtime.
+//
+// Format: 1x16 A32B32G32R32F. We only ever write to row 1 (matching c247.z = 1/16);
+// other rows stay zeroed and are never sampled by HelixMod fixes.
+
+void CBaseStereoRenderer::EnsureStereoParamsTexture()
+{
+	if (m_pStereoParamsTexture)
+		return;
+
+	// D3DPOOL_DEFAULT is required because vertex textures (sampled from VS via
+	// D3DVERTEXTEXTURESAMPLER0..3) cannot live in MANAGED. D3DUSAGE_DYNAMIC
+	// lets us LockRect this DEFAULT-pool texture to refresh per-eye without
+	// the slow stall path (and without it, LockRect on a non-dynamic
+	// DEFAULT-pool texture fails outright).
+	HRESULT hr = m_Direct3DDevice.CreateTexture(
+		1, 16, 1, D3DUSAGE_DYNAMIC, D3DFMT_A32B32G32R32F, D3DPOOL_DEFAULT,
+		&m_pStereoParamsTexture, NULL);
+	if (FAILED(hr))
+	{
+		// Some drivers don't support A32B32G32R32F as a vertex texture format.
+		// Caller will silently no-op; HelixMod fixes won't activate but the
+		// game won't break either.
+		DEBUG_MESSAGE(_T("[StereoParamsTex] CreateTexture failed: 0x%08x\n"), hr);
+		m_pStereoParamsTexture = nullptr;
+	}
+}
+
+void CBaseStereoRenderer::UpdateStereoParamsTexture(VIEWINDEX view)
+{
+	EnsureStereoParamsTexture();
+	if (!m_pStereoParamsTexture)
+		return;
+
+	// Pull current stereo settings from the active preset. Magnitudes match
+	// what wiz3D's existing matrix-offset path uses for its own per-eye math
+	// (BaseStereoRenderer-inl.h:181-184), so HelixMod-fixed shaders and
+	// wiz3D-analyzed shaders observe the same separation/convergence values.
+	const float stereoBase = m_Input.GetActivePreset()->StereoBase * m_CurrentMeshMultiplier;
+	const float oneDivZps  = m_Input.GetActivePreset()->One_div_ZPS + m_CurrentConvergenceShift;
+	const float convergence = (oneDivZps != 0.0f) ? (1.0f / oneDivZps) : 0.0f;
+	const float eyeSign = (view == VIEWINDEX_LEFT) ? -1.0f : +1.0f;
+	const float separation = stereoBase * eyeSign;
+
+	D3DLOCKED_RECT lr = {};
+	HRESULT hr = m_pStereoParamsTexture->LockRect(0, &lr, NULL, D3DLOCK_DISCARD);
+	if (FAILED(hr))
+	{
+		DEBUG_MESSAGE(_T("[StereoParamsTex] LockRect failed: 0x%08x\n"), hr);
+		return;
+	}
+
+	BYTE* base = static_cast<BYTE*>(lr.pBits);
+	memset(base, 0, lr.Pitch * 16); // zero rows we don't use
+
+	// Row 1 (Y=1/16 = 0.0625) holds the eye's params, matching the canonical
+	// HelixMod texldl coordinate.
+	float* row1 = reinterpret_cast<float*>(base + lr.Pitch * 1);
+	row1[0] = separation;     // .r -> r24.x in fixed shader
+	row1[1] = convergence;    // .g -> r24.y in fixed shader
+	row1[2] = eyeSign;        // .b -> some fixes inspect this
+	row1[3] = 1.0f;           // .a -> "stereo active" flag
+
+	m_pStereoParamsTexture->UnlockRect(0);
+}
+
+void CBaseStereoRenderer::BindStereoParamsSamplers()
+{
+	if (!m_pStereoParamsTexture)
+		return;
+
+	// VS sampler 0 in shader source code (`dcl_2d s0`) maps at runtime to the
+	// D3DVERTEXTEXTURESAMPLER0 texture stage. PS sampler 13 is just stage 13.
+	// Force point sampling so the texel is read exactly without filter blending.
+	m_Direct3DDevice.SetTexture(D3DVERTEXTEXTURESAMPLER0, m_pStereoParamsTexture);
+	m_Direct3DDevice.SetSamplerState(D3DVERTEXTEXTURESAMPLER0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+	m_Direct3DDevice.SetSamplerState(D3DVERTEXTEXTURESAMPLER0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+	m_Direct3DDevice.SetSamplerState(D3DVERTEXTEXTURESAMPLER0, D3DSAMP_MIPFILTER, D3DTEXF_POINT);
+
+	m_Direct3DDevice.SetTexture(13, m_pStereoParamsTexture);
+	m_Direct3DDevice.SetSamplerState(13, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+	m_Direct3DDevice.SetSamplerState(13, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+	m_Direct3DDevice.SetSamplerState(13, D3DSAMP_MIPFILTER, D3DTEXF_POINT);
+}
+
+void CBaseStereoRenderer::ReleaseStereoParamsTexture()
+{
+	// Unbind from sampler stages first so the device drops its reference,
+	// otherwise the texture's refcount can survive past Reset.
+	if (m_Direct3DDevice)
+	{
+		m_Direct3DDevice.SetTexture(D3DVERTEXTEXTURESAMPLER0, NULL);
+		m_Direct3DDevice.SetTexture(13, NULL);
+	}
+	m_pStereoParamsTexture = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------------

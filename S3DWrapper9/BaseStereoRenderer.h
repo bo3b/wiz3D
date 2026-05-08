@@ -111,6 +111,19 @@ public:
 	CComPtr<IDirect3DSurface9>		m_pMouseCursor;
 	CComPtr<IDirect3DTexture9>		m_pMouseCursorTexture;
 
+	// HelixMod-compatible stereo parameters texture. A 1x16 RGBA32F texture
+	// bound to VS sampler 0 (D3DVERTEXTEXTURESAMPLER0) and PS sampler 13.
+	// Updated per-eye with (separation, convergence, eye_sign, magic). Shaders
+	// that have been authored or replaced to do their own stereo offset (e.g.
+	// HelixMod fixes that contain `texldl r, c, s0`) read from this texture.
+	// In D3DPOOL_DEFAULT, so released before device Reset and lazy-allocated
+	// on next use.
+	CComPtr<IDirect3DTexture9>		m_pStereoParamsTexture;
+	void EnsureStereoParamsTexture();
+	void UpdateStereoParamsTexture(VIEWINDEX view);
+	void BindStereoParamsSamplers();
+	void ReleaseStereoParamsTexture();
+
 	CComPtr<IDirect3DQuery9>		m_pFlushQuery;
 	LARGE_INTEGER					m_FlushTime;
 	volatile DWORD					m_nFlushCounter;

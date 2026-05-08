@@ -18,17 +18,34 @@
 #include "..\S3DAPI\EnumToString.h"
 #include "ProxyQuery.h"
 #include "CommandDumper.h"
+#include "ShaderOverrideLoader.h"
 
-STDMETHODIMP CBaseStereoRenderer::CreateVertexShader(CONST DWORD * pFunction, IDirect3DVertexShader9** ppShader) 
+STDMETHODIMP CBaseStereoRenderer::CreateVertexShader(CONST DWORD * pFunction, IDirect3DVertexShader9** ppShader)
 {
 	HRESULT hResult;
 
+	// HelixMod-compatible override: if <game>\ShaderOverride\VertexShaders\<CRC>.txt
+	// exists, assemble it and substitute its bytecode in place of the game's
+	// original. The substituted shader flows through Convert() the same way,
+	// and Phase 1b's bytecode scan picks up the texldl pattern so wiz3D won't
+	// also apply matrix offset on top.
+	CComPtr<ID3DXBuffer> pOverrideAsm;
+	{
+		UINT origSize = D3DXGetShaderSize(pFunction);
+		DWORD origCRC = wiz3d::shader_override::ComputeShaderCRC32(pFunction, origSize);
+		if (wiz3d::shader_override::TryLoadOverride(origCRC,
+		        wiz3d::shader_override::ShaderType::Vertex, pOverrideAsm))
+		{
+			pFunction = (CONST DWORD*)pOverrideAsm->GetBufferPointer();
+		}
+	}
+
 	//NSCALL_TRACE2(m_pDirect3DDevice.CreateVertexShader(pFunction, ppShader),
-	//	DEBUG_MESSAGE("CreateVertexShader(pFunction = %p, *ppShader = %p)", 
+	//	DEBUG_MESSAGE("CreateVertexShader(pFunction = %p, *ppShader = %p)",
 	//	pFunction, Indirect(ppShader)));
 	CComPtr<IDirect3DVertexShader9> pModifiedShader;
 	NSCALL_TRACE2(m_VertexShaderConverter.Convert(pFunction, ppShader, &pModifiedShader),
-		DEBUG_MESSAGE(_T("ConvertVS(pFunction = %p, *ppShader = %p)"), 
+		DEBUG_MESSAGE(_T("ConvertVS(pFunction = %p, *ppShader = %p)"),
 		pFunction, Indirect(ppShader)));
 
 	if (SUCCEEDED(hResult))
@@ -54,16 +71,28 @@ STDMETHODIMP CBaseStereoRenderer::CreateVertexShader(CONST DWORD * pFunction, ID
 	return hResult;
 }
 
-STDMETHODIMP CBaseStereoRenderer::CreatePixelShader(CONST DWORD* pFunction, IDirect3DPixelShader9** ppShader) 
+STDMETHODIMP CBaseStereoRenderer::CreatePixelShader(CONST DWORD* pFunction, IDirect3DPixelShader9** ppShader)
 {
 	HRESULT hResult;
 
+	// HelixMod-compatible override (PS): see CreateVertexShader for details.
+	CComPtr<ID3DXBuffer> pOverrideAsm;
+	{
+		UINT origSize = D3DXGetShaderSize(pFunction);
+		DWORD origCRC = wiz3d::shader_override::ComputeShaderCRC32(pFunction, origSize);
+		if (wiz3d::shader_override::TryLoadOverride(origCRC,
+		        wiz3d::shader_override::ShaderType::Pixel, pOverrideAsm))
+		{
+			pFunction = (CONST DWORD*)pOverrideAsm->GetBufferPointer();
+		}
+	}
+
 	//NSCALL_TRACE2(m_pDirect3DDevice.CreatePixelShader(pFunction, ppShader),
-	//	DEBUG_MESSAGE("CreatePixelShader(pFunction = %p, *ppShader = %p)", 
+	//	DEBUG_MESSAGE("CreatePixelShader(pFunction = %p, *ppShader = %p)",
 	//	pFunction, Indirect(ppShader)));
 	CComPtr<IDirect3DPixelShader9> pModifiedShader;
 	NSCALL_TRACE2(m_PixelShaderConverter.Convert(pFunction, ppShader, &pModifiedShader),
-		DEBUG_MESSAGE(_T("ConvertPS(pFunction = %p, *ppShader = %p)"), 
+		DEBUG_MESSAGE(_T("ConvertPS(pFunction = %p, *ppShader = %p)"),
 		pFunction, Indirect(ppShader)));
 
 	if (SUCCEEDED(hResult))
