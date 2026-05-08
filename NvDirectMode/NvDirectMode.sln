@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NvDirectMode-d3d9", "d3d9\N
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NvDirectMode-d3d11", "d3d11\NvDirectMode-d3d11.vcxproj", "{F1E2D3C4-0011-0011-0011-000000000011}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NvDirectMode-d3d10", "d3d10\NvDirectMode-d3d10.vcxproj", "{F1E2D3C4-0010-0010-0010-000000000010}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -31,6 +33,14 @@ Global
 		{F1E2D3C4-0011-0011-0011-000000000011}.Release|Win32.Build.0 = Release|Win32
 		{F1E2D3C4-0011-0011-0011-000000000011}.Release|x64.ActiveCfg = Release|x64
 		{F1E2D3C4-0011-0011-0011-000000000011}.Release|x64.Build.0 = Release|x64
+		{F1E2D3C4-0010-0010-0010-000000000010}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F1E2D3C4-0010-0010-0010-000000000010}.Debug|Win32.Build.0 = Debug|Win32
+		{F1E2D3C4-0010-0010-0010-000000000010}.Debug|x64.ActiveCfg = Debug|x64
+		{F1E2D3C4-0010-0010-0010-000000000010}.Debug|x64.Build.0 = Debug|x64
+		{F1E2D3C4-0010-0010-0010-000000000010}.Release|Win32.ActiveCfg = Release|Win32
+		{F1E2D3C4-0010-0010-0010-000000000010}.Release|Win32.Build.0 = Release|Win32
+		{F1E2D3C4-0010-0010-0010-000000000010}.Release|x64.ActiveCfg = Release|x64
+		{F1E2D3C4-0010-0010-0010-000000000010}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
