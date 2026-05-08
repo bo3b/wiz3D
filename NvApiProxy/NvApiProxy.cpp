@@ -294,10 +294,24 @@ static bool ResolveWiz3DBridge()
 
 // --- general / driver -------------------------------------------------------
 // Diagnostic: log the *first* time each spoof function is hit so we can see
-// exactly which NvAPI calls a game / mod is making, in order. Cheap (one
-// interlocked op + branch on first call, just a branch on subsequent calls).
-// Disabled by setting WIZ3D_NVAPI_TRACE=0 below if it ever becomes too noisy.
+// exactly which NvAPI calls a game / mod is making, in order.
+//
+// For stereo Get* / Set* functions we additionally need to see:
+//   - polling cadence (does the game read separation per-frame? once per scene?)
+//   - the actual value being returned / written (so we can verify the wiz3D
+//     bridge is feeding through correctly when the user moves a slider in
+//     game or in our config)
+//
+// NVAPI_TRACE_PERIODIC: every Nth call, includes a printf-style value snapshot.
+// NVAPI_TRACE_EVERY:    every call, includes a value. For rare Set functions
+//                       where every event is interesting (user pressed an
+//                       in-game stereo hotkey).
+//
+// Cheap on the hot path: one interlocked increment + a modulo + branch.
+//
+// Disable by setting WIZ3D_NVAPI_TRACE=0 if logs ever get too noisy.
 #define WIZ3D_NVAPI_TRACE 1
+#define WIZ3D_NVAPI_PERIODIC_N 60
 #if WIZ3D_NVAPI_TRACE
   #define NVAPI_TRACE_FIRST(name)                                          \
       do {                                                                 \
@@ -305,8 +319,33 @@ static bool ResolveWiz3DBridge()
           if (InterlockedCompareExchange(&_once, 1, 0) == 0)               \
               WriteLog("[NvApiProxy] first call: " name "\n");             \
       } while (0)
+
+  // Logs call #1, then every Nth call. snprintf into a stack buffer; format
+  // string must NOT use floats from outside the macro arg list (we wrap them).
+  #define NVAPI_TRACE_PERIODIC(name, fmt, ...)                             \
+      do {                                                                 \
+          static volatile LONG _count = 0;                                  \
+          LONG _c = InterlockedIncrement(&_count);                         \
+          if (_c == 1 || (_c % WIZ3D_NVAPI_PERIODIC_N) == 0) {             \
+              char _buf[160];                                              \
+              _snprintf_s(_buf, sizeof(_buf), _TRUNCATE,                   \
+                  "[NvApiProxy] " name " #%ld: " fmt "\n", _c, __VA_ARGS__);\
+              WriteLog(_buf);                                              \
+          }                                                                \
+      } while (0)
+
+  // Every call logged with the value. Use sparingly - only for rare events.
+  #define NVAPI_TRACE_EVERY(name, fmt, ...)                                \
+      do {                                                                 \
+          char _buf[160];                                                  \
+          _snprintf_s(_buf, sizeof(_buf), _TRUNCATE,                       \
+              "[NvApiProxy] " name ": " fmt "\n", __VA_ARGS__);            \
+          WriteLog(_buf);                                                  \
+      } while (0)
 #else
-  #define NVAPI_TRACE_FIRST(name) ((void)0)
+  #define NVAPI_TRACE_FIRST(name)                       ((void)0)
+  #define NVAPI_TRACE_PERIODIC(name, fmt, ...)          ((void)0)
+  #define NVAPI_TRACE_EVERY(name, fmt, ...)             ((void)0)
 #endif
 
 NVAPI_INTERFACE Spoof_Initialize(void) { NVAPI_TRACE_FIRST("Initialize"); return NVAPI_OK; }
@@ -449,8 +488,28 @@ NVAPI_INTERFACE Spoof_GPU_GetPCIIdentifiers(NvPhysicalGpuHandle,
 }
 
 // --- stereo -----------------------------------------------------------------
-NVAPI_INTERFACE Spoof_Stereo_Enable(void)  { NVAPI_TRACE_FIRST("Stereo_Enable");  return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Stereo_Disable(void) { NVAPI_TRACE_FIRST("Stereo_Disable"); return NVAPI_OK; }
+//
+// Stereo_Enable/Disable are the OS-wide 3D Vision enable toggle (the NVIDIA
+// Control Panel checkbox). Stereo_Activate/Deactivate are the per-session
+// "stereo currently rendering" state. Games like Batman: Arkham Asylum use
+// Enable/Disable for their in-game 3D Vision option, while others use
+// Activate/Deactivate. Wire both pairs into wiz3D's StereoActive flag so
+// either kind of in-game toggle drives wiz3D's mono/stereo state — same
+// effect as the user pressing the * hotkey.
+NVAPI_INTERFACE Spoof_Stereo_Enable(void)
+{
+    NVAPI_TRACE_FIRST("Stereo_Enable");
+    if (ResolveWiz3DBridge()) g_Wiz3D.SetStereoActive(1);
+    g_Stereo.isActive = 1;
+    return NVAPI_OK;
+}
+NVAPI_INTERFACE Spoof_Stereo_Disable(void)
+{
+    NVAPI_TRACE_FIRST("Stereo_Disable");
+    if (ResolveWiz3DBridge()) g_Wiz3D.SetStereoActive(0);
+    g_Stereo.isActive = 0;
+    return NVAPI_OK;
+}
 
 NVAPI_INTERFACE Spoof_Stereo_IsEnabled(NvU8* p)
 {
@@ -488,76 +547,76 @@ NVAPI_INTERFACE Spoof_Stereo_Deactivate(StereoHandle)
 }
 NVAPI_INTERFACE Spoof_Stereo_IsActivated(StereoHandle, NvU8* p)
 {
-    NVAPI_TRACE_FIRST("Stereo_IsActivated");
     if (!p) return NVAPI_ERROR;
     *p = ResolveWiz3DBridge()
         ? (NvU8)(g_Wiz3D.GetStereoActive() ? 1 : 0)
         : g_Stereo.isActive;
+    NVAPI_TRACE_PERIODIC("Stereo_IsActivated", "%d", (int)*p);
     return NVAPI_OK;
 }
 
 NVAPI_INTERFACE Spoof_Stereo_GetSeparation(StereoHandle, float* p)
 {
-    NVAPI_TRACE_FIRST("Stereo_GetSeparation");
     if (!p) return NVAPI_ERROR;
     *p = ResolveWiz3DBridge()
         ? g_Wiz3D.GetSeparationPercent()
         : g_Stereo.separation;
+    NVAPI_TRACE_PERIODIC("Stereo_GetSeparation", "%.2f%%", *p);
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetSeparation(StereoHandle, float v)
 {
-    NVAPI_TRACE_FIRST("Stereo_SetSeparation");
     if (v < 0.0f || v > 100.0f) return NVAPI_ERROR;
     if (ResolveWiz3DBridge()) g_Wiz3D.SetSeparationPercent(v);
     g_Stereo.separation = v;
+    NVAPI_TRACE_EVERY("Stereo_SetSeparation", "%.2f%%", v);
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_DecreaseSeparation(StereoHandle h)
 {
-    NVAPI_TRACE_FIRST("Stereo_DecreaseSeparation");
     float cur = 0.0f;
     Spoof_Stereo_GetSeparation(h, &cur);
     cur = (cur > 5.0f) ? cur - 5.0f : 0.0f;
+    NVAPI_TRACE_EVERY("Stereo_DecreaseSeparation", "-> %.2f%%", cur);
     return Spoof_Stereo_SetSeparation(h, cur);
 }
 NVAPI_INTERFACE Spoof_Stereo_IncreaseSeparation(StereoHandle h)
 {
-    NVAPI_TRACE_FIRST("Stereo_IncreaseSeparation");
     float cur = 0.0f;
     Spoof_Stereo_GetSeparation(h, &cur);
     cur = (cur < 95.0f) ? cur + 5.0f : 100.0f;
+    NVAPI_TRACE_EVERY("Stereo_IncreaseSeparation", "-> %.2f%%", cur);
     return Spoof_Stereo_SetSeparation(h, cur);
 }
 
 NVAPI_INTERFACE Spoof_Stereo_GetConvergence(StereoHandle, float* p)
 {
-    NVAPI_TRACE_FIRST("Stereo_GetConvergence");
     if (!p) return NVAPI_ERROR;
     *p = ResolveWiz3DBridge()
         ? g_Wiz3D.GetConvergence()
         : g_Stereo.convergence;
+    NVAPI_TRACE_PERIODIC("Stereo_GetConvergence", "%.4f", *p);
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetConvergence(StereoHandle, float v)
 {
-    NVAPI_TRACE_FIRST("Stereo_SetConvergence");
     if (ResolveWiz3DBridge()) g_Wiz3D.SetConvergence(v);
     g_Stereo.convergence = v;
+    NVAPI_TRACE_EVERY("Stereo_SetConvergence", "%.4f", v);
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_DecreaseConvergence(StereoHandle h)
 {
-    NVAPI_TRACE_FIRST("Stereo_DecreaseConvergence");
     float cur = 0.0f;
     Spoof_Stereo_GetConvergence(h, &cur);
+    NVAPI_TRACE_EVERY("Stereo_DecreaseConvergence", "from %.4f -> %.4f", cur, cur - 0.05f);
     return Spoof_Stereo_SetConvergence(h, cur - 0.05f);
 }
 NVAPI_INTERFACE Spoof_Stereo_IncreaseConvergence(StereoHandle h)
 {
-    NVAPI_TRACE_FIRST("Stereo_IncreaseConvergence");
     float cur = 0.0f;
     Spoof_Stereo_GetConvergence(h, &cur);
+    NVAPI_TRACE_EVERY("Stereo_IncreaseConvergence", "from %.4f -> %.4f", cur, cur + 0.05f);
     return Spoof_Stereo_SetConvergence(h, cur + 0.05f);
 }
 
