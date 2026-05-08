@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    NvDirectMode sln: auto-import version stamping into every Direct Mode proxy vcxproj.
+
+    - Runs bin/generate_version.ps1 (shared with the main S3DDriver.sln) before
+      ResourceCompile so bin/temp_version.h is up to date.
+    - Adds version.rc to every project's ResourceCompile list and gives the
+      .rc + proxy_version.h access via the include path.
+  -->
+
+  <PropertyGroup>
+    <_NvDMDir>$(MSBuildThisFileDirectory)</_NvDMDir>
+    <_NvDMRepoBin>$([System.IO.Path]::GetFullPath('$(_NvDMDir)..\bin\'))</_NvDMRepoBin>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(_NvDMDir);$(_NvDMRepoBin);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ResourceCompile Include="$(_NvDMDir)version.rc" />
+  </ItemGroup>
+
+  <Target Name="NvDirectModeGenerateVersionHeader"
+          BeforeTargets="ResourceCompile;ClCompile">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_NvDMRepoBin)generate_version.ps1&quot;" />
+  </Target>
+</Project>
