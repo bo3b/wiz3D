@@ -870,6 +870,25 @@ extern "C" __declspec(dllexport) void* __cdecl NvAPI_QueryInterface(NvU32 id)
 }
 
 // ============================================================
+// NvDirectMode bridge — exposes the game's last NvAPI_Stereo_SetActiveEye
+// value so the Direct Mode d3d9/10/11/opengl proxies can route per-eye RT
+// binds without each replicating their own NvAPI hook. The value follows
+// NVIDIA's NV_STEREO_ACTIVE_EYE encoding:
+//   1 = NVAPI_STEREO_EYE_RIGHT
+//   2 = NVAPI_STEREO_EYE_LEFT
+//   3 = NVAPI_STEREO_EYE_MONO  (game hasn't selected an eye yet)
+//
+// Resolved at runtime from the NvDirectMode side via GetModuleHandle("nvapi[64].dll")
+// + GetProcAddress("Wiz3D_GetActiveEye"). Returns MONO when the proxy is
+// loaded but the game hasn't called SetActiveEye yet — caller can treat
+// MONO as "no eye routing, render full frame".
+// ============================================================
+extern "C" __declspec(dllexport) int __cdecl Wiz3D_GetActiveEye()
+{
+    return (int)g_Stereo.activeEye;
+}
+
+// ============================================================
 // DllMain
 // ============================================================
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)

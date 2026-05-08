@@ -2,3 +2,4 @@ LIBRARY
 EXPORTS
     nvapi_QueryInterface
     NvAPI_QueryInterface
+    Wiz3D_GetActiveEye
