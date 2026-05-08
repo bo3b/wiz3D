@@ -208,7 +208,7 @@ static void InitMode()
     }
 
     g_bPassthrough = true;
-    WriteLog("[NvApiProxy] real NVIDIA driver detected -> PASSTHROUGH mode\n");
+    WriteLog("[NvApiProxy] real NVIDIA driver detected -> PASSTHROUGH mode (Stereo_* still served by wiz3D bridge)\n");
 }
 
 // ============================================================
@@ -240,12 +240,81 @@ static FakeStereoState g_Stereo = {
     /*frustumAdjust*/ 1,
 };
 
+// ============================================================
+// Live bridge to S3DWrapperD3D9.dll's wiz3D state.
+//
+// When the DX9 wrapper is loaded in-process, route stereo getters/setters
+// through it so 3D Vision-aware games (Skyrim, Witcher 2, etc.) and HelixMod
+// see the user's current wiz3D separation/convergence and writes propagate
+// back to the wrapper. When the wrapper isn't loaded - e.g. the proxy is
+// being used standalone, or before the device is created - we transparently
+// fall back to the local FakeStereoState above.
+//
+// Resolution strategy: cheap GetModuleHandle on every call, so if the
+// wrapper appears mid-session (lazy load by Direct3DCreate9) we pick it up
+// without a restart.
+// ============================================================
+struct Wiz3DBridge
+{
+    int   (__cdecl* GetStereoActive)();
+    void  (__cdecl* SetStereoActive)(int);
+    float (__cdecl* GetSeparationPercent)();
+    void  (__cdecl* SetSeparationPercent)(float);
+    float (__cdecl* GetConvergence)();
+    void  (__cdecl* SetConvergence)(float);
+};
+static Wiz3DBridge g_Wiz3D = {};
+static HMODULE     g_Wiz3DModule = nullptr;
+
+static bool ResolveWiz3DBridge()
+{
+    HMODULE m = GetModuleHandleA("S3DWrapperD3D9.dll");
+    if (!m)
+    {
+        if (g_Wiz3DModule)
+        {
+            // Wrapper was unloaded - drop pointers
+            memset(&g_Wiz3D, 0, sizeof(g_Wiz3D));
+            g_Wiz3DModule = nullptr;
+        }
+        return false;
+    }
+    if (m != g_Wiz3DModule)
+    {
+        g_Wiz3D.GetStereoActive      = (int   (__cdecl*)())   GetProcAddress(m, "Wiz3D_GetStereoActive");
+        g_Wiz3D.SetStereoActive      = (void  (__cdecl*)(int))GetProcAddress(m, "Wiz3D_SetStereoActive");
+        g_Wiz3D.GetSeparationPercent = (float (__cdecl*)())   GetProcAddress(m, "Wiz3D_GetSeparationPercent");
+        g_Wiz3D.SetSeparationPercent = (void  (__cdecl*)(float))GetProcAddress(m, "Wiz3D_SetSeparationPercent");
+        g_Wiz3D.GetConvergence       = (float (__cdecl*)())   GetProcAddress(m, "Wiz3D_GetConvergence");
+        g_Wiz3D.SetConvergence       = (void  (__cdecl*)(float))GetProcAddress(m, "Wiz3D_SetConvergence");
+        g_Wiz3DModule = m;
+    }
+    return g_Wiz3D.GetSeparationPercent != nullptr;
+}
+
 // --- general / driver -------------------------------------------------------
-NVAPI_INTERFACE Spoof_Initialize(void) { return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Unload(void)     { return NVAPI_OK; }
+// Diagnostic: log the *first* time each spoof function is hit so we can see
+// exactly which NvAPI calls a game / mod is making, in order. Cheap (one
+// interlocked op + branch on first call, just a branch on subsequent calls).
+// Disabled by setting WIZ3D_NVAPI_TRACE=0 below if it ever becomes too noisy.
+#define WIZ3D_NVAPI_TRACE 1
+#if WIZ3D_NVAPI_TRACE
+  #define NVAPI_TRACE_FIRST(name)                                          \
+      do {                                                                 \
+          static volatile LONG _once = 0;                                  \
+          if (InterlockedCompareExchange(&_once, 1, 0) == 0)               \
+              WriteLog("[NvApiProxy] first call: " name "\n");             \
+      } while (0)
+#else
+  #define NVAPI_TRACE_FIRST(name) ((void)0)
+#endif
+
+NVAPI_INTERFACE Spoof_Initialize(void) { NVAPI_TRACE_FIRST("Initialize"); return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Unload(void)     { NVAPI_TRACE_FIRST("Unload"); return NVAPI_OK; }
 
 NVAPI_INTERFACE Spoof_GetErrorMessage(NvAPI_Status nr, NvAPI_ShortString szDesc)
 {
+    NVAPI_TRACE_FIRST("GetErrorMessage");
     if (!szDesc) return NVAPI_ERROR;
     _snprintf_s(szDesc, NVAPI_SHORT_STRING_MAX, _TRUNCATE,
                 "NvApiProxy: status %d", (int)nr);
@@ -254,6 +323,7 @@ NVAPI_INTERFACE Spoof_GetErrorMessage(NvAPI_Status nr, NvAPI_ShortString szDesc)
 
 NVAPI_INTERFACE Spoof_GetInterfaceVersionString(NvAPI_ShortString szDesc)
 {
+    NVAPI_TRACE_FIRST("GetInterfaceVersionString");
     if (!szDesc) return NVAPI_ERROR;
     strcpy_s(szDesc, NVAPI_SHORT_STRING_MAX, kSpoofBranchStr);
     return NVAPI_OK;
@@ -261,6 +331,7 @@ NVAPI_INTERFACE Spoof_GetInterfaceVersionString(NvAPI_ShortString szDesc)
 
 NVAPI_INTERFACE Spoof_SYS_GetDriverAndBranchVersion(NvU32* pDrv, NvAPI_ShortString szBranch)
 {
+    NVAPI_TRACE_FIRST("SYS_GetDriverAndBranchVersion");
     if (!pDrv || !szBranch) return NVAPI_ERROR;
     *pDrv = kSpoofDrvVersion;
     strcpy_s(szBranch, NVAPI_SHORT_STRING_MAX, kSpoofBranchStr);
@@ -269,6 +340,7 @@ NVAPI_INTERFACE Spoof_SYS_GetDriverAndBranchVersion(NvU32* pDrv, NvAPI_ShortStri
 
 NVAPI_INTERFACE Spoof_GetDisplayDriverVersion(NvDisplayHandle, NV_DISPLAY_DRIVER_VERSION* pVer)
 {
+    NVAPI_TRACE_FIRST("GetDisplayDriverVersion");
     if (!pVer) return NVAPI_ERROR;
     pVer->version          = NV_DISPLAY_DRIVER_VERSION_VER;
     pVer->drvVersion       = kSpoofDrvVersion;
@@ -281,6 +353,7 @@ NVAPI_INTERFACE Spoof_GetDisplayDriverVersion(NvDisplayHandle, NV_DISPLAY_DRIVER
 // --- GPU enumeration --------------------------------------------------------
 NVAPI_INTERFACE Spoof_EnumPhysicalGPUs(NvPhysicalGpuHandle h[NVAPI_MAX_PHYSICAL_GPUS], NvU32* pCount)
 {
+    NVAPI_TRACE_FIRST("EnumPhysicalGPUs");
     if (!h || !pCount) return NVAPI_ERROR;
     h[0] = kFakePhysicalGpu;
     for (int i = 1; i < NVAPI_MAX_PHYSICAL_GPUS; ++i) h[i] = nullptr;
@@ -290,6 +363,7 @@ NVAPI_INTERFACE Spoof_EnumPhysicalGPUs(NvPhysicalGpuHandle h[NVAPI_MAX_PHYSICAL_
 
 NVAPI_INTERFACE Spoof_EnumLogicalGPUs(NvLogicalGpuHandle h[NVAPI_MAX_PHYSICAL_GPUS], NvU32* pCount)
 {
+    NVAPI_TRACE_FIRST("EnumLogicalGPUs");
     if (!h || !pCount) return NVAPI_ERROR;
     h[0] = kFakeLogicalGpu;
     for (int i = 1; i < NVAPI_MAX_PHYSICAL_GPUS; ++i) h[i] = nullptr;
@@ -299,12 +373,14 @@ NVAPI_INTERFACE Spoof_EnumLogicalGPUs(NvLogicalGpuHandle h[NVAPI_MAX_PHYSICAL_GP
 
 NVAPI_INTERFACE Spoof_GetPhysicalGPUsFromDisplay(NvDisplayHandle, NvPhysicalGpuHandle h[NVAPI_MAX_PHYSICAL_GPUS], NvU32* pCount)
 {
+    NVAPI_TRACE_FIRST("GetPhysicalGPUsFromDisplay");
     return Spoof_EnumPhysicalGPUs(h, pCount);
 }
 
 // --- display enumeration (3D Vision games iterate displays before stereo setup)
 NVAPI_INTERFACE Spoof_EnumNvidiaDisplayHandle(NvU32 thisEnum, NvDisplayHandle* pHandle)
 {
+    NVAPI_TRACE_FIRST("EnumNvidiaDisplayHandle");
     if (!pHandle) return NVAPI_ERROR;
     if (thisEnum == 0)
     {
@@ -316,13 +392,14 @@ NVAPI_INTERFACE Spoof_EnumNvidiaDisplayHandle(NvU32 thisEnum, NvDisplayHandle* p
 
 NVAPI_INTERFACE Spoof_EnumNvidiaUnAttachedDisplayHandle(NvU32, NvUnAttachedDisplayHandle* pHandle)
 {
-    // No unattached displays — only the one primary display.
+    NVAPI_TRACE_FIRST("EnumNvidiaUnAttachedDisplayHandle");
     if (pHandle) *pHandle = nullptr;
     return NVAPI_END_ENUMERATION;
 }
 
 NVAPI_INTERFACE Spoof_GetAssociatedNvidiaDisplayHandle(const char* /*szDisplayName*/, NvDisplayHandle* pHandle)
 {
+    NVAPI_TRACE_FIRST("GetAssociatedNvidiaDisplayHandle");
     if (!pHandle) return NVAPI_ERROR;
     *pHandle = kFakeDisplay;
     return NVAPI_OK;
@@ -330,13 +407,15 @@ NVAPI_INTERFACE Spoof_GetAssociatedNvidiaDisplayHandle(const char* /*szDisplayNa
 
 NVAPI_INTERFACE Spoof_GetAssociatedDisplayOutputId(NvDisplayHandle, NvU32* pOutputId)
 {
+    NVAPI_TRACE_FIRST("GetAssociatedDisplayOutputId");
     if (!pOutputId) return NVAPI_ERROR;
-    *pOutputId = 0x00000001;  // arbitrary non-zero output ID
+    *pOutputId = 0x00000001;
     return NVAPI_OK;
 }
 
 NVAPI_INTERFACE Spoof_GPU_GetFullName(NvPhysicalGpuHandle, NvAPI_ShortString szName)
 {
+    NVAPI_TRACE_FIRST("GPU_GetFullName");
     if (!szName) return NVAPI_ERROR;
     strcpy_s(szName, NVAPI_SHORT_STRING_MAX, kSpoofGpuName);
     return NVAPI_OK;
@@ -344,6 +423,7 @@ NVAPI_INTERFACE Spoof_GPU_GetFullName(NvPhysicalGpuHandle, NvAPI_ShortString szN
 
 NVAPI_INTERFACE Spoof_GPU_GetSystemType(NvPhysicalGpuHandle, NV_SYSTEM_TYPE* p)
 {
+    NVAPI_TRACE_FIRST("GPU_GetSystemType");
     if (!p) return NVAPI_ERROR;
     *p = NV_SYSTEM_TYPE_DESKTOP;
     return NVAPI_OK;
@@ -351,6 +431,7 @@ NVAPI_INTERFACE Spoof_GPU_GetSystemType(NvPhysicalGpuHandle, NV_SYSTEM_TYPE* p)
 
 NVAPI_INTERFACE Spoof_GPU_GetGPUType(NvPhysicalGpuHandle, NV_GPU_TYPE* p)
 {
+    NVAPI_TRACE_FIRST("GPU_GetGPUType");
     if (!p) return NVAPI_ERROR;
     *p = NV_GPU_TYPE_DGPU;
     return NVAPI_OK;
@@ -359,6 +440,7 @@ NVAPI_INTERFACE Spoof_GPU_GetGPUType(NvPhysicalGpuHandle, NV_GPU_TYPE* p)
 NVAPI_INTERFACE Spoof_GPU_GetPCIIdentifiers(NvPhysicalGpuHandle,
     NvU32* pDeviceId, NvU32* pSubsystemId, NvU32* pRevisionId, NvU32* pExtDeviceId)
 {
+    NVAPI_TRACE_FIRST("GPU_GetPCIIdentifiers");
     if (pDeviceId)    *pDeviceId    = (kSpoofPciDevice    << 16) | kSpoofPciVendor;
     if (pSubsystemId) *pSubsystemId = (kSpoofPciSubDevice << 16) | kSpoofPciSubVendor;
     if (pRevisionId)  *pRevisionId  = kSpoofPciRevision;
@@ -367,95 +449,142 @@ NVAPI_INTERFACE Spoof_GPU_GetPCIIdentifiers(NvPhysicalGpuHandle,
 }
 
 // --- stereo -----------------------------------------------------------------
-NVAPI_INTERFACE Spoof_Stereo_Enable(void)  { return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Stereo_Disable(void) { return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_Enable(void)  { NVAPI_TRACE_FIRST("Stereo_Enable");  return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_Disable(void) { NVAPI_TRACE_FIRST("Stereo_Disable"); return NVAPI_OK; }
 
 NVAPI_INTERFACE Spoof_Stereo_IsEnabled(NvU8* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_IsEnabled");
     if (!p) return NVAPI_ERROR;
     *p = 1;
     return NVAPI_OK;
 }
 
-NVAPI_INTERFACE Spoof_Stereo_GetStereoSupport(void* /*opaque pCaps*/) { return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_GetStereoSupport(void* /*opaque pCaps*/) { NVAPI_TRACE_FIRST("Stereo_GetStereoSupport"); return NVAPI_OK; }
 
 NVAPI_INTERFACE Spoof_Stereo_CreateHandleFromIUnknown(void* pDevice, StereoHandle* pH)
 {
+    NVAPI_TRACE_FIRST("Stereo_CreateHandleFromIUnknown");
     if (!pH) return NVAPI_ERROR;
-    // Use the device pointer itself as the handle so it's distinct per device.
     *pH = pDevice ? (StereoHandle)pDevice : (StereoHandle)(uintptr_t)0xFA1ED1CEULL;
     return NVAPI_OK;
 }
 
-NVAPI_INTERFACE Spoof_Stereo_DestroyHandle(StereoHandle) { return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_DestroyHandle(StereoHandle) { NVAPI_TRACE_FIRST("Stereo_DestroyHandle"); return NVAPI_OK; }
 
-NVAPI_INTERFACE Spoof_Stereo_Activate(StereoHandle)   { g_Stereo.isActive = 1; return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Stereo_Deactivate(StereoHandle) { g_Stereo.isActive = 0; return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_Activate(StereoHandle)
+{
+    NVAPI_TRACE_FIRST("Stereo_Activate");
+    if (ResolveWiz3DBridge()) g_Wiz3D.SetStereoActive(1);
+    g_Stereo.isActive = 1;
+    return NVAPI_OK;
+}
+NVAPI_INTERFACE Spoof_Stereo_Deactivate(StereoHandle)
+{
+    NVAPI_TRACE_FIRST("Stereo_Deactivate");
+    if (ResolveWiz3DBridge()) g_Wiz3D.SetStereoActive(0);
+    g_Stereo.isActive = 0;
+    return NVAPI_OK;
+}
 NVAPI_INTERFACE Spoof_Stereo_IsActivated(StereoHandle, NvU8* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_IsActivated");
     if (!p) return NVAPI_ERROR;
-    *p = g_Stereo.isActive;
+    *p = ResolveWiz3DBridge()
+        ? (NvU8)(g_Wiz3D.GetStereoActive() ? 1 : 0)
+        : g_Stereo.isActive;
     return NVAPI_OK;
 }
 
 NVAPI_INTERFACE Spoof_Stereo_GetSeparation(StereoHandle, float* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_GetSeparation");
     if (!p) return NVAPI_ERROR;
-    *p = g_Stereo.separation;
+    *p = ResolveWiz3DBridge()
+        ? g_Wiz3D.GetSeparationPercent()
+        : g_Stereo.separation;
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetSeparation(StereoHandle, float v)
 {
+    NVAPI_TRACE_FIRST("Stereo_SetSeparation");
     if (v < 0.0f || v > 100.0f) return NVAPI_ERROR;
+    if (ResolveWiz3DBridge()) g_Wiz3D.SetSeparationPercent(v);
     g_Stereo.separation = v;
     return NVAPI_OK;
 }
-NVAPI_INTERFACE Spoof_Stereo_DecreaseSeparation(StereoHandle)
+NVAPI_INTERFACE Spoof_Stereo_DecreaseSeparation(StereoHandle h)
 {
-    g_Stereo.separation = (g_Stereo.separation > 5.0f) ? g_Stereo.separation - 5.0f : 0.0f;
-    return NVAPI_OK;
+    NVAPI_TRACE_FIRST("Stereo_DecreaseSeparation");
+    float cur = 0.0f;
+    Spoof_Stereo_GetSeparation(h, &cur);
+    cur = (cur > 5.0f) ? cur - 5.0f : 0.0f;
+    return Spoof_Stereo_SetSeparation(h, cur);
 }
-NVAPI_INTERFACE Spoof_Stereo_IncreaseSeparation(StereoHandle)
+NVAPI_INTERFACE Spoof_Stereo_IncreaseSeparation(StereoHandle h)
 {
-    g_Stereo.separation = (g_Stereo.separation < 95.0f) ? g_Stereo.separation + 5.0f : 100.0f;
-    return NVAPI_OK;
+    NVAPI_TRACE_FIRST("Stereo_IncreaseSeparation");
+    float cur = 0.0f;
+    Spoof_Stereo_GetSeparation(h, &cur);
+    cur = (cur < 95.0f) ? cur + 5.0f : 100.0f;
+    return Spoof_Stereo_SetSeparation(h, cur);
 }
 
 NVAPI_INTERFACE Spoof_Stereo_GetConvergence(StereoHandle, float* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_GetConvergence");
     if (!p) return NVAPI_ERROR;
-    *p = g_Stereo.convergence;
+    *p = ResolveWiz3DBridge()
+        ? g_Wiz3D.GetConvergence()
+        : g_Stereo.convergence;
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetConvergence(StereoHandle, float v)
 {
+    NVAPI_TRACE_FIRST("Stereo_SetConvergence");
+    if (ResolveWiz3DBridge()) g_Wiz3D.SetConvergence(v);
     g_Stereo.convergence = v;
     return NVAPI_OK;
 }
-NVAPI_INTERFACE Spoof_Stereo_DecreaseConvergence(StereoHandle) { g_Stereo.convergence -= 0.05f; return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Stereo_IncreaseConvergence(StereoHandle) { g_Stereo.convergence += 0.05f; return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_DecreaseConvergence(StereoHandle h)
+{
+    NVAPI_TRACE_FIRST("Stereo_DecreaseConvergence");
+    float cur = 0.0f;
+    Spoof_Stereo_GetConvergence(h, &cur);
+    return Spoof_Stereo_SetConvergence(h, cur - 0.05f);
+}
+NVAPI_INTERFACE Spoof_Stereo_IncreaseConvergence(StereoHandle h)
+{
+    NVAPI_TRACE_FIRST("Stereo_IncreaseConvergence");
+    float cur = 0.0f;
+    Spoof_Stereo_GetConvergence(h, &cur);
+    return Spoof_Stereo_SetConvergence(h, cur + 0.05f);
+}
 
 NVAPI_INTERFACE Spoof_Stereo_GetEyeSeparation(StereoHandle, float* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_GetEyeSeparation");
     if (!p) return NVAPI_ERROR;
-    // Ratio of <eye distance>/<screen width>.  ~64mm IPD over ~1m screen.
     *p = 0.064f;
     return NVAPI_OK;
 }
 
 NVAPI_INTERFACE Spoof_Stereo_SetActiveEye(StereoHandle, NV_STEREO_ACTIVE_EYE eye)
 {
+    NVAPI_TRACE_FIRST("Stereo_SetActiveEye");
     g_Stereo.activeEye = eye;
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetDriverMode(NV_STEREO_DRIVER_MODE mode)
 {
+    NVAPI_TRACE_FIRST("Stereo_SetDriverMode");
     g_Stereo.driverMode = mode;
     return NVAPI_OK;
 }
 
 NVAPI_INTERFACE Spoof_Stereo_IsWindowedModeSupported(NvU8* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_IsWindowedModeSupported");
     if (!p) return NVAPI_ERROR;
     *p = 1;
     return NVAPI_OK;
@@ -463,11 +592,13 @@ NVAPI_INTERFACE Spoof_Stereo_IsWindowedModeSupported(NvU8* p)
 
 NVAPI_INTERFACE Spoof_Stereo_SetSurfaceCreationMode(StereoHandle, NVAPI_STEREO_SURFACECREATEMODE m)
 {
+    NVAPI_TRACE_FIRST("Stereo_SetSurfaceCreationMode");
     g_Stereo.createMode = m;
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_GetSurfaceCreationMode(StereoHandle, NVAPI_STEREO_SURFACECREATEMODE* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_GetSurfaceCreationMode");
     if (!p) return NVAPI_ERROR;
     *p = g_Stereo.createMode;
     return NVAPI_OK;
@@ -475,24 +606,27 @@ NVAPI_INTERFACE Spoof_Stereo_GetSurfaceCreationMode(StereoHandle, NVAPI_STEREO_S
 
 NVAPI_INTERFACE Spoof_Stereo_GetFrustumAdjustMode(StereoHandle, NvU32* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_GetFrustumAdjustMode");
     if (!p) return NVAPI_ERROR;
     *p = g_Stereo.frustumAdjust;
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetFrustumAdjustMode(StereoHandle, NvU32 mode)
 {
+    NVAPI_TRACE_FIRST("Stereo_SetFrustumAdjustMode");
     g_Stereo.frustumAdjust = mode;
     return NVAPI_OK;
 }
 
-NVAPI_INTERFACE Spoof_Stereo_InitActivation(StereoHandle, NvU8 /*enable*/)        { return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Stereo_Trigger_Activation(StereoHandle)                     { return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Stereo_ReverseStereoBlitControl(StereoHandle, NvU8 /*on*/)  { return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Stereo_SetNotificationMessage(StereoHandle, NvU64, NvU64)   { return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_InitActivation(StereoHandle, NvU8 /*enable*/)        { NVAPI_TRACE_FIRST("Stereo_InitActivation");        return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_Trigger_Activation(StereoHandle)                     { NVAPI_TRACE_FIRST("Stereo_Trigger_Activation");    return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_ReverseStereoBlitControl(StereoHandle, NvU8 /*on*/)  { NVAPI_TRACE_FIRST("Stereo_ReverseStereoBlitControl"); return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_SetNotificationMessage(StereoHandle, NvU64, NvU64)   { NVAPI_TRACE_FIRST("Stereo_SetNotificationMessage"); return NVAPI_OK; }
 
-NVAPI_INTERFACE Spoof_Stereo_SetDefaultProfile(const char* /*szName*/)            { return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_SetDefaultProfile(const char* /*szName*/)            { NVAPI_TRACE_FIRST("Stereo_SetDefaultProfile");      return NVAPI_OK; }
 NVAPI_INTERFACE Spoof_Stereo_GetDefaultProfile(NvU32 /*cbIn*/, char* /*szName*/, NvU32* pcbOut)
 {
+    NVAPI_TRACE_FIRST("Stereo_GetDefaultProfile");
     if (!pcbOut) return NVAPI_ERROR;
     *pcbOut = 0;  // no default profile set
     return NVAPI_OK;
@@ -500,6 +634,7 @@ NVAPI_INTERFACE Spoof_Stereo_GetDefaultProfile(NvU32 /*cbIn*/, char* /*szName*/,
 
 NVAPI_INTERFACE Spoof_Stereo_Debug_WasLastDrawStereoized(StereoHandle, NvU8* p)
 {
+    NVAPI_TRACE_FIRST("Stereo_Debug_WasLastDrawStereoized");
     if (!p) return NVAPI_ERROR;
     *p = 1;
     return NVAPI_OK;
@@ -508,24 +643,77 @@ NVAPI_INTERFACE Spoof_Stereo_Debug_WasLastDrawStereoized(StereoHandle, NvU8* p)
 // Catch-all for IDs we haven't explicitly mapped.  Returning NVAPI_NOT_SUPPORTED
 // causes games to gracefully skip optional features (DLSS, Reflex, telemetry,
 // etc.) without aborting.
-NVAPI_INTERFACE Spoof_NotSupported(void) { return NVAPI_NOT_SUPPORTED; }
+NVAPI_INTERFACE Spoof_NotSupported(void) { NVAPI_TRACE_FIRST("NotSupported (catch-all)"); return NVAPI_NOT_SUPPORTED; }
 
 // Placeholder for known-called-but-not-yet-identified function IDs.  Returning
 // NVAPI_OK (with no output written) is more permissive than NOT_SUPPORTED:
 // 3D Vision-era games tend to interpret NOT_SUPPORTED as "this entire NVAPI is
 // missing capability X, give up", while OK is treated as "optional check
 // passed".  Used for IDs we've observed in the wild but can't yet name.
-NVAPI_INTERFACE Spoof_OkNoOp(void) { return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_OkNoOp(void) { NVAPI_TRACE_FIRST("OkNoOp (unidentified ID)"); return NVAPI_OK; }
 
 // ============================================================
 // Dispatcher — the single export every NVAPI consumer goes through.
 // IDs from lib/nvapi_2026/nvapi_interface.h.
 // ============================================================
+// In passthrough mode we still want the Stereo_* surface served by our own
+// spoof + wiz3D bridge: NVIDIA dropped 3D Vision support after driver 425, so
+// the real nvapi.dll either NOT_SUPPORTEDs every Stereo_ call (best case) or
+// outright crashes when called by HelixMod (Valkyria Chronicles 2026-05-08
+// repro). Hybrid mode keeps us out of NVIDIA's stereo code on a system where
+// 3D Vision is dead, while still letting the real driver answer everything
+// else (driver version, GPU info, display enumeration, ...).
+static bool IsStereoFunctionId(NvU32 id)
+{
+    switch (id)
+    {
+    case 0x239C4545: // Stereo_Enable
+    case 0x2EC50C2B: // Stereo_Disable
+    case 0x348FF8E1: // Stereo_IsEnabled
+    case 0x296C434D: // Stereo_GetStereoSupport
+    case 0xAC7E37F4: // Stereo_CreateHandleFromIUnknown
+    case 0x3A153134: // Stereo_DestroyHandle
+    case 0xF6A1AD68: // Stereo_Activate
+    case 0x2D68DE96: // Stereo_Deactivate
+    case 0x1FB0BC30: // Stereo_IsActivated
+    case 0x451F2134: // Stereo_GetSeparation
+    case 0x5C069FA3: // Stereo_SetSeparation
+    case 0xDA044458: // Stereo_DecreaseSeparation
+    case 0xC9A8ECEC: // Stereo_IncreaseSeparation
+    case 0x4AB00934: // Stereo_GetConvergence
+    case 0x3DD6B54B: // Stereo_SetConvergence
+    case 0x4C87E317: // Stereo_DecreaseConvergence
+    case 0xA17DAABE: // Stereo_IncreaseConvergence
+    case 0xE6839B43: // Stereo_GetFrustumAdjustMode
+    case 0x7BE27FA2: // Stereo_SetFrustumAdjustMode
+    case 0xC7177702: // Stereo_InitActivation
+    case 0x0D6C6CD2: // Stereo_Trigger_Activation
+    case 0x3CD58F89: // Stereo_ReverseStereoBlitControl
+    case 0x6B9B409E: // Stereo_SetNotificationMessage
+    case 0x96EEA9F8: // Stereo_SetActiveEye
+    case 0x5E8F0BEC: // Stereo_SetDriverMode
+    case 0xCE653127: // Stereo_GetEyeSeparation
+    case 0x40C8ED5E: // Stereo_IsWindowedModeSupported
+    case 0xF5DCFCBA: // Stereo_SetSurfaceCreationMode
+    case 0x36F1C736: // Stereo_GetSurfaceCreationMode
+    case 0xED4416C5: // Stereo_Debug_WasLastDrawStereoized
+    case 0x44F0ECD1: // Stereo_SetDefaultProfile
+    case 0x624E21C2: // Stereo_GetDefaultProfile
+        return true;
+    default:
+        return false;
+    }
+}
+
 extern "C" __declspec(dllexport) void* __cdecl nvapi_QueryInterface(NvU32 id)
 {
     InitMode();
 
-    if (g_bPassthrough)
+    // Hybrid: stereo always goes through our spoof+bridge even in passthrough
+    // mode. Falls through to the switch below.
+    const bool forceSpoof = IsStereoFunctionId(id);
+
+    if (g_bPassthrough && !forceSpoof)
         return g_pfnRealQI(id);
 
     switch (id)
