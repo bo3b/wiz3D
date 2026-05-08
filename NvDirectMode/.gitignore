@@ -1,0 +1,19 @@
+# MSBuild intermediate / output trees
+bin/
+obj/
+*/Release/
+*/Release_x64/
+*/Debug/
+*/Debug_x64/
+
+# Generated build artifacts
+*.recipe
+*.res
+*.tlog
+*.lastbuildstate
+*.unsuccessfulbuild
+
+# Visual Studio user-specific files
+*.vcxproj.user
+*.suo
+.vs/
