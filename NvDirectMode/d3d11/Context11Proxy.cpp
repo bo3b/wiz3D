@@ -27,11 +27,18 @@ HRESULT STDMETHODCALLTYPE Context11Proxy::QueryInterface(REFIID riid, void** ppv
         AddRef();
         return S_OK;
     }
-    // Context1/Context2/Context3 etc — pass through unwrapped for now.
-    HRESULT hr = m_real->QueryInterface(riid, ppvObj);
+    // Context1/Context2/Context3+ — return E_NOINTERFACE so the game falls
+    // back to the base ID3D11DeviceContext (which we wrap). Passing the
+    // real Context1+ pointer through opens a COM-identity escape: the game
+    // would call OMSetRenderTargets on the unwrapped pointer, bypassing our
+    // active-eye viewport clamp. Tomb Raider 2013 was leaking 4 unwrapped
+    // Context1+ refs per device and crashing in ucrtbase free() shortly
+    // after first frame's OMSet — likely the game's Context1+ refcount
+    // diverging from our Context11Proxy's tracking.
     NVDM_TRACE_FIRST_N(8,
-        "  Context11Proxy::QI(unknown IID, e.g. Context1+) hr=0x%08lX -- bypass risk\n", hr);
-    return hr;
+        "  Context11Proxy::QI(unknown/higher IID) -> E_NOINTERFACE\n");
+    *ppvObj = nullptr;
+    return E_NOINTERFACE;
 }
 
 // 1b-iv core: when game binds the wrapped backbuffer RTV at slot 0, clamp

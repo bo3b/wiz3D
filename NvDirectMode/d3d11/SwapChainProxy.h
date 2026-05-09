@@ -60,7 +60,7 @@ public:
     HRESULT STDMETHODCALLTYPE GetBuffer(UINT Buffer, REFIID riid, void** ppSurface) override;
     HRESULT STDMETHODCALLTYPE SetFullscreenState(BOOL Fullscreen, IDXGIOutput* pTarget) override             { return m_real->SetFullscreenState(Fullscreen, pTarget); }
     HRESULT STDMETHODCALLTYPE GetFullscreenState(BOOL* pFullscreen, IDXGIOutput** ppTarget) override         { return m_real->GetFullscreenState(pFullscreen, ppTarget); }
-    HRESULT STDMETHODCALLTYPE GetDesc(DXGI_SWAP_CHAIN_DESC* pDesc) override                                  { return m_real->GetDesc(pDesc); }
+    HRESULT STDMETHODCALLTYPE GetDesc(DXGI_SWAP_CHAIN_DESC* pDesc) override;
     HRESULT STDMETHODCALLTYPE ResizeBuffers(
         UINT BufferCount, UINT Width, UINT Height,
         DXGI_FORMAT NewFormat, UINT SwapChainFlags) override
@@ -73,7 +73,7 @@ public:
     HRESULT STDMETHODCALLTYPE GetLastPresentCount(UINT* pLastPresentCount) override                          { return m_real->GetLastPresentCount(pLastPresentCount); }
 
     // IDXGISwapChain1
-    HRESULT STDMETHODCALLTYPE GetDesc1(DXGI_SWAP_CHAIN_DESC1* pDesc) override                                { return m_real1 ? m_real1->GetDesc1(pDesc) : E_NOINTERFACE; }
+    HRESULT STDMETHODCALLTYPE GetDesc1(DXGI_SWAP_CHAIN_DESC1* pDesc) override;
     HRESULT STDMETHODCALLTYPE GetFullscreenDesc(DXGI_SWAP_CHAIN_FULLSCREEN_DESC* pDesc) override             { return m_real1 ? m_real1->GetFullscreenDesc(pDesc) : E_NOINTERFACE; }
     HRESULT STDMETHODCALLTYPE GetHwnd(HWND* pHwnd) override                                                  { return m_real1 ? m_real1->GetHwnd(pHwnd) : E_NOINTERFACE; }
     HRESULT STDMETHODCALLTYPE GetCoreWindow(REFIID riid, void** ppUnk) override                              { return m_real1 ? m_real1->GetCoreWindow(riid, ppUnk) : E_NOINTERFACE; }

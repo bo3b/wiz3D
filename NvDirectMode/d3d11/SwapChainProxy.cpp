@@ -2,6 +2,9 @@
 #include "Device11Proxy.h"
 #include "log.h"
 
+// Output-mode flag (mirrors swapchain_helpers.cpp)
+extern "C" int NvDM_OutputIsTopBottom();
+
 #pragma comment(lib, "dxguid.lib")  // for IID_IDXGISwapChain et al
 
 namespace NvDirectMode
@@ -81,6 +84,51 @@ HRESULT STDMETHODCALLTYPE SwapChainProxy::GetBuffer(UINT Buffer, REFIID riid, vo
     {
         NVDM_TRACE_FIRST_N(4, "  SwapChainProxy::GetBuffer(idx=%u) hr=0x%08lX surface=%p\n",
                            Buffer, hr, ppSurface ? *ppSurface : NULL);
+    }
+    return hr;
+}
+
+HRESULT STDMETHODCALLTYPE SwapChainProxy::GetDesc(DXGI_SWAP_CHAIN_DESC* pDesc)
+{
+    if (!pDesc) return E_POINTER;
+    HRESULT hr = m_real->GetDesc(pDesc);
+    if (SUCCEEDED(hr) && m_parent)
+    {
+        // Game asked us how big its swap chain is — give it the *logical*
+        // (one-eye) dimensions, not the doubled physical size we had the
+        // real DXGI allocate. Otherwise the game thinks the screen is
+        // 2× as wide (or tall, in T-B mode) and positions its UI / fullscreen
+        // quads accordingly, which then get clipped out by our active-eye
+        // viewport clamp. MP3 in windowed showed exactly this: rendering
+        // present in the LEFT half (with squashed scaling) but no UI visible
+        // anywhere because the UI was being drawn at coords > 3840.
+        UINT lw = m_parent->GetLogicalBackBufferWidth();
+        UINT lh = m_parent->GetLogicalBackBufferHeight();
+        if (lw > 0 && lh > 0)
+        {
+            pDesc->BufferDesc.Width  = lw;
+            pDesc->BufferDesc.Height = lh;
+            NVDM_TRACE_FIRST_N(2, "  SwapChainProxy::GetDesc: returning logical %ux%u (real was doubled)\n", lw, lh);
+        }
+    }
+    return hr;
+}
+
+HRESULT STDMETHODCALLTYPE SwapChainProxy::GetDesc1(DXGI_SWAP_CHAIN_DESC1* pDesc)
+{
+    if (!m_real1) return E_NOINTERFACE;
+    if (!pDesc) return E_POINTER;
+    HRESULT hr = m_real1->GetDesc1(pDesc);
+    if (SUCCEEDED(hr) && m_parent)
+    {
+        UINT lw = m_parent->GetLogicalBackBufferWidth();
+        UINT lh = m_parent->GetLogicalBackBufferHeight();
+        if (lw > 0 && lh > 0)
+        {
+            pDesc->Width  = lw;
+            pDesc->Height = lh;
+            NVDM_TRACE_FIRST_N(2, "  SwapChainProxy::GetDesc1: returning logical %ux%u (real was doubled)\n", lw, lh);
+        }
     }
     return hr;
 }
