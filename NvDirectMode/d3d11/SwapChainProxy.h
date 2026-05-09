@@ -101,33 +101,42 @@ public:
     IDXGISwapChain* GetReal() const { return m_real; }
     Device11Proxy*  GetParent() const { return m_parent; }
 
+    // Stage 4: invoked by the eye-change handler (registered with
+    // NvApiProxy). Captures the *current* shadow content into the
+    // texture for `eyeBeingLeft` (the eye whose render just finished).
+    // Public so the static callback dispatcher can call into us.
+    void CaptureEye(int eyeBeingLeft);
+
 private:
-    // Lazy-allocate the doubled shadow BB on first GetBuffer(0). Width
-    // and height come from the real BB's desc; the per-eye doubling is
-    // applied on the appropriate axis based on OutputMode.
     void EnsureShadowBB();
-
-    // Called from Present / Present1 — copies the active-eye half of
-    // m_shadowBB into the real backbuffer so the game's call to the real
-    // Present produces a correct mono image.
-    void BlitActiveEyeToRealBB();
-
-    // Frees + nulls the shadow BB; called from ~SwapChainProxy and
-    // ResizeBuffers.
+    void EnsureEyeFrames();
     void ReleaseShadowBB();
+    void ReleaseEyeFrames();
+
+    // Called from Present / Present1 — captures current shadow as the
+    // latest-rendered eye, then copies the configured display eye(s) to
+    // the real backbuffer.
+    void CaptureAndPresentBlit();
 
     IDXGISwapChain*  m_real;
     IDXGISwapChain1* m_real1;   // null if real doesn't expose IDXGISwapChain1
     Device11Proxy*   m_parent;  // not AddRef'd; device outlives swap chain
     LONG             m_refs;
 
-    // Stage 3 shadow-RT state. m_shadowBB is the doubled per-eye target
-    // we hand the game in place of the real BB. Allocated on first
+    // Stage 3 shadow-RT state. m_shadowBB is the (1x logical) per-frame
+    // RT we hand the game in place of the real BB. Allocated on first
     // GetBuffer(0); released in dtor / ResizeBuffers.
     ID3D11Texture2D* m_shadowBB;
     UINT             m_logicalW;     // one-eye width  (= real BB width)
     UINT             m_logicalH;     // one-eye height (= real BB height)
     DXGI_FORMAT      m_shadowFormat;
+
+    // Stage 4 per-eye capture textures. Lazily allocated on first eye
+    // change. m_lastSeenEye is the eye whose render is currently in the
+    // shadow (so Present knows which slot to capture into).
+    ID3D11Texture2D* m_leftEyeFrame;
+    ID3D11Texture2D* m_rightEyeFrame;
+    int              m_lastSeenEye;  // 1=R 2=L 3=MONO; default MONO
 };
 
 } // namespace NvDirectMode

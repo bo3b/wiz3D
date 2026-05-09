@@ -12,6 +12,38 @@ extern "C" int NvDM_SwapEyes();
 namespace NvDirectMode
 {
 
+// ---------------------------------------------------------------------------
+// Stage 4 primary-swap-chain registry: NvApiProxy's eye-change callback
+// runs as plain C-linkage with no `this` context, so we keep a global
+// pointer to the most recently created SwapChainProxy. The callback
+// dispatches into that primary's CaptureEye(). For multi-swap-chain
+// games (rare), only the primary captures; secondary swap chains operate
+// without per-eye capture (display whichever eye was last rendered, same
+// as stage 3 v2 behaviour).
+// ---------------------------------------------------------------------------
+namespace
+{
+    SwapChainProxy* g_primarySwapChain = nullptr;
+    CRITICAL_SECTION g_primaryLock;
+    bool             g_primaryLockInit = false;
+
+    void EnsurePrimaryLock()
+    {
+        if (g_primaryLockInit) return;
+        InitializeCriticalSection(&g_primaryLock);
+        g_primaryLockInit = true;
+    }
+
+    void OnEyeChange(int oldEye, int /*newEye*/)
+    {
+        EnsurePrimaryLock();
+        EnterCriticalSection(&g_primaryLock);
+        if (g_primarySwapChain)
+            g_primarySwapChain->CaptureEye(oldEye);
+        LeaveCriticalSection(&g_primaryLock);
+    }
+}
+
 SwapChainProxy::SwapChainProxy(IDXGISwapChain* real, Device11Proxy* parent)
     : m_real(real)
     , m_real1(nullptr)
@@ -21,15 +53,32 @@ SwapChainProxy::SwapChainProxy(IDXGISwapChain* real, Device11Proxy* parent)
     , m_logicalW(0)
     , m_logicalH(0)
     , m_shadowFormat(DXGI_FORMAT_UNKNOWN)
+    , m_leftEyeFrame(nullptr)
+    , m_rightEyeFrame(nullptr)
+    , m_lastSeenEye(NvDirectMode::kEyeMono)
 {
-    // QI for IDXGISwapChain1 best-effort. On Win10+ DXGI swap chains
-    // always expose this; on Win7 without platform update it may fail.
     if (m_real)
         m_real->QueryInterface(IID_IDXGISwapChain1, reinterpret_cast<void**>(&m_real1));
+
+    // Register as the primary swap chain (replaces any previous).
+    EnsurePrimaryLock();
+    EnterCriticalSection(&g_primaryLock);
+    g_primarySwapChain = this;
+    LeaveCriticalSection(&g_primaryLock);
+
+    // Lazily register the eye-change handler with NvApiProxy. Idempotent
+    // — the eye_state module remembers we've registered.
+    NvDirectMode::RegisterEyeChangeHandler(&OnEyeChange);
 }
 
 SwapChainProxy::~SwapChainProxy()
 {
+    EnsurePrimaryLock();
+    EnterCriticalSection(&g_primaryLock);
+    if (g_primarySwapChain == this) g_primarySwapChain = nullptr;
+    LeaveCriticalSection(&g_primaryLock);
+
+    ReleaseEyeFrames();
     ReleaseShadowBB();
 }
 
@@ -39,6 +88,61 @@ void SwapChainProxy::ReleaseShadowBB()
     m_logicalW = 0;
     m_logicalH = 0;
     m_shadowFormat = DXGI_FORMAT_UNKNOWN;
+}
+
+void SwapChainProxy::ReleaseEyeFrames()
+{
+    if (m_leftEyeFrame)  { m_leftEyeFrame->Release();  m_leftEyeFrame = nullptr; }
+    if (m_rightEyeFrame) { m_rightEyeFrame->Release(); m_rightEyeFrame = nullptr; }
+    m_lastSeenEye = NvDirectMode::kEyeMono;
+}
+
+void SwapChainProxy::EnsureEyeFrames()
+{
+    if (m_leftEyeFrame && m_rightEyeFrame) return;
+    if (!m_shadowBB || !m_parent || m_logicalW == 0 || m_logicalH == 0) return;
+
+    ID3D11Device* dev = m_parent->GetReal();
+    if (!dev) return;
+
+    D3D11_TEXTURE2D_DESC td = {};
+    td.Width            = m_logicalW;
+    td.Height           = m_logicalH;
+    td.MipLevels        = 1;
+    td.ArraySize        = 1;
+    td.Format           = m_shadowFormat;
+    td.SampleDesc.Count = 1;
+    td.Usage            = D3D11_USAGE_DEFAULT;
+    td.BindFlags        = D3D11_BIND_SHADER_RESOURCE;  // sampled later by composite
+
+    if (!m_leftEyeFrame)
+        dev->CreateTexture2D(&td, nullptr, &m_leftEyeFrame);
+    if (!m_rightEyeFrame)
+        dev->CreateTexture2D(&td, nullptr, &m_rightEyeFrame);
+    LOG_VERBOSE("  EnsureEyeFrames: leftEye=%p  rightEye=%p (%ux%u fmt=%d)\n",
+                m_leftEyeFrame, m_rightEyeFrame, m_logicalW, m_logicalH, (int)m_shadowFormat);
+}
+
+void SwapChainProxy::CaptureEye(int eyeBeingLeft)
+{
+    if (!m_shadowBB || !m_parent) return;
+    EnsureEyeFrames();
+    ID3D11Texture2D* dst = nullptr;
+    if      (eyeBeingLeft == NvDirectMode::kEyeLeft)  dst = m_leftEyeFrame;
+    else if (eyeBeingLeft == NvDirectMode::kEyeRight) dst = m_rightEyeFrame;
+    else return; // MONO transitions don't need capturing — first real eye render starts fresh
+
+    if (!dst) return;
+
+    ID3D11DeviceContext* ctx = nullptr;
+    if (m_parent->GetReal()) m_parent->GetReal()->GetImmediateContext(&ctx);
+    if (ctx)
+    {
+        ctx->CopyResource(dst, m_shadowBB);
+        ctx->Release();
+    }
+    NVDM_TRACE_FIRST_N(8, "  CaptureEye(eye=%d): copied shadow=%p -> eyeFrame=%p\n",
+                       eyeBeingLeft, m_shadowBB, dst);
 }
 
 void SwapChainProxy::EnsureShadowBB()
@@ -127,7 +231,7 @@ HRESULT STDMETHODCALLTYPE SwapChainProxy::QueryInterface(REFIID riid, void** ppv
 HRESULT STDMETHODCALLTYPE SwapChainProxy::Present(UINT SyncInterval, UINT Flags)
 {
     NVDM_TRACE_FIRST_N(4, "  SwapChainProxy::Present(SyncInterval=%u, Flags=0x%X)\n", SyncInterval, Flags);
-    BlitActiveEyeToRealBB();
+    CaptureAndPresentBlit();
     return m_real->Present(SyncInterval, Flags);
 }
 
@@ -136,11 +240,11 @@ HRESULT STDMETHODCALLTYPE SwapChainProxy::Present1(UINT SyncInterval, UINT Flags
 {
     NVDM_TRACE_FIRST_N(4, "  SwapChainProxy::Present1(SyncInterval=%u, Flags=0x%X)\n", SyncInterval, Flags);
     if (!m_real1) return E_NOINTERFACE;
-    BlitActiveEyeToRealBB();
+    CaptureAndPresentBlit();
     return m_real1->Present1(SyncInterval, Flags, pPresentParameters);
 }
 
-void SwapChainProxy::BlitActiveEyeToRealBB()
+void SwapChainProxy::CaptureAndPresentBlit()
 {
     if (!m_shadowBB || !m_real || !m_parent) return;
 
@@ -149,19 +253,42 @@ void SwapChainProxy::BlitActiveEyeToRealBB()
                                    reinterpret_cast<void**>(&realBB));
     if (FAILED(hr) || !realBB) return;
 
-    // 1x shadow → 1x real BB: full copy. For Direct Mode games the
-    // shadow contains whichever eye was rendered most recently before
-    // Present (game's natural alternation pattern). For mono games it's
-    // just the normal mono frame.
+    // What's currently in the shadow is the latest-eye render. Capture
+    // it into the appropriate eye slot so the next Present's display
+    // logic can see both eyes.
+    int currentEye = NvDirectMode::GetActiveEye();
+    if (currentEye == NvDirectMode::kEyeLeft || currentEye == NvDirectMode::kEyeRight)
+    {
+        EnsureEyeFrames();
+        CaptureEye(currentEye);
+        m_lastSeenEye = currentEye;
+    }
+
     ID3D11DeviceContext* ctx = nullptr;
     if (m_parent->GetReal()) m_parent->GetReal()->GetImmediateContext(&ctx);
-    if (ctx)
-    {
-        ctx->CopyResource(realBB, m_shadowBB);
-        ctx->Release();
-    }
-    NVDM_TRACE_FIRST_N(2, "  BlitActiveEyeToRealBB: full copy shadow=%p -> realBB=%p (%ux%u)\n",
-                       m_shadowBB, realBB, m_logicalW, m_logicalH);
+    if (!ctx) { realBB->Release(); return; }
+
+    // Apply config swap-eyes flip, mapping LEFT<->RIGHT for the *display*
+    // copy below. The capture above stores into the actual eye the game
+    // believes it rendered.
+    int swap = NvDM_SwapEyes() != 0;
+
+    // Pick display source. For now (stage 4 v1): always show LEFT-eye
+    // frame if available, else RIGHT-eye, else fall back to current
+    // shadow (mono / pre-stereo games). Stage 4b will replace this with
+    // a shader-based composite that puts both eyes side-by-side.
+    ID3D11Texture2D* leftSrc  = swap ? m_rightEyeFrame : m_leftEyeFrame;
+    ID3D11Texture2D* rightSrc = swap ? m_leftEyeFrame  : m_rightEyeFrame;
+    ID3D11Texture2D* displaySrc = leftSrc ? leftSrc : (rightSrc ? rightSrc : m_shadowBB);
+
+    ctx->CopyResource(realBB, displaySrc);
+    ctx->Release();
+
+    NVDM_TRACE_FIRST_N(4, "  CaptureAndPresentBlit: currentEye=%d displaySrc=%s (%p) -> realBB=%p\n",
+                       currentEye,
+                       (displaySrc == m_leftEyeFrame  ? "leftEye"  :
+                        displaySrc == m_rightEyeFrame ? "rightEye" : "shadow"),
+                       displaySrc, realBB);
 
     realBB->Release();
 }

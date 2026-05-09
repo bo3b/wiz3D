@@ -16,4 +16,11 @@ namespace NvDirectMode
     constexpr int kEyeMono  = 3;
 
     int GetActiveEye();
+
+    // Stage 4 per-eye capture: register a callback with NvApiProxy's
+    // Wiz3D_SetEyeChangeCallback export. Lazy resolved together with
+    // Wiz3D_GetActiveEye. The handler receives (oldEye, newEye) on every
+    // game call to Stereo_SetActiveEye where the value actually changes.
+    typedef void (*EyeChangeHandler)(int oldEye, int newEye);
+    void RegisterEyeChangeHandler(EyeChangeHandler handler);
 }

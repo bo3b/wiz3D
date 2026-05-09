@@ -628,10 +628,26 @@ NVAPI_INTERFACE Spoof_Stereo_GetEyeSeparation(StereoHandle, float* p)
     return NVAPI_OK;
 }
 
+// Stage 4 per-eye capture bridge: NvDirectMode/d3d11 registers a callback
+// here so it can copy the shadow texture into a per-eye frame *before*
+// the next render overwrites it. Called on every eye change; receives
+// the OLD eye so the listener can capture the eye's frame. Single-slot
+// listener (most games have one render thread / one swap chain).
+typedef void (__cdecl *Wiz3D_EyeChangeCallback)(int oldEye, int newEye);
+static Wiz3D_EyeChangeCallback g_eyeChangeCallback = nullptr;
+
+extern "C" __declspec(dllexport) void __cdecl Wiz3D_SetEyeChangeCallback(Wiz3D_EyeChangeCallback cb)
+{
+    g_eyeChangeCallback = cb;
+}
+
 NVAPI_INTERFACE Spoof_Stereo_SetActiveEye(StereoHandle, NV_STEREO_ACTIVE_EYE eye)
 {
     NVAPI_TRACE_FIRST("Stereo_SetActiveEye");
+    int oldEye = (int)g_Stereo.activeEye;
     g_Stereo.activeEye = eye;
+    if (g_eyeChangeCallback && oldEye != (int)eye)
+        g_eyeChangeCallback(oldEye, (int)eye);
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetDriverMode(NV_STEREO_DRIVER_MODE mode)
