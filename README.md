@@ -108,6 +108,7 @@ Configure your output mode (Half Side-by-Side, Anaglyph, etc.) and any other set
 | AaAaAA!!! A Reckless Disregard for Gravity | DX9 | x86 | ✓ | Untested |  |
 | Alien Breed 2: Assault | DX9 | x86 | ✓ | Untested |  |
 | Alien Swarm | DX9 | x86 | ✓ | Untested |  |
+| Aliens Versus Predator | DX6/DX9 | x86 | ✕ | ❌ Not Working | Crashes on level load. |
 | Alone in the Dark (2008) | DX9 | x86 | ✓ | Untested |  |
 | America's Army | DX8/DX9 | x86 | ✓ | Untested |  |
 | Anomaly Warzone Earth | DX9 | x86 | ✓ | Untested |  |
@@ -359,7 +360,7 @@ Configure your output mode (Half Side-by-Side, Anaglyph, etc.) and any other set
 
 | Game | API | Bits | iZ3D Profile | Testing | Notes |
 |------|-----|---------|--------|-------|-------|
-| Aliens vs. Predator (2010) | DX9/DX11 | x86 | ✓ | Untested |  |
+| Aliens vs. Predator (2010) | DX9/DX11 | x86 | ✓ | ✅ DX9 Working | Needs shadow shader fix on DX9. |
 | Assassins Creed | DX9/DX10 | x86 | ✓ | Untested |  |
 | BioShock | DX9/DX10 | x86 | ✓ | Untested |  |
 | BioShock 2 | DX9/DX10 | x86 | ✓ | Untested |  |
