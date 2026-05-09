@@ -1,11 +1,13 @@
 #include "SwapChainProxy.h"
 #include "Device11Proxy.h"
+#include "eye_state.h"
 #include "log.h"
 
-// Output-mode flag (mirrors swapchain_helpers.cpp)
-extern "C" int NvDM_OutputIsTopBottom();
-
 #pragma comment(lib, "dxguid.lib")  // for IID_IDXGISwapChain et al
+
+// Output-mode + swap-eyes flags (from dllmain.cpp via the C-linkage bridge).
+extern "C" int NvDM_OutputIsTopBottom();
+extern "C" int NvDM_SwapEyes();
 
 namespace NvDirectMode
 {
@@ -15,6 +17,10 @@ SwapChainProxy::SwapChainProxy(IDXGISwapChain* real, Device11Proxy* parent)
     , m_real1(nullptr)
     , m_parent(parent)
     , m_refs(1)
+    , m_shadowBB(nullptr)
+    , m_logicalW(0)
+    , m_logicalH(0)
+    , m_shadowFormat(DXGI_FORMAT_UNKNOWN)
 {
     // QI for IDXGISwapChain1 best-effort. On Win10+ DXGI swap chains
     // always expose this; on Win7 without platform update it may fail.
@@ -22,7 +28,72 @@ SwapChainProxy::SwapChainProxy(IDXGISwapChain* real, Device11Proxy* parent)
         m_real->QueryInterface(IID_IDXGISwapChain1, reinterpret_cast<void**>(&m_real1));
 }
 
-SwapChainProxy::~SwapChainProxy() = default;
+SwapChainProxy::~SwapChainProxy()
+{
+    ReleaseShadowBB();
+}
+
+void SwapChainProxy::ReleaseShadowBB()
+{
+    if (m_shadowBB) { m_shadowBB->Release(); m_shadowBB = nullptr; }
+    m_logicalW = 0;
+    m_logicalH = 0;
+    m_shadowFormat = DXGI_FORMAT_UNKNOWN;
+}
+
+void SwapChainProxy::EnsureShadowBB()
+{
+    if (m_shadowBB || !m_real || !m_parent) return;
+
+    // Pull the real BB's dimensions/format off the swap chain — that's
+    // exactly the size the game asked for (no doubling at desc time
+    // anymore in the stage-3 architecture).
+    DXGI_SWAP_CHAIN_DESC desc = {};
+    if (FAILED(m_real->GetDesc(&desc))) return;
+    m_logicalW = desc.BufferDesc.Width;
+    m_logicalH = desc.BufferDesc.Height;
+    m_shadowFormat = desc.BufferDesc.Format;
+    if (m_logicalW == 0 || m_logicalH == 0)
+    {
+        LOG_VERBOSE("  EnsureShadowBB: degenerate logical size %ux%u — skipping shadow alloc\n",
+                    m_logicalW, m_logicalH);
+        return;
+    }
+
+    const bool tb = NvDM_OutputIsTopBottom() != 0;
+    UINT shadowW = tb ? m_logicalW : (m_logicalW * 2);
+    UINT shadowH = tb ? (m_logicalH * 2) : m_logicalH;
+
+    // Push the per-eye dimensions onto the parent device so the OMSet
+    // viewport-clamp logic can pick the correct half.
+    m_parent->SetLogicalBackBufferSize(m_logicalW, m_logicalH);
+
+    ID3D11Device* dev = m_parent->GetReal();
+    if (!dev) return;
+
+    D3D11_TEXTURE2D_DESC td = {};
+    td.Width            = shadowW;
+    td.Height           = shadowH;
+    td.MipLevels        = 1;
+    td.ArraySize        = 1;
+    td.Format           = m_shadowFormat;
+    td.SampleDesc.Count = 1;
+    td.SampleDesc.Quality = 0;
+    td.Usage            = D3D11_USAGE_DEFAULT;
+    td.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    HRESULT hr = dev->CreateTexture2D(&td, nullptr, &m_shadowBB);
+    if (FAILED(hr) || !m_shadowBB)
+    {
+        LOG_VERBOSE("  EnsureShadowBB: CreateTexture2D(%ux%u fmt=%d) FAILED hr=0x%08lX\n",
+                    shadowW, shadowH, (int)m_shadowFormat, hr);
+        m_shadowBB = nullptr;
+        return;
+    }
+    LOG_VERBOSE("  EnsureShadowBB: shadow=%p (%ux%u, logical=%ux%u, fmt=%d, mode=%s)\n",
+                m_shadowBB, shadowW, shadowH, m_logicalW, m_logicalH,
+                (int)m_shadowFormat, tb ? "T-B" : "SBS");
+}
 
 HRESULT STDMETHODCALLTYPE SwapChainProxy::QueryInterface(REFIID riid, void** ppvObj)
 {
@@ -42,11 +113,6 @@ HRESULT STDMETHODCALLTYPE SwapChainProxy::QueryInterface(REFIID riid, void** ppv
         AddRef();
         return S_OK;
     }
-    // SwapChain2/3/4 etc. — return E_NOINTERFACE so the game falls back
-    // to one of the levels we wrap. Passing through unwrapped pointers
-    // for higher versions opens a COM-identity escape: game would call
-    // CreateRenderTargetView from the unwrapped handle, bypassing our
-    // back-buffer registration on Device11Proxy.
     NVDM_TRACE_FIRST_N(8, "  SwapChainProxy::QI(unknown/higher IID) -> E_NOINTERFACE\n");
     *ppvObj = nullptr;
     return E_NOINTERFACE;
@@ -55,6 +121,7 @@ HRESULT STDMETHODCALLTYPE SwapChainProxy::QueryInterface(REFIID riid, void** ppv
 HRESULT STDMETHODCALLTYPE SwapChainProxy::Present(UINT SyncInterval, UINT Flags)
 {
     NVDM_TRACE_FIRST_N(4, "  SwapChainProxy::Present(SyncInterval=%u, Flags=0x%X)\n", SyncInterval, Flags);
+    BlitActiveEyeToRealBB();
     return m_real->Present(SyncInterval, Flags);
 }
 
@@ -63,81 +130,107 @@ HRESULT STDMETHODCALLTYPE SwapChainProxy::Present1(UINT SyncInterval, UINT Flags
 {
     NVDM_TRACE_FIRST_N(4, "  SwapChainProxy::Present1(SyncInterval=%u, Flags=0x%X)\n", SyncInterval, Flags);
     if (!m_real1) return E_NOINTERFACE;
+    BlitActiveEyeToRealBB();
     return m_real1->Present1(SyncInterval, Flags, pPresentParameters);
+}
+
+void SwapChainProxy::BlitActiveEyeToRealBB()
+{
+    if (!m_shadowBB || !m_real || !m_parent || m_logicalW == 0 || m_logicalH == 0) return;
+
+    ID3D11Texture2D* realBB = nullptr;
+    HRESULT hr = m_real->GetBuffer(0, IID_ID3D11Texture2D,
+                                   reinterpret_cast<void**>(&realBB));
+    if (FAILED(hr) || !realBB) return;
+
+    int eye = NvDirectMode::GetActiveEye();
+    if (NvDM_SwapEyes())
+    {
+        if      (eye == NvDirectMode::kEyeLeft)  eye = NvDirectMode::kEyeRight;
+        else if (eye == NvDirectMode::kEyeRight) eye = NvDirectMode::kEyeLeft;
+    }
+    const bool wantRight = (eye == NvDirectMode::kEyeRight);
+    const bool tb        = NvDM_OutputIsTopBottom() != 0;
+
+    D3D11_BOX box = {};
+    box.front = 0;
+    box.back  = 1;
+    if (tb)
+    {
+        box.left   = 0;
+        box.right  = m_logicalW;
+        box.top    = wantRight ? m_logicalH : 0;
+        box.bottom = wantRight ? (m_logicalH * 2) : m_logicalH;
+    }
+    else
+    {
+        box.left   = wantRight ? m_logicalW : 0;
+        box.right  = wantRight ? (m_logicalW * 2) : m_logicalW;
+        box.top    = 0;
+        box.bottom = m_logicalH;
+    }
+
+    ID3D11DeviceContext* ctx = nullptr;
+    if (m_parent->GetReal()) m_parent->GetReal()->GetImmediateContext(&ctx);
+    if (ctx)
+    {
+        ctx->CopySubresourceRegion(realBB, 0, 0, 0, 0, m_shadowBB, 0, &box);
+        ctx->Release();
+    }
+    NVDM_TRACE_FIRST_N(2, "  BlitActiveEyeToRealBB: eye=%d mode=%s box=(%u,%u,%u,%u)\n",
+                       eye, tb ? "T-B" : "SBS",
+                       box.left, box.top, box.right, box.bottom);
+
+    realBB->Release();
 }
 
 HRESULT STDMETHODCALLTYPE SwapChainProxy::GetBuffer(UINT Buffer, REFIID riid, void** ppSurface)
 {
+    if (Buffer == 0)
+    {
+        EnsureShadowBB();
+        if (m_shadowBB && ppSurface)
+        {
+            // Hand the game our shadow texture in place of the real BB.
+            // QI for whatever interface flavour was requested
+            // (ID3D11Texture2D / IDXGISurface / etc).
+            HRESULT hr = m_shadowBB->QueryInterface(riid, ppSurface);
+            if (SUCCEEDED(hr) && *ppSurface && m_parent)
+            {
+                m_parent->RegisterBackBufferTexture(*ppSurface);
+                LOG_VERBOSE("  GetBuffer(0): handed shadow %p (as %p via QI) registered on dev=%p\n",
+                            m_shadowBB, *ppSurface, m_parent);
+            }
+            else
+            {
+                NVDM_TRACE_FIRST_N(4, "  GetBuffer(0): shadow QI hr=0x%08lX  surface=%p\n",
+                                   hr, ppSurface ? *ppSurface : nullptr);
+            }
+            return hr;
+        }
+    }
     HRESULT hr = m_real->GetBuffer(Buffer, riid, ppSurface);
-    // 1b-iv: register the back-buffer (buffer 0) on the device proxy so
-    // CreateRenderTargetView can identity-tag any RTV the game derives from
-    // it. We store the raw pointer regardless of which interface the game
-    // QI'd for — single-inheritance Texture2D->Resource->DeviceChild->IUnknown
-    // means the address is stable across those interfaces.
-    if (SUCCEEDED(hr) && Buffer == 0 && ppSurface && *ppSurface && m_parent)
-    {
-        m_parent->RegisterBackBufferTexture(*ppSurface);
-        LOG_VERBOSE("  SwapChainProxy::GetBuffer(0): registered BB texture=%p on parent dev=%p\n",
-                    *ppSurface, m_parent);
-    }
-    else
-    {
-        NVDM_TRACE_FIRST_N(4, "  SwapChainProxy::GetBuffer(idx=%u) hr=0x%08lX surface=%p\n",
-                           Buffer, hr, ppSurface ? *ppSurface : NULL);
-    }
+    NVDM_TRACE_FIRST_N(4, "  GetBuffer(idx=%u) hr=0x%08lX surface=%p (passthrough — non-zero buffer)\n",
+                       Buffer, hr, ppSurface ? *ppSurface : NULL);
     return hr;
 }
 
-HRESULT STDMETHODCALLTYPE SwapChainProxy::GetDesc(DXGI_SWAP_CHAIN_DESC* pDesc)
+HRESULT STDMETHODCALLTYPE SwapChainProxy::ResizeBuffers(
+    UINT BufferCount, UINT Width, UINT Height,
+    DXGI_FORMAT NewFormat, UINT SwapChainFlags)
 {
-    if (!pDesc) return E_POINTER;
-    HRESULT hr = m_real->GetDesc(pDesc);
-    if (SUCCEEDED(hr) && m_parent)
-    {
-        // Game asked us how big its swap chain is — give it the *logical*
-        // (one-eye) dimensions, not the doubled physical size we had the
-        // real DXGI allocate. Otherwise the game thinks the screen is
-        // 2× as wide (or tall, in T-B mode) and positions its UI / fullscreen
-        // quads accordingly, which then get clipped out by our active-eye
-        // viewport clamp. MP3 in windowed showed exactly this: rendering
-        // present in the LEFT half (with squashed scaling) but no UI visible
-        // anywhere because the UI was being drawn at coords > 3840.
-        UINT lw = m_parent->GetLogicalBackBufferWidth();
-        UINT lh = m_parent->GetLogicalBackBufferHeight();
-        if (lw > 0 && lh > 0)
-        {
-            pDesc->BufferDesc.Width  = lw;
-            pDesc->BufferDesc.Height = lh;
-            NVDM_TRACE_FIRST_N(2, "  SwapChainProxy::GetDesc: returning logical %ux%u (real was doubled)\n", lw, lh);
-        }
-    }
-    return hr;
+    // Game thinks the swap chain is at logical (one-eye) size so it asks
+    // us to resize to W x H. Real swap chain agrees — pass straight
+    // through. Shadow BB is dropped here; next GetBuffer(0) re-allocates
+    // it at 2W x H against the new size.
+    LOG_VERBOSE("  SwapChainProxy::ResizeBuffers(BufferCount=%u, %ux%u, fmt=%d, flags=0x%X)\n",
+                BufferCount, Width, Height, (int)NewFormat, SwapChainFlags);
+    ReleaseShadowBB();
+    return m_real->ResizeBuffers(BufferCount, Width, Height, NewFormat, SwapChainFlags);
 }
 
-HRESULT STDMETHODCALLTYPE SwapChainProxy::GetDesc1(DXGI_SWAP_CHAIN_DESC1* pDesc)
-{
-    if (!m_real1) return E_NOINTERFACE;
-    if (!pDesc) return E_POINTER;
-    HRESULT hr = m_real1->GetDesc1(pDesc);
-    if (SUCCEEDED(hr) && m_parent)
-    {
-        UINT lw = m_parent->GetLogicalBackBufferWidth();
-        UINT lh = m_parent->GetLogicalBackBufferHeight();
-        if (lw > 0 && lh > 0)
-        {
-            pDesc->Width  = lw;
-            pDesc->Height = lh;
-            NVDM_TRACE_FIRST_N(2, "  SwapChainProxy::GetDesc1: returning logical %ux%u (real was doubled)\n", lw, lh);
-        }
-    }
-    return hr;
-}
-
-// NOTE: ResizeBuffers is a plain inline passthrough for now (in the header).
-// 1b-iii's doubling-on-resize logic is intentionally deferred — most games
-// don't resize the swap chain during runtime, and the inline-with-helper
-// arrangement was triggering an MSVC parser issue when this TU's includes
-// pulled SwapChainProxy.h after Device11Proxy.h. Revisit if a Direct Mode
-// game proves to need windowed-resize support.
+// NOTE: ResizeTarget / SetFullscreenState etc are inline passthroughs in
+// the header — the real swap chain knows the same dimensions the game
+// thinks it has now (no doubling), so no overrides needed.
 
 } // namespace NvDirectMode

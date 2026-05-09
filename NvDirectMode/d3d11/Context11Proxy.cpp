@@ -12,6 +12,7 @@ Context11Proxy::Context11Proxy(ID3D11DeviceContext* real, Device11Proxy* parent)
     : m_real(real)
     , m_parent(parent)
     , m_refs(1)
+    , m_currentBBBound(false)
 {
 }
 
@@ -41,32 +42,36 @@ HRESULT STDMETHODCALLTYPE Context11Proxy::QueryInterface(REFIID riid, void** ppv
     return E_NOINTERFACE;
 }
 
-// 1b-iv core: when game binds the wrapped backbuffer RTV at slot 0, clamp
-// the viewport to the active eye's half. Game-set viewports later still
-// pass through unchanged (we just override the default-after-OMSet that
-// otherwise covers the full doubled 2W width).
+// 1b-iv core + stage-3 RSSetViewports re-clamp: when game binds the wrapped
+// backbuffer RTV at slot 0, clamp the viewport to the active eye's half of
+// the doubled shadow texture. Re-applied on game-issued RSSetViewports too,
+// so a game that calls OMSet then RSSetViewports(fullscreen) doesn't
+// overwrite our clamp.
 namespace
 {
-    void ApplyEyeViewportIfBackBufferBound(ID3D11DeviceContext* ctx, Device11Proxy* parent,
-                                           UINT NumViews, ID3D11RenderTargetView* const* rtvs)
+    // Pulls the active eye, applies config swap, returns 1=RIGHT 2=LEFT 3=MONO.
+    int ResolveActiveEye()
     {
-        if (!parent || NumViews == 0 || !rtvs) return;
-        // We only route on slot 0 — the conventional backbuffer RTV slot.
-        // Multi-RT renders to backbuffer + auxiliary targets land here too;
-        // game's draw covers slot 0 with our chosen viewport regardless.
-        if (!parent->IsBackBufferRTV(rtvs[0])) return;
-
-        UINT logicalW = parent->GetLogicalBackBufferWidth();
-        UINT logicalH = parent->GetLogicalBackBufferHeight();
-        if (logicalW == 0 || logicalH == 0) return;
-
         int eye = NvDirectMode::GetActiveEye();
-        // Apply config swap eyes — flip routing of LEFT and RIGHT.
         if (NvDM_SwapEyes())
         {
             if      (eye == NvDirectMode::kEyeLeft)  eye = NvDirectMode::kEyeRight;
             else if (eye == NvDirectMode::kEyeRight) eye = NvDirectMode::kEyeLeft;
         }
+        return eye;
+    }
+
+    // Applies the per-eye viewport clamp. Pulls logical W/H off the parent
+    // device. Returns true if it issued an RSSetViewports.
+    bool SetEyeViewport(ID3D11DeviceContext* ctx, Device11Proxy* parent,
+                        ID3D11RenderTargetView* rtv, const char* tag)
+    {
+        if (!parent || !ctx) return false;
+        UINT logicalW = parent->GetLogicalBackBufferWidth();
+        UINT logicalH = parent->GetLogicalBackBufferHeight();
+        if (logicalW == 0 || logicalH == 0) return false;
+
+        int eye = ResolveActiveEye();
         const bool topBottom = NvDM_OutputIsTopBottom() != 0;
         D3D11_VIEWPORT vp;
         vp.TopLeftX = (!topBottom && eye == NvDirectMode::kEyeRight) ? (FLOAT)logicalW : 0.0f;
@@ -76,9 +81,19 @@ namespace
         vp.MinDepth = 0.0f;
         vp.MaxDepth = 1.0f;
         ctx->RSSetViewports(1, &vp);
-        NVDM_TRACE_FIRST_N(16, "  Context11Proxy::OMSet eye=%d mode=%s viewport=(%.0f,%.0f %.0fx%.0f) rtv=%p\n",
-                           eye, topBottom ? "T-B" : "SBS",
-                           vp.TopLeftX, vp.TopLeftY, vp.Width, vp.Height, rtvs[0]);
+        NVDM_TRACE_FIRST_N(16, "  Context11Proxy::%s eye=%d mode=%s viewport=(%.0f,%.0f %.0fx%.0f) rtv=%p\n",
+                           tag, eye, topBottom ? "T-B" : "SBS",
+                           vp.TopLeftX, vp.TopLeftY, vp.Width, vp.Height, rtv);
+        return true;
+    }
+
+    bool ApplyEyeViewportIfBackBufferBound(ID3D11DeviceContext* ctx, Device11Proxy* parent,
+                                           UINT NumViews, ID3D11RenderTargetView* const* rtvs,
+                                           const char* tag)
+    {
+        if (!parent || NumViews == 0 || !rtvs || !rtvs[0]) return false;
+        if (!parent->IsBackBufferRTV(rtvs[0])) return false;
+        return SetEyeViewport(ctx, parent, rtvs[0], tag);
     }
 }
 
@@ -87,7 +102,9 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargets(
     ID3D11DepthStencilView* pDepthStencilView)
 {
     m_real->OMSetRenderTargets(NumViews, ppRenderTargetViews, pDepthStencilView);
-    ApplyEyeViewportIfBackBufferBound(m_real, m_parent, NumViews, ppRenderTargetViews);
+    bool bbBound = ApplyEyeViewportIfBackBufferBound(m_real, m_parent,
+                                                      NumViews, ppRenderTargetViews, "OMSet");
+    m_currentBBBound = bbBound;
 }
 
 void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews(
@@ -103,7 +120,27 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews
     // D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL == (UINT)-1 — when game
     // uses that sentinel we skip our hook (RTVs unchanged from prior bind).
     if (NumRTVs != D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL)
-        ApplyEyeViewportIfBackBufferBound(m_real, m_parent, NumRTVs, ppRenderTargetViews);
+    {
+        bool bbBound = ApplyEyeViewportIfBackBufferBound(m_real, m_parent,
+                                                          NumRTVs, ppRenderTargetViews, "OMSetUAV");
+        m_currentBBBound = bbBound;
+    }
+}
+
+// Stage 3 RSSetViewports hook: if the game-bound RTV at slot 0 is our BB
+// shadow, force the viewport to the active eye's half regardless of what
+// the game requested. Without this, a game that calls
+//     OMSetRenderTargets(BB, ...)    // we set per-eye viewport
+//     RSSetViewports(0,0,W,H)        // game overrides — both eyes get same render
+// loses per-eye routing for that frame. With shadow-RT the game thinks the
+// BB is one-eye-sized and would try to set a viewport covering the whole
+// "screen", so this re-clamp is the difference between stereo working and
+// the game drawing the same content into both halves.
+void STDMETHODCALLTYPE Context11Proxy::RSSetViewports(UINT NumViewports, const D3D11_VIEWPORT* pViewports)
+{
+    m_real->RSSetViewports(NumViewports, pViewports);
+    if (m_currentBBBound)
+        SetEyeViewport(m_real, m_parent, nullptr, "RSSetViewports-reclamp");
 }
 
 void STDMETHODCALLTYPE Context11Proxy::GetDevice(ID3D11Device** ppDevice)

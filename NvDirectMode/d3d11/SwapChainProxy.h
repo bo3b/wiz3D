@@ -11,6 +11,19 @@
  * chain doesn't expose IDXGISwapChain1 (Win7 without platform update), our
  * QI returns E_NOINTERFACE for that level so the game falls back to the
  * IDXGISwapChain interface (which we always wrap).
+ *
+ * Stage 3 shadow-RT: the real swap-chain BB now stays at the game's
+ * requested (one-eye) size — no more desc-doubling. The doubled per-eye
+ * rendering surface is allocated as a side ID3D11Texture2D ("shadow BB")
+ * the first time the game calls GetBuffer(0), and is the texture we hand
+ * back to the game. Game's draws land in our shadow texture; at Present
+ * time we CopySubresourceRegion the active eye's half into the real BB
+ * and forward to the real Present. This fixes:
+ *   - GetDesc returning a doubled size (game was placing UI off-screen)
+ *   - Fullscreen mode failing because the doubled BackBufferWidth wasn't
+ *     a valid display mode
+ *   - The whole-game-squashed-into-half-window appearance in non-stereo
+ *     preview (BB is now native size; we display ONE eye in mono)
  */
 
 #pragma once
@@ -19,6 +32,7 @@
 #include <windows.h>
 #include <dxgi.h>
 #include <dxgi1_2.h>
+#include <d3d11.h>
 
 namespace NvDirectMode
 {
@@ -60,20 +74,17 @@ public:
     HRESULT STDMETHODCALLTYPE GetBuffer(UINT Buffer, REFIID riid, void** ppSurface) override;
     HRESULT STDMETHODCALLTYPE SetFullscreenState(BOOL Fullscreen, IDXGIOutput* pTarget) override             { return m_real->SetFullscreenState(Fullscreen, pTarget); }
     HRESULT STDMETHODCALLTYPE GetFullscreenState(BOOL* pFullscreen, IDXGIOutput** ppTarget) override         { return m_real->GetFullscreenState(pFullscreen, ppTarget); }
-    HRESULT STDMETHODCALLTYPE GetDesc(DXGI_SWAP_CHAIN_DESC* pDesc) override;
+    HRESULT STDMETHODCALLTYPE GetDesc(DXGI_SWAP_CHAIN_DESC* pDesc) override                                  { return m_real->GetDesc(pDesc); }
     HRESULT STDMETHODCALLTYPE ResizeBuffers(
         UINT BufferCount, UINT Width, UINT Height,
-        DXGI_FORMAT NewFormat, UINT SwapChainFlags) override
-    {
-        return m_real->ResizeBuffers(BufferCount, Width, Height, NewFormat, SwapChainFlags);
-    }
+        DXGI_FORMAT NewFormat, UINT SwapChainFlags) override;
     HRESULT STDMETHODCALLTYPE ResizeTarget(const DXGI_MODE_DESC* pNewTargetParameters) override              { return m_real->ResizeTarget(pNewTargetParameters); }
     HRESULT STDMETHODCALLTYPE GetContainingOutput(IDXGIOutput** ppOutput) override                           { return m_real->GetContainingOutput(ppOutput); }
     HRESULT STDMETHODCALLTYPE GetFrameStatistics(DXGI_FRAME_STATISTICS* pStats) override                     { return m_real->GetFrameStatistics(pStats); }
     HRESULT STDMETHODCALLTYPE GetLastPresentCount(UINT* pLastPresentCount) override                          { return m_real->GetLastPresentCount(pLastPresentCount); }
 
     // IDXGISwapChain1
-    HRESULT STDMETHODCALLTYPE GetDesc1(DXGI_SWAP_CHAIN_DESC1* pDesc) override;
+    HRESULT STDMETHODCALLTYPE GetDesc1(DXGI_SWAP_CHAIN_DESC1* pDesc) override                                { return m_real1 ? m_real1->GetDesc1(pDesc) : E_NOINTERFACE; }
     HRESULT STDMETHODCALLTYPE GetFullscreenDesc(DXGI_SWAP_CHAIN_FULLSCREEN_DESC* pDesc) override             { return m_real1 ? m_real1->GetFullscreenDesc(pDesc) : E_NOINTERFACE; }
     HRESULT STDMETHODCALLTYPE GetHwnd(HWND* pHwnd) override                                                  { return m_real1 ? m_real1->GetHwnd(pHwnd) : E_NOINTERFACE; }
     HRESULT STDMETHODCALLTYPE GetCoreWindow(REFIID riid, void** ppUnk) override                              { return m_real1 ? m_real1->GetCoreWindow(riid, ppUnk) : E_NOINTERFACE; }
@@ -91,10 +102,32 @@ public:
     Device11Proxy*  GetParent() const { return m_parent; }
 
 private:
+    // Lazy-allocate the doubled shadow BB on first GetBuffer(0). Width
+    // and height come from the real BB's desc; the per-eye doubling is
+    // applied on the appropriate axis based on OutputMode.
+    void EnsureShadowBB();
+
+    // Called from Present / Present1 — copies the active-eye half of
+    // m_shadowBB into the real backbuffer so the game's call to the real
+    // Present produces a correct mono image.
+    void BlitActiveEyeToRealBB();
+
+    // Frees + nulls the shadow BB; called from ~SwapChainProxy and
+    // ResizeBuffers.
+    void ReleaseShadowBB();
+
     IDXGISwapChain*  m_real;
     IDXGISwapChain1* m_real1;   // null if real doesn't expose IDXGISwapChain1
     Device11Proxy*   m_parent;  // not AddRef'd; device outlives swap chain
     LONG             m_refs;
+
+    // Stage 3 shadow-RT state. m_shadowBB is the doubled per-eye target
+    // we hand the game in place of the real BB. Allocated on first
+    // GetBuffer(0); released in dtor / ResizeBuffers.
+    ID3D11Texture2D* m_shadowBB;
+    UINT             m_logicalW;     // one-eye width  (= real BB width)
+    UINT             m_logicalH;     // one-eye height (= real BB height)
+    DXGI_FORMAT      m_shadowFormat;
 };
 
 } // namespace NvDirectMode

@@ -76,7 +76,7 @@ public:
     void STDMETHODCALLTYPE Dispatch(UINT ThreadGroupCountX, UINT ThreadGroupCountY, UINT ThreadGroupCountZ) override                                                                               { m_real->Dispatch(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ); }
     void STDMETHODCALLTYPE DispatchIndirect(ID3D11Buffer* pBufferForArgs, UINT AlignedByteOffsetForArgs) override                                                                                  { m_real->DispatchIndirect(pBufferForArgs, AlignedByteOffsetForArgs); }
     void STDMETHODCALLTYPE RSSetState(ID3D11RasterizerState* pRasterizerState) override                                                                                                            { m_real->RSSetState(pRasterizerState); }
-    void STDMETHODCALLTYPE RSSetViewports(UINT NumViewports, const D3D11_VIEWPORT* pViewports) override                                                                                            { m_real->RSSetViewports(NumViewports, pViewports); }
+    void STDMETHODCALLTYPE RSSetViewports(UINT NumViewports, const D3D11_VIEWPORT* pViewports) override;
     void STDMETHODCALLTYPE RSSetScissorRects(UINT NumRects, const D3D11_RECT* pRects) override                                                                                                     { m_real->RSSetScissorRects(NumRects, pRects); }
     void STDMETHODCALLTYPE CopySubresourceRegion(ID3D11Resource* pDstResource, UINT DstSubresource, UINT DstX, UINT DstY, UINT DstZ, ID3D11Resource* pSrcResource, UINT SrcSubresource, const D3D11_BOX* pSrcBox) override { m_real->CopySubresourceRegion(pDstResource, DstSubresource, DstX, DstY, DstZ, pSrcResource, SrcSubresource, pSrcBox); }
     void STDMETHODCALLTYPE CopyResource(ID3D11Resource* pDstResource, ID3D11Resource* pSrcResource) override                                                                                       { m_real->CopyResource(pDstResource, pSrcResource); }
@@ -152,10 +152,16 @@ public:
     ID3D11DeviceContext* GetReal()  const { return m_real; }
     Device11Proxy*       GetParent() const { return m_parent; }
 
+    // Stage 3 helpers — exposed so the shared OMSet hook can mark whether
+    // the BB-RTV is currently bound (RSSetViewports needs to know).
+    void SetCurrentBBBound(bool b) { m_currentBBBound = b; }
+    bool GetCurrentBBBound() const { return m_currentBBBound; }
+
 private:
     ID3D11DeviceContext* m_real;
     Device11Proxy*       m_parent;
     LONG                 m_refs;
+    bool                 m_currentBBBound;   // last OMSet had BB-RTV at slot 0
 };
 
 } // namespace NvDirectMode
