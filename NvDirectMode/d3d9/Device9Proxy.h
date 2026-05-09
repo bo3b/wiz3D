@@ -30,6 +30,11 @@ public:
     void StashBackBufferReference();
     void ReleaseBackBufferReference();
 
+    // Stage 4 callback target — eye-change handler invokes this to
+    // capture the current shadow into the OLD eye's surface before the
+    // new eye's render starts overwriting.
+    void CaptureEye(int eyeBeingLeft);
+
     // IUnknown
     HRESULT  STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppvObj) override;
     ULONG    STDMETHODCALLTYPE AddRef() override;
@@ -176,12 +181,21 @@ private:
     bool                 m_isEx;
     LONG                 m_refs;
 
-    // Buffer-doubling state (set by D3D9Proxy::CreateDevice/Ex and
-    // refreshed by our Reset/ResetEx). Identity-tracks "is this surface
-    // the back buffer" via raw pointer comparison.
+    // Buffer state. m_pTrackedBackBuffer is the REAL back buffer (used
+    // as the destination for our composite blit at Present). m_shadowBB
+    // is what we hand the GAME from GetBackBuffer — a separately-allocated
+    // surface at logical size that the game renders into. Per-eye
+    // captures live in m_leftEyeSurf / m_rightEyeSurf.
     UINT                 m_logicalWidth;
     UINT                 m_logicalHeight;
-    IDirect3DSurface9*   m_pTrackedBackBuffer;  // AddRef'd by us
+    IDirect3DSurface9*   m_pTrackedBackBuffer;  // real BB (AddRef'd by us)
+    IDirect3DSurface9*   m_shadowBB;            // shadow at logical size
+    IDirect3DSurface9*   m_leftEyeSurf;
+    IDirect3DSurface9*   m_rightEyeSurf;
+
+    void EnsureShadow();
+    void ReleaseShadow();
+    void CompositeAndPresent();   // called at Present before forwarding
 };
 
 } // namespace NvDirectMode

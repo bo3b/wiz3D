@@ -14,6 +14,30 @@
 namespace NvDirectMode
 {
 
+// Primary-device registry for the eye-change callback dispatcher.
+// Mirror of the d3d11/d3d10 SwapChainProxy primary-pointer pattern.
+namespace
+{
+    Device9Proxy*    g_primaryDevice = nullptr;
+    CRITICAL_SECTION g_primaryLock;
+    bool             g_primaryLockInit = false;
+
+    void EnsurePrimaryLock()
+    {
+        if (g_primaryLockInit) return;
+        InitializeCriticalSection(&g_primaryLock);
+        g_primaryLockInit = true;
+    }
+
+    void OnEyeChange(int oldEye, int /*newEye*/)
+    {
+        EnsurePrimaryLock();
+        EnterCriticalSection(&g_primaryLock);
+        if (g_primaryDevice) g_primaryDevice->CaptureEye(oldEye);
+        LeaveCriticalSection(&g_primaryLock);
+    }
+}
+
 Device9Proxy::Device9Proxy(IDirect3DDevice9* real, bool isEx)
     : m_real(real)
     , m_realEx(isEx ? static_cast<IDirect3DDevice9Ex*>(real) : nullptr)
@@ -22,12 +46,131 @@ Device9Proxy::Device9Proxy(IDirect3DDevice9* real, bool isEx)
     , m_logicalWidth(0)
     , m_logicalHeight(0)
     , m_pTrackedBackBuffer(nullptr)
+    , m_shadowBB(nullptr)
+    , m_leftEyeSurf(nullptr)
+    , m_rightEyeSurf(nullptr)
 {
+    EnsurePrimaryLock();
+    EnterCriticalSection(&g_primaryLock);
+    g_primaryDevice = this;
+    LeaveCriticalSection(&g_primaryLock);
+    NvDirectMode::RegisterEyeChangeHandler(&OnEyeChange);
 }
 
 Device9Proxy::~Device9Proxy()
 {
+    EnsurePrimaryLock();
+    EnterCriticalSection(&g_primaryLock);
+    if (g_primaryDevice == this) g_primaryDevice = nullptr;
+    LeaveCriticalSection(&g_primaryLock);
+
+    ReleaseShadow();
     ReleaseBackBufferReference();
+}
+
+void Device9Proxy::ReleaseShadow()
+{
+    if (m_shadowBB)     { m_shadowBB->Release();     m_shadowBB = nullptr; }
+    if (m_leftEyeSurf)  { m_leftEyeSurf->Release();  m_leftEyeSurf = nullptr; }
+    if (m_rightEyeSurf) { m_rightEyeSurf->Release(); m_rightEyeSurf = nullptr; }
+}
+
+void Device9Proxy::EnsureShadow()
+{
+    if (m_shadowBB || !m_real || !m_pTrackedBackBuffer) return;
+
+    D3DSURFACE_DESC desc = {};
+    if (FAILED(m_pTrackedBackBuffer->GetDesc(&desc))) return;
+    m_logicalWidth = desc.Width;
+    m_logicalHeight = desc.Height;
+
+    // Shadow has same format/MS as the real BB so StretchRect can copy
+    // between them without conversion.
+    HRESULT hr = m_real->CreateRenderTarget(desc.Width, desc.Height, desc.Format,
+                                             desc.MultiSampleType, desc.MultiSampleQuality,
+                                             FALSE, &m_shadowBB, NULL);
+    if (FAILED(hr) || !m_shadowBB)
+    {
+        LOG_VERBOSE("  d3d9 EnsureShadow: CreateRenderTarget(%ux%u) FAILED hr=0x%08lX\n",
+                    desc.Width, desc.Height, hr);
+        m_shadowBB = nullptr;
+        return;
+    }
+    LOG_VERBOSE("  d3d9 EnsureShadow: shadow=%p (%ux%u, fmt=%d) for realBB=%p\n",
+                m_shadowBB, desc.Width, desc.Height, (int)desc.Format,
+                (void*)m_pTrackedBackBuffer);
+}
+
+void Device9Proxy::CaptureEye(int eyeBeingLeft)
+{
+    if (!m_shadowBB || !m_real) return;
+    IDirect3DSurface9** slot = nullptr;
+    if      (eyeBeingLeft == NvDirectMode::kEyeLeft)  slot = &m_leftEyeSurf;
+    else if (eyeBeingLeft == NvDirectMode::kEyeRight) slot = &m_rightEyeSurf;
+    else return;
+
+    if (!*slot)
+    {
+        D3DSURFACE_DESC desc = {};
+        m_shadowBB->GetDesc(&desc);
+        HRESULT hr = m_real->CreateRenderTarget(desc.Width, desc.Height, desc.Format,
+                                                 desc.MultiSampleType, desc.MultiSampleQuality,
+                                                 FALSE, slot, NULL);
+        if (FAILED(hr) || !*slot) return;
+        LOG_VERBOSE("  d3d9 CaptureEye(%d): allocated eye surface=%p\n", eyeBeingLeft, *slot);
+    }
+
+    m_real->StretchRect(m_shadowBB, NULL, *slot, NULL, D3DTEXF_NONE);
+    NVDM_TRACE_FIRST_N(8, "  d3d9 CaptureEye(eye=%d): StretchRect shadow=%p -> eyeSurf=%p\n",
+                       eyeBeingLeft, m_shadowBB, *slot);
+}
+
+void Device9Proxy::CompositeAndPresent()
+{
+    if (!m_real || !m_pTrackedBackBuffer) return;
+
+    int currentEye = NvDirectMode::GetActiveEye();
+    if (currentEye == NvDirectMode::kEyeLeft || currentEye == NvDirectMode::kEyeRight)
+        CaptureEye(currentEye);
+
+    bool topBottom = NvDM_OutputIsTopBottom() != 0;
+    bool swap      = NvDM_SwapEyes() != 0;
+    IDirect3DSurface9* leftSrc  = swap ? m_rightEyeSurf : m_leftEyeSurf;
+    IDirect3DSurface9* rightSrc = swap ? m_leftEyeSurf  : m_rightEyeSurf;
+
+    D3DSURFACE_DESC bbDesc = {};
+    m_pTrackedBackBuffer->GetDesc(&bbDesc);
+
+    if (leftSrc && rightSrc)
+    {
+        // Composite: each eye into half the real BB.
+        RECT leftRect, rightRect;
+        if (topBottom)
+        {
+            leftRect  = { 0, 0, (LONG)bbDesc.Width, (LONG)(bbDesc.Height / 2) };
+            rightRect = { 0, (LONG)(bbDesc.Height / 2), (LONG)bbDesc.Width, (LONG)bbDesc.Height };
+        }
+        else
+        {
+            leftRect  = { 0, 0, (LONG)(bbDesc.Width / 2), (LONG)bbDesc.Height };
+            rightRect = { (LONG)(bbDesc.Width / 2), 0, (LONG)bbDesc.Width, (LONG)bbDesc.Height };
+        }
+        m_real->StretchRect(leftSrc,  NULL, m_pTrackedBackBuffer, &leftRect,  D3DTEXF_LINEAR);
+        m_real->StretchRect(rightSrc, NULL, m_pTrackedBackBuffer, &rightRect, D3DTEXF_LINEAR);
+        NVDM_TRACE_FIRST_N(2, "  d3d9 CompositeAndPresent: %s eyes (swap=%d) -> realBB=%p\n",
+                           topBottom ? "T-B" : "SBS", (int)swap, (void*)m_pTrackedBackBuffer);
+    }
+    else
+    {
+        // Single eye / mono fallback.
+        IDirect3DSurface9* src = leftSrc ? leftSrc : (rightSrc ? rightSrc : m_shadowBB);
+        if (src)
+            m_real->StretchRect(src, NULL, m_pTrackedBackBuffer, NULL, D3DTEXF_NONE);
+        NVDM_TRACE_FIRST_N(4, "  d3d9 CompositeAndPresent (fallback): src=%s\n",
+                           (src == m_leftEyeSurf  ? "leftEye"  :
+                            src == m_rightEyeSurf ? "rightEye" :
+                            src == m_shadowBB     ? "shadow"   : "none"));
+    }
 }
 
 void Device9Proxy::SetLogicalBackBufferSize(UINT w, UINT h)
@@ -39,9 +182,11 @@ void Device9Proxy::SetLogicalBackBufferSize(UINT w, UINT h)
 void Device9Proxy::StashBackBufferReference()
 {
     ReleaseBackBufferReference();
+    ReleaseShadow();
     if (!m_real) return;
     // GetBackBuffer adds a ref; we hold that ref until Reset/destroy.
     m_real->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &m_pTrackedBackBuffer);
+    EnsureShadow();
 }
 
 void Device9Proxy::ReleaseBackBufferReference()
@@ -126,15 +271,30 @@ HRESULT Device9Proxy::Reset(D3DPRESENT_PARAMETERS* p)
 
 HRESULT Device9Proxy::Present(CONST RECT* sr, CONST RECT* dr, HWND h, CONST RGNDATA* d)
 {
-    // Direct Mode contract: the doubled back-buffer holds both eyes side by
-    // side after the game's two render passes. Present forwards the full
-    // 2WxH surface so a downstream weaver / 3D Vision driver can compose
-    // the stereo image. (Without a weaver hooked up, Windows will just
-    // squash the SBS image into the window — that's expected at this stage;
-    // the buffer layout is correct for whoever picks it up next.)
+    // Stage 4: composite captured eyes into the real BB before forwarding,
+    // so the Present writes a SBS / T-B / mono image to the visible surface.
+    CompositeAndPresent();
     return m_real->Present(sr, dr, h, d);
 }
-HRESULT Device9Proxy::GetBackBuffer(UINT iSC, UINT iBB, D3DBACKBUFFER_TYPE T, IDirect3DSurface9** pp) { return m_real->GetBackBuffer(iSC, iBB, T, pp); }
+HRESULT Device9Proxy::GetBackBuffer(UINT iSC, UINT iBB, D3DBACKBUFFER_TYPE T, IDirect3DSurface9** pp)
+{
+    // Hand the game our shadow surface (logical size, format-matched to
+    // the real BB) instead of the real BB itself. Game's draws land in
+    // the shadow; CompositeAndPresent resolves them into the real BB at
+    // Present time.
+    if (iSC == 0 && iBB == 0 && T == D3DBACKBUFFER_TYPE_MONO && pp)
+    {
+        EnsureShadow();
+        if (m_shadowBB)
+        {
+            m_shadowBB->AddRef();
+            *pp = m_shadowBB;
+            NVDM_TRACE_FIRST_N(4, "  d3d9 GetBackBuffer(0): handed shadow %p\n", m_shadowBB);
+            return S_OK;
+        }
+    }
+    return m_real->GetBackBuffer(iSC, iBB, T, pp);
+}
 HRESULT Device9Proxy::GetRasterStatus(UINT iSC, D3DRASTER_STATUS* p)                  { return m_real->GetRasterStatus(iSC, p); }
 HRESULT Device9Proxy::SetDialogBoxMode(BOOL bEnable)                                  { return m_real->SetDialogBoxMode(bEnable); }
 void    Device9Proxy::SetGammaRamp(UINT iSC, DWORD F, CONST D3DGAMMARAMP* p)          { m_real->SetGammaRamp(iSC, F, p); }
@@ -156,35 +316,13 @@ HRESULT Device9Proxy::CreateOffscreenPlainSurface(UINT W, UINT H, D3DFORMAT F, D
 HRESULT Device9Proxy::SetRenderTarget(DWORD i, IDirect3DSurface9* p)
 {
     HRESULT hr = m_real->SetRenderTarget(i, p);
-    if (FAILED(hr)) return hr;
-
-    // The actual Direct Mode magic: when game binds the doubled back buffer
-    // as RT0, clamp the viewport to the active eye's half. Game-set
-    // viewports (everything else) pass through unchanged.
-    //
-    // SetRenderTarget(0, ...) resets the viewport to full RT — i.e. the
-    // doubled 2W width — so we have to overwrite it here, after the bind.
-    if (i == 0 && p == m_pTrackedBackBuffer && m_logicalWidth > 0 && m_logicalHeight > 0)
-    {
-        int eye = GetActiveEye();
-        if (NvDM_SwapEyes())
-        {
-            if      (eye == kEyeLeft)  eye = kEyeRight;
-            else if (eye == kEyeRight) eye = kEyeLeft;
-        }
-        const bool topBottom = NvDM_OutputIsTopBottom() != 0;
-        D3DVIEWPORT9 vp;
-        vp.X      = (!topBottom && eye == kEyeRight) ? m_logicalWidth  : 0;
-        vp.Y      = ( topBottom && eye == kEyeRight) ? m_logicalHeight : 0;
-        vp.Width  = m_logicalWidth;
-        vp.Height = m_logicalHeight;
-        vp.MinZ   = 0.0f;
-        vp.MaxZ   = 1.0f;
-        m_real->SetViewport(&vp);
-        NVDM_TRACE_FIRST_N(16, "  Device9Proxy::SetRenderTarget BB: eye=%d mode=%s vp=(%u,%u %ux%u)\n",
-                           eye, topBottom ? "T-B" : "SBS",
-                           vp.X, vp.Y, vp.Width, vp.Height);
-    }
+    // Stage 3 v2 / shadow-RT: shadow is at logical (1x) size, so no
+    // per-eye viewport clamp needed any more — game's natural rendering
+    // goes straight into the shadow at the size the game expects.
+    // BB-bound logging stays for diagnostics.
+    if (i == 0 && p == m_shadowBB)
+        NVDM_TRACE_FIRST_N(8, "  d3d9 SetRenderTarget BB(shadow=%p) bound (no clamp \xe2\x80\x94 shadow is 1x)\n",
+                           m_shadowBB);
     return hr;
 }
 HRESULT Device9Proxy::GetRenderTarget(DWORD i, IDirect3DSurface9** pp)                                             { return m_real->GetRenderTarget(i, pp); }
@@ -276,7 +414,9 @@ HRESULT Device9Proxy::SetConvolutionMonoKernel(UINT W, UINT H, float* r, float* 
 HRESULT Device9Proxy::ComposeRects(IDirect3DSurface9* pS, IDirect3DSurface9* pD, IDirect3DVertexBuffer9* pSR, UINT N, IDirect3DVertexBuffer9* pDR, D3DCOMPOSERECTSOP O, INT X, INT Y) { return m_realEx->ComposeRects(pS, pD, pSR, N, pDR, O, X, Y); }
 HRESULT Device9Proxy::PresentEx(CONST RECT* sR, CONST RECT* dR, HWND h, CONST RGNDATA* pD, DWORD F)
 {
-    // See Present() — full doubled surface goes downstream untouched.
+    // Same composite as Present() — capture latest eye + StretchRect both
+    // eyes (or fallback) into the real BB, then forward.
+    CompositeAndPresent();
     return m_realEx->PresentEx(sR, dR, h, pD, F);
 }
 HRESULT Device9Proxy::GetGPUThreadPriority(INT* p)                                                                                                  { return m_realEx->GetGPUThreadPriority(p); }

@@ -25,4 +25,10 @@ namespace NvDirectMode
     // present, but re-checks GetModuleHandle each call so a late-loading
     // nvapi (some games load it lazily) still gets picked up.
     int GetActiveEye();
+
+    // Stage 4 per-eye capture: NvApiProxy callback registration. Mirrors
+    // d3d11/d3d10 — the SwapChainProxy/Device9Proxy registers a handler
+    // that fires every time the game changes Stereo_SetActiveEye.
+    typedef void (*EyeChangeHandler)(int oldEye, int newEye);
+    void RegisterEyeChangeHandler(EyeChangeHandler handler);
 }

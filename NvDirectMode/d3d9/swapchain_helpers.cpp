@@ -26,17 +26,12 @@ void ResolveAndDoubleSwapchainParams(D3DPRESENT_PARAMETERS* p,
     if (outLogicalW) *outLogicalW = p->BackBufferWidth;
     if (outLogicalH) *outLogicalH = p->BackBufferHeight;
 
-    // OutputMode picks which axis we double:
-    //   T-B → backbuffer is W x 2H (eyes stacked)
-    //   SBS → backbuffer is 2W x H (eyes side-by-side, default)
-    if (NvDM_OutputIsTopBottom())
-    {
-        if (p->BackBufferHeight > 0) p->BackBufferHeight *= 2;
-    }
-    else
-    {
-        if (p->BackBufferWidth  > 0) p->BackBufferWidth  *= 2;
-    }
+    // Stage 3 v2 / shadow-RT (mirror of d3d11/d3d10): no longer doubles
+    // the desc. Real BB stays at the game's requested (one-eye) size;
+    // the per-eye rendering surface lives in a side IDirect3DSurface9
+    // managed by Device9Proxy::EnsureShadow. This helper just resolves
+    // any 0x0 dimensions against the window now.
+    (void)NvDM_OutputIsTopBottom;
 }
 
 } // namespace NvDirectMode
