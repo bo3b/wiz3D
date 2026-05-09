@@ -1064,9 +1064,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             WCHAR proxyPath[MAX_PATH];
             GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
             Log("Proxy DLL: %ls\n", proxyPath);
-            Log("Config:    LoggingEnabled=%d  VerboseLogging=%d  SwapEyes=%d  WrapDevices=%d  OutputMode=%d (%s)\n",
-                g_loggingEnabled, g_verboseEnabled, g_swapEyes, g_wrapDevices, g_outputMode,
-                NvDM_OutputIsTopBottom() ? "Top-and-Bottom" : "Side-by-Side");
+            Log("Config:    OutputMode=%d (%s)  WrapDevices=%d  SwapEyes=%d  LoggingEnabled=%d  VerboseLogging=%d\n",
+                g_outputMode, NvDM_OutputIsTopBottom() ? "Top-and-Bottom" : "Side-by-Side",
+                g_wrapDevices, g_swapEyes, g_loggingEnabled, g_verboseEnabled);
         }
         LoadRealOpenGL32();
         break;
