@@ -205,7 +205,10 @@ foreach ($archName in $archs) {
         Copy-NdmExtras -LeafDir $dx9Dst
         Copy-Files -SrcDir $nvDirectModeBin -DstDir $dx10Dst  -Files @('d3d10.dll')   -Tag "ndm/dx10/$archAlias"
         Copy-NdmExtras -LeafDir $dx10Dst
-        Copy-Files -SrcDir $nvDirectModeBin -DstDir $dx11Dst  -Files @('d3d11.dll')   -Tag "ndm/dx11/$archAlias"
+        # dx11 leaf gets BOTH d3d11.dll AND dxgi.dll — game can use either
+        # D3D11CreateDeviceAndSwapChain (caught by d3d11.dll) or
+        # CreateDXGIFactory -> CreateSwapChain (caught by dxgi.dll).
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir $dx11Dst  -Files @('d3d11.dll','dxgi.dll') -Tag "ndm/dx11/$archAlias"
         Copy-NdmExtras -LeafDir $dx11Dst
         Copy-Files -SrcDir $nvDirectModeBin -DstDir $oglDst   -Files @('opengl32.dll') -Tag "ndm/opengl/$archAlias"
         Copy-NdmExtras -LeafDir $oglDst
