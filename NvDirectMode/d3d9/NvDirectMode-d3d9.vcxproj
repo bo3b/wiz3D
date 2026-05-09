@@ -148,6 +148,7 @@
     <ClCompile Include="D3D9Proxy.cpp" />
     <ClCompile Include="Device9Proxy.cpp" />
     <ClCompile Include="swapchain_helpers.cpp" />
+    <ClCompile Include="layout_stable_hooks.cpp" />
     <ClCompile Include="eye_state.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -89,5 +89,29 @@
              Read by nvapi[64].dll on DLL_PROCESS_ATTACH (same folder as the
              proxy). Default: 0. -->
         <DisableStereoSpoof Value="0"/>
+
+        <!-- UseLayoutStableProxy: D3D9 ONLY (ignored on d3d10/d3d11/opengl32).
+             Default 0 = use the existing D3D9Proxy class wrap.
+             1 = hot-patch the real IDirect3D9 vtable's CreateDevice slot
+             instead of wrapping. Game's Direct3DCreate9 returns the REAL
+             IDirect3D9 (passing anti-tamper sniffs that read bytes out of
+             the IDirect3D9 implementation memory looking for NVIDIA
+             signatures), and our hook fires when the game later calls
+             CreateDevice via the patched vtable.
+
+             Use this for games that crash immediately after Direct3DCreate9
+             returns when WrapDevices=1: confirmed needed by GTA IV (crash
+             at GTAIV.exe + 0x3BE0) and Hard Reset (hardreset.exe +
+             0x56B856). For most DX9 Direct Mode titles the default 0 is
+             fine and gives marginally cleaner state tracking.
+
+             KNOWN LIMITATION: the vtable patch is process-global. All
+             IDirect3D9 instances in the process route through our hook
+             after the first patched Direct3DCreate9 call. Single-game
+             processes are the common case. If a game also sniffs
+             IDirect3DDevice9 after CreateDevice returns, the patch
+             doesn't help (would need an extension to patch the device
+             vtable too). -->
+        <UseLayoutStableProxy Value="0"/>
     </NvDirectMode>
 </Config>

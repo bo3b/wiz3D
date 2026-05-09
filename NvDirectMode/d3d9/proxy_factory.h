@@ -19,4 +19,17 @@ namespace NvDirectMode
     // Same, but for the Ex flavour — the void* is actually IDirect3D9Ex*
     // and the proxy's QI for IID_IDirect3D9Ex will succeed.
     void* CreateD3D9ExProxy(void* realD3D9Ex);
+
+    // Layout-stable path (task #61): instead of returning a wrapped
+    // D3D9Proxy from Direct3DCreate9 (which fails anti-tamper sniffs in
+    // GTA IV / Hard Reset because our vtable isn't where the game expects
+    // it), hot-patch the real IDirect3D9 vtable's CreateDevice slot so
+    // the game gets the real IDirect3D9 (passing layout sniffs) and our
+    // hook fires when the game later calls CreateDevice.
+    //
+    // realD3D9 is the IDirect3D9 returned by the real Direct3DCreate9.
+    // isEx indicates whether to also patch CreateDeviceEx (slot 19) for
+    // the Ex flavour. Idempotent: subsequent calls with the same vtable
+    // skip already-patched slots. Returns true if patching succeeded.
+    bool InstallVtablePatchForD3D9(void* realD3D9, bool isEx);
 }

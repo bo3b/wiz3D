@@ -32,6 +32,7 @@ static int   g_verboseEnabled = 1;
 static int   g_swapEyes       = 0;
 static int   g_wrapDevices    = 1;
 static int   g_outputMode     = 1;
+static int   g_useLayoutStable = 0;   // task #61 — vtable hot-patch IDirect3D9 instead of wrapping
 
 static void LogOpen(void)
 {
@@ -103,7 +104,8 @@ static void LoadConfig(HMODULE hProxy)
     g_loggingEnabled = ReadConfigInt(buf, "LoggingEnabled", g_loggingEnabled);
     g_verboseEnabled = ReadConfigInt(buf, "VerboseLogging", g_verboseEnabled);
     g_swapEyes       = ReadConfigInt(buf, "SwapEyes",       g_swapEyes);
-    g_wrapDevices    = ReadConfigInt(buf, "WrapDevices",    g_wrapDevices);
+    g_wrapDevices     = ReadConfigInt(buf, "WrapDevices",         g_wrapDevices);
+    g_useLayoutStable = ReadConfigInt(buf, "UseLayoutStableProxy", g_useLayoutStable);
     g_outputMode     = ReadConfigInt(buf, "OutputMode",     g_outputMode);
     free(buf);
 }
@@ -262,6 +264,20 @@ extern "C" __declspec(dllexport) void* WINAPI Direct3DCreate9(UINT SDKVersion)
         Log("  passthrough: WrapDevices=0; IDirect3D9=%p left unwrapped\n", real);
         return real;
     }
+    if (g_useLayoutStable)
+    {
+        // Task #61: hot-patch the real vtable's CreateDevice slot and
+        // hand the real IDirect3D9 back to the game. Game's anti-tamper
+        // sniff sees the real layout (passes); when game later calls
+        // CreateDevice via the vtable, our hook fires and wraps the
+        // returned device with the existing Device9Proxy.
+        if (NvDirectMode::InstallVtablePatchForD3D9(real, /*isEx=*/false))
+        {
+            Log("  layout-stable: patched IDirect3D9 vtable, returning real %p\n", real);
+            return real;
+        }
+        Log("  layout-stable: vtable patch FAILED — falling back to D3D9Proxy wrap\n");
+    }
     void* proxy = NvDirectMode::CreateD3D9Proxy(real);
     Log("  wrapped IDirect3D9 %p -> proxy %p\n", real, proxy);
     return proxy;
@@ -280,6 +296,16 @@ extern "C" __declspec(dllexport) HRESULT WINAPI Direct3DCreate9Ex(UINT SDKVersio
         *ppD3D = real;
         Log("  passthrough: WrapDevices=0; IDirect3D9Ex=%p left unwrapped\n", real);
         return hr;
+    }
+    if (g_useLayoutStable)
+    {
+        if (NvDirectMode::InstallVtablePatchForD3D9(real, /*isEx=*/true))
+        {
+            *ppD3D = real;
+            Log("  layout-stable: patched IDirect3D9Ex vtable, returning real %p\n", real);
+            return hr;
+        }
+        Log("  layout-stable: vtable patch FAILED — falling back to D3D9ExProxy wrap\n");
     }
     *ppD3D = NvDirectMode::CreateD3D9ExProxy(real);
     Log("  wrapped IDirect3D9Ex %p -> proxy %p\n", real, *ppD3D);
