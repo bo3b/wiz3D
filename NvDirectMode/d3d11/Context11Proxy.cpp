@@ -1,6 +1,7 @@
 #include "Context11Proxy.h"
 #include "Device11Proxy.h"
 #include "eye_state.h"
+#include "log.h"
 
 #pragma comment(lib, "dxguid.lib")
 
@@ -27,7 +28,10 @@ HRESULT STDMETHODCALLTYPE Context11Proxy::QueryInterface(REFIID riid, void** ppv
         return S_OK;
     }
     // Context1/Context2/Context3 etc — pass through unwrapped for now.
-    return m_real->QueryInterface(riid, ppvObj);
+    HRESULT hr = m_real->QueryInterface(riid, ppvObj);
+    NVDM_TRACE_FIRST_N(8,
+        "  Context11Proxy::QI(unknown IID, e.g. Context1+) hr=0x%08lX -- bypass risk\n", hr);
+    return hr;
 }
 
 // 1b-iv core: when game binds the wrapped backbuffer RTV at slot 0, clamp
@@ -49,7 +53,13 @@ namespace
         UINT logicalH = parent->GetLogicalBackBufferHeight();
         if (logicalW == 0 || logicalH == 0) return;
 
-        const int eye = NvDirectMode::GetActiveEye();
+        int eye = NvDirectMode::GetActiveEye();
+        // Apply config swap eyes — flip routing of LEFT and RIGHT.
+        if (NvDM_SwapEyes())
+        {
+            if      (eye == NvDirectMode::kEyeLeft)  eye = NvDirectMode::kEyeRight;
+            else if (eye == NvDirectMode::kEyeRight) eye = NvDirectMode::kEyeLeft;
+        }
         D3D11_VIEWPORT vp;
         vp.TopLeftX = (eye == NvDirectMode::kEyeRight) ? (FLOAT)logicalW : 0.0f;
         vp.TopLeftY = 0.0f;
@@ -58,6 +68,8 @@ namespace
         vp.MinDepth = 0.0f;
         vp.MaxDepth = 1.0f;
         ctx->RSSetViewports(1, &vp);
+        NVDM_TRACE_FIRST_N(16, "  Context11Proxy::OMSet eye=%d viewport=(%.0f,%.0f %.0fx%.0f) rtv=%p\n",
+                           eye, vp.TopLeftX, vp.TopLeftY, vp.Width, vp.Height, rtvs[0]);
     }
 }
 

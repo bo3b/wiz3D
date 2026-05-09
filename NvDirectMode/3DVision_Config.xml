@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  wiz3D NvDirectMode (3D Vision Direct Mode) configuration.
+
+  Drop this file into the SAME folder as the game's executable, alongside
+  the proxy DLL (d3d9.dll / d3d10.dll / d3d11.dll / opengl32.dll) and
+  nvapi[64].dll. The proxy reads it on DllMain.
+
+  If this file isn't present, the proxy uses the defaults below. Missing
+  individual <Tag Value=".."/> entries also fall back to defaults — you
+  can delete any line you don't want to override.
+-->
+<Config>
+    <NvDirectMode>
+        <!-- LoggingEnabled: 0 = no log file written; 1 = log lifecycle events
+             (DLL load, Direct3D entry-point calls, wrapping, errors). Default: 1.
+             The log lives at nvdirectmode_proxy.log next to the game exe. -->
+        <LoggingEnabled Value="1"/>
+
+        <!-- VerboseLogging: 0 = lifecycle only; 1 = per-method tracing of the
+             eye-routing hot path (CreateRenderTargetView when BB-derived,
+             OMSetRenderTargets eye + viewport, GetBuffer registrations,
+             SwapChainProxy lifetime, Device/Context/SwapChain QI bypass
+             warnings). Useful for diagnosing crashes or missing-routing
+             problems; noisy.
+
+             DEFAULT: 1 — NvDirectMode is pre-release; verbose traces help
+             us diagnose game-specific issues. Switch to 0 once the game
+             works and you want a quieter log. -->
+        <VerboseLogging Value="1"/>
+
+        <!-- SwapEyes: 0 = normal (LEFT eye in left half of doubled buffer);
+             1 = swapped (RIGHT eye in left half). Use if your downstream
+             stereo display has eyes flipped. Default: 0. -->
+        <SwapEyes Value="0"/>
+
+        <!-- WrapDevices: 0 = pure passthrough (Direct3D entry points forward
+             to the real DLL unmodified, no device/context/swap-chain wrapping;
+             eye routing is disabled). 1 = wrap returned objects so the proxy
+             can apply per-eye RT viewport routing. Default: 1.
+
+             KNOWN ISSUE: some games (Tomb Raider 2013, others) crash when
+             our d3d11 wrapper is active because the game uses COM QueryInterface
+             chains (e.g. QI for IDXGIDevice then back to ID3D11Device) that
+             return real-not-wrapped objects, breaking COM identity invariants.
+             Set this to 0 as a workaround — game will run mono but at least
+             won't crash. A future dxgi.dll proxy will fix the underlying cause. -->
+        <WrapDevices Value="1"/>
+    </NvDirectMode>
+</Config>

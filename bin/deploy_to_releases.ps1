@@ -186,14 +186,29 @@ foreach ($archName in $archs) {
             Copy-Item -Path $ndmReadmeSrc -Destination (Join-Path $ndmBase 'ReadMe.txt') -Force
         }
 
-        Copy-Files -SrcDir $nvDirectModeBin -DstDir (Join-Path $ndmBase "dx9\$archAlias")    `
-                   -Files @('d3d9.dll')      -Tag "ndm/dx9/$archAlias"
-        Copy-Files -SrcDir $nvDirectModeBin -DstDir (Join-Path $ndmBase "dx10\$archAlias")   `
-                   -Files @('d3d10.dll')     -Tag "ndm/dx10/$archAlias"
-        Copy-Files -SrcDir $nvDirectModeBin -DstDir (Join-Path $ndmBase "dx11\$archAlias")   `
-                   -Files @('d3d11.dll')     -Tag "ndm/dx11/$archAlias"
-        Copy-Files -SrcDir $nvDirectModeBin -DstDir (Join-Path $ndmBase "opengl\$archAlias") `
-                   -Files @('opengl32.dll')  -Tag "ndm/opengl/$archAlias"
+        # Per-leaf payload: proxy DLL + 3DVision_Config.xml + Uninstall_3DVisionDirect.bat.
+        # nvapi[64].dll is laid down separately by the Spread-File pass below.
+        $cfgSrc       = Join-Path $repoRoot 'NvDirectMode\3DVision_Config.xml'
+        $uninstallSrc = Join-Path $repoRoot 'NvDirectMode\Uninstall_3DVisionDirect.bat'
+        function Copy-NdmExtras {
+            param([string]$LeafDir)
+            if (Test-Path $cfgSrc)       { Copy-Item -Path $cfgSrc       -Destination $LeafDir -Force }
+            if (Test-Path $uninstallSrc) { Copy-Item -Path $uninstallSrc -Destination $LeafDir -Force }
+        }
+
+        $dx9Dst    = Join-Path $ndmBase "dx9\$archAlias"
+        $dx10Dst   = Join-Path $ndmBase "dx10\$archAlias"
+        $dx11Dst   = Join-Path $ndmBase "dx11\$archAlias"
+        $oglDst    = Join-Path $ndmBase "opengl\$archAlias"
+
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir $dx9Dst   -Files @('d3d9.dll')    -Tag "ndm/dx9/$archAlias"
+        Copy-NdmExtras -LeafDir $dx9Dst
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir $dx10Dst  -Files @('d3d10.dll')   -Tag "ndm/dx10/$archAlias"
+        Copy-NdmExtras -LeafDir $dx10Dst
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir $dx11Dst  -Files @('d3d11.dll')   -Tag "ndm/dx11/$archAlias"
+        Copy-NdmExtras -LeafDir $dx11Dst
+        Copy-Files -SrcDir $nvDirectModeBin -DstDir $oglDst   -Files @('opengl32.dll') -Tag "ndm/opengl/$archAlias"
+        Copy-NdmExtras -LeafDir $oglDst
     } else {
         Write-Host ("  ndm/$archAlias            SKIP (NvDirectMode bin not built: $nvDirectModeBin)") -ForegroundColor Yellow
     }

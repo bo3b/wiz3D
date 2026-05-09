@@ -18,6 +18,8 @@
 #include "proxy_factory.h"
 #include "swapchain_helpers.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <psapi.h>
 #include <dbghelp.h>
 #pragma comment(lib, "dbghelp.lib")
@@ -28,10 +30,14 @@
 // only one of those proxies will load in any single game.
 // ---------------------------------------------------------------------------
 static FILE* g_logFile = NULL;
+static int   g_loggingEnabled  = 1;  // overridden by 3DVision_Config.xml LoggingEnabled
+static int   g_verboseEnabled  = 1;  // overridden by VerboseLogging — default ON during pre-release
+static int   g_swapEyes        = 0;  // overridden by SwapEyes
+static int   g_wrapDevices     = 1;  // overridden by WrapDevices — toggle device/context/swap-chain wrapping
 
 static void LogOpen(void)
 {
-    if (g_logFile) return;
+    if (g_logFile || !g_loggingEnabled) return;
     WCHAR dir[MAX_PATH];
     GetModuleFileNameW(NULL, dir, MAX_PATH);
     WCHAR* pSlash = wcsrchr(dir, L'\\');
@@ -42,6 +48,7 @@ static void LogOpen(void)
 
 static void Log(const char* fmt, ...)
 {
+    if (!g_loggingEnabled) return;
     if (!g_logFile) LogOpen();
     if (!g_logFile) return;
     va_list ap;
@@ -49,6 +56,67 @@ static void Log(const char* fmt, ...)
     vfprintf(g_logFile, fmt, ap);
     va_end(ap);
     fflush(g_logFile);
+}
+
+// Bridge for proxy classes in other TUs (Device11Proxy.cpp, etc.) — log.h
+// declares these as extern "C" so they can call into our Log() above.
+extern "C" void NvDM_Log(const char* fmt, ...)
+{
+    if (!g_loggingEnabled) return;
+    if (!g_logFile) LogOpen();
+    if (!g_logFile) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(g_logFile, fmt, ap);
+    va_end(ap);
+    fflush(g_logFile);
+}
+extern "C" int NvDM_VerboseEnabled() { return g_verboseEnabled; }
+extern "C" int NvDM_SwapEyes()       { return g_swapEyes; }
+
+// ---------------------------------------------------------------------------
+// Tiny config reader — pulls <Tag Value="N"/> ints from 3DVision_Config.xml
+// next to the proxy DLL. Skips XML parsing in favour of a minimal substring
+// search because we have one schema, three int fields, and no desire to
+// link in a real XML lib for a 100-byte config file.
+// ---------------------------------------------------------------------------
+static int ReadConfigInt(const char* xml, const char* tag, int defaultValue)
+{
+    char needle[64];
+    _snprintf_s(needle, sizeof(needle), _TRUNCATE, "<%s Value=\"", tag);
+    const char* p = strstr(xml, needle);
+    if (!p) return defaultValue;
+    p += strlen(needle);
+    return atoi(p);
+}
+
+static void LoadConfig(HMODULE hProxy)
+{
+    WCHAR cfgPath[MAX_PATH];
+    GetModuleFileNameW(hProxy, cfgPath, MAX_PATH);
+    WCHAR* pSlash = wcsrchr(cfgPath, L'\\');
+    if (pSlash) *(pSlash + 1) = L'\0';
+    lstrcatW(cfgPath, L"3DVision_Config.xml");
+
+    FILE* f = _wfopen(cfgPath, L"rb");
+    if (!f) return;  // no config -> defaults stand
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0 || sz > 16 * 1024) { fclose(f); return; }
+
+    char* buf = (char*)malloc((size_t)sz + 1);
+    if (!buf) { fclose(f); return; }
+    size_t n = fread(buf, 1, (size_t)sz, f);
+    buf[n] = '\0';
+    fclose(f);
+
+    g_loggingEnabled = ReadConfigInt(buf, "LoggingEnabled", g_loggingEnabled);
+    g_verboseEnabled = ReadConfigInt(buf, "VerboseLogging", g_verboseEnabled);
+    g_swapEyes       = ReadConfigInt(buf, "SwapEyes",       g_swapEyes);
+    g_wrapDevices    = ReadConfigInt(buf, "WrapDevices",    g_wrapDevices);
+
+    free(buf);
 }
 
 // ---------------------------------------------------------------------------
@@ -190,12 +258,23 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDevice(
                                        pFeatureLevels, FeatureLevels, SDKVersion,
                                        ppDevice, pFeatureLevel, ppImmediateContext);
     Log("  real D3D11CreateDevice returned 0x%08lX\n", hr);
-    if (SUCCEEDED(hr) && ppDevice && *ppDevice)
+    if (SUCCEEDED(hr) && ppDevice && *ppDevice && g_wrapDevices)
     {
         NvDirectMode::WrapD3D11DeviceAndContext(ppDevice, ppImmediateContext);
-        Log("  wrapped device=%p context=%p\n",
+        Log("  wrapped (no-swap): device=%p context=%p\n",
             *ppDevice,
             ppImmediateContext ? *ppImmediateContext : NULL);
+    }
+    else if (!g_wrapDevices)
+    {
+        Log("  passthrough (no-swap): WrapDevices=0; device=%p context=%p left unwrapped\n",
+            (ppDevice ? *ppDevice : NULL),
+            (ppImmediateContext ? *ppImmediateContext : NULL));
+    }
+    else
+    {
+        Log("  no wrap (no-swap): hr=0x%08lX device=%p (probe / device-less call)\n",
+            hr, (ppDevice ? *ppDevice : NULL));
     }
     return hr;
 }
@@ -209,7 +288,8 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
     const void* pSwapChainDesc, void** ppSwapChain, void** ppDevice,
     void* pFeatureLevel, void** ppImmediateContext)
 {
-    Log("D3D11CreateDeviceAndSwapChain(DriverType=%d, Flags=0x%X) called\n", DriverType, Flags);
+    Log("D3D11CreateDeviceAndSwapChain(DriverType=%d, Flags=0x%X, ppDevice=%p, ppSwapChain=%p) called\n",
+        DriverType, Flags, (void*)ppDevice, (void*)ppSwapChain);
     if (!LoadRealD3D11() || !g_pfnRealCreateDeviceAndSwapChain) return E_FAIL;
 
     // 1b-iii: substitute a doubled-width copy of the game's swap-chain
@@ -224,14 +304,35 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
                                                    pFeatureLevels, FeatureLevels, SDKVersion,
                                                    pDescForReal, ppSwapChain, ppDevice,
                                                    pFeatureLevel, ppImmediateContext);
-    Log("  real D3D11CreateDeviceAndSwapChain returned 0x%08lX (logical=%ux%u)\n", hr, logicalW, logicalH);
-    if (SUCCEEDED(hr) && ppDevice && *ppDevice)
+    // Probe-vs-real swap chains can be told apart by size: anything below
+    // ~16x16 is almost certainly a feature-detection probe; doubling it
+    // doesn't matter because the game won't render to it.
+    const char* kind = (logicalW <= 16 || logicalH <= 16) ? " (likely probe)" : "";
+    Log("  real D3D11CreateDeviceAndSwapChain returned 0x%08lX (logical=%ux%u)%s\n",
+        hr, logicalW, logicalH, kind);
+    if (SUCCEEDED(hr) && ppDevice && *ppDevice && g_wrapDevices)
     {
         NvDirectMode::WrapD3D11DeviceAndContext(ppDevice, ppImmediateContext);
         if (logicalW > 0)
             NvDirectMode::SetWrappedDeviceLogicalSize(*ppDevice, logicalW, logicalH);
         if (ppSwapChain && *ppSwapChain)
             *ppSwapChain = NvDirectMode::WrapDXGISwapChain(*ppSwapChain, *ppDevice);
+        Log("  wrapped (and-swap): device=%p context=%p swapChain=%p\n",
+            *ppDevice,
+            ppImmediateContext ? *ppImmediateContext : NULL,
+            ppSwapChain ? *ppSwapChain : NULL);
+    }
+    else if (!g_wrapDevices)
+    {
+        Log("  passthrough (and-swap): WrapDevices=0; device=%p ctx=%p sc=%p left unwrapped\n",
+            (ppDevice ? *ppDevice : NULL),
+            (ppImmediateContext ? *ppImmediateContext : NULL),
+            (ppSwapChain ? *ppSwapChain : NULL));
+    }
+    else
+    {
+        Log("  no wrap: hr=0x%08lX device=%p (probe / device-less call)\n",
+            hr, (ppDevice ? *ppDevice : NULL));
     }
     return hr;
 }
@@ -246,6 +347,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
     case DLL_PROCESS_ATTACH:
         g_hProxy = hModule;
         DisableThreadLibraryCalls(hModule);
+        LoadConfig(hModule);   // sets g_loggingEnabled / g_verboseEnabled / g_swapEyes
         LogOpen();
         g_hVEH = AddVectoredExceptionHandler(1, VectoredCrashHandler);
         {
@@ -256,6 +358,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             WCHAR proxyPath[MAX_PATH];
             GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
             Log("Proxy DLL: %ls\n", proxyPath);
+            Log("Config:    LoggingEnabled=%d  VerboseLogging=%d  SwapEyes=%d  WrapDevices=%d\n",
+                g_loggingEnabled, g_verboseEnabled, g_swapEyes, g_wrapDevices);
         }
         break;
 

@@ -1,5 +1,6 @@
 #include "Device11Proxy.h"
 #include "Context11Proxy.h"
+#include "log.h"
 
 #pragma comment(lib, "dxguid.lib")
 
@@ -58,9 +59,19 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::CreateRenderTargetView(
     ID3D11RenderTargetView** ppRTView)
 {
     HRESULT hr = m_real->CreateRenderTargetView(pResource, pDesc, ppRTView);
-    if (SUCCEEDED(hr) && ppRTView && *ppRTView && IsBackBufferResource(pResource))
+    if (SUCCEEDED(hr) && ppRTView && *ppRTView)
     {
-        TrackBackBufferRTV(*ppRTView);
+        if (IsBackBufferResource(pResource))
+        {
+            TrackBackBufferRTV(*ppRTView);
+            LOG_VERBOSE("  Device11Proxy::CreateRenderTargetView: BB-derived rtv=%p (resource=%p tracked)\n",
+                        *ppRTView, pResource);
+        }
+        else
+        {
+            NVDM_TRACE_FIRST_N(8, "  Device11Proxy::CreateRenderTargetView: non-BB rtv=%p (resource=%p, our BB=%p)\n",
+                               *ppRTView, pResource, m_pBackBufferResource);
+        }
     }
     return hr;
 }
@@ -82,7 +93,10 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::QueryInterface(REFIID riid, void** ppvO
     // Device1/Device2/Device3/etc. — pass through unwrapped for now.
     // 1b-iii/iv may need to claim those if a Direct Mode game uses them
     // for swap-chain / RTV creation.
-    return m_real->QueryInterface(riid, ppvObj);
+    HRESULT hr = m_real->QueryInterface(riid, ppvObj);
+    NVDM_TRACE_FIRST_N(16,
+        "  Device11Proxy::QI(unknown IID, e.g. Device1+/IDXGIDevice) hr=0x%08lX -- bypass risk\n", hr);
+    return hr;
 }
 
 void STDMETHODCALLTYPE Device11Proxy::GetImmediateContext(ID3D11DeviceContext** ppImmediateContext)

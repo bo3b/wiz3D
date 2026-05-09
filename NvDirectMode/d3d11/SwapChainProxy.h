@@ -43,7 +43,7 @@ public:
     HRESULT STDMETHODCALLTYPE GetDevice(REFIID riid, void** ppDevice) override                               { return m_real->GetDevice(riid, ppDevice); }
 
     // IDXGISwapChain
-    HRESULT STDMETHODCALLTYPE Present(UINT SyncInterval, UINT Flags) override                                { return m_real->Present(SyncInterval, Flags); }
+    HRESULT STDMETHODCALLTYPE Present(UINT SyncInterval, UINT Flags) override;
     HRESULT STDMETHODCALLTYPE GetBuffer(UINT Buffer, REFIID riid, void** ppSurface) override;
     HRESULT STDMETHODCALLTYPE SetFullscreenState(BOOL Fullscreen, IDXGIOutput* pTarget) override             { return m_real->SetFullscreenState(Fullscreen, pTarget); }
     HRESULT STDMETHODCALLTYPE GetFullscreenState(BOOL* pFullscreen, IDXGIOutput** ppTarget) override         { return m_real->GetFullscreenState(pFullscreen, ppTarget); }
