@@ -4,6 +4,7 @@
 #include "Device9Proxy.h"
 #include "proxy_factory.h"
 #include "swapchain_helpers.h"
+#include "log.h"
 
 #pragma comment(lib, "dxguid.lib")  // for IID_IDirect3D9 / IID_IDirect3DDevice9
 
@@ -51,7 +52,9 @@ HRESULT STDMETHODCALLTYPE D3D9Proxy::QueryInterface(REFIID riid, void** ppvObj)
         AddRef();
         return S_OK;
     }
-    return m_real->QueryInterface(riid, ppvObj);
+    HRESULT hr = m_real->QueryInterface(riid, ppvObj);
+    NVDM_TRACE_FIRST_N(4, "  D3D9Proxy::QI(unknown IID) hr=0x%08lX -- bypass risk\n", hr);
+    return hr;
 }
 
 ULONG STDMETHODCALLTYPE D3D9Proxy::AddRef()  { return InterlockedIncrement(&m_refs); }

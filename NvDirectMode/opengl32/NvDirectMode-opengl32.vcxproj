@@ -136,6 +136,7 @@
     <ClInclude Include="eye_state.h" />
     <ClInclude Include="fbo_state.h" />
     <ClInclude Include="gl_hooks.h" />
+    <ClInclude Include="log.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="opengl32.def" />

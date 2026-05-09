@@ -157,6 +157,7 @@
     <ClInclude Include="SwapChainProxy.h" />
     <ClInclude Include="swapchain_helpers.h" />
     <ClInclude Include="eye_state.h" />
+    <ClInclude Include="log.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="d3d10.def" />

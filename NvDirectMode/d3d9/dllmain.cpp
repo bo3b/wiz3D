@@ -16,21 +16,25 @@
 #include "../proxy_version.h"
 #include "proxy_factory.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <psapi.h>
 #include <dbghelp.h>
 #pragma comment(lib, "dbghelp.lib")
 #pragma comment(lib, "psapi.lib")
 
 // ---------------------------------------------------------------------------
-// Diagnostic log — writes to nvdirectmode_proxy.log next to the game exe.
-// Shared across NvDirectMode d3d9/d3d10/d3d11/opengl32 proxies (only one will
-// actually be loaded in any given game), opened in append mode.
+// Diagnostic log + 3DVision_Config.xml reader (mirrors the d3d11 pattern).
 // ---------------------------------------------------------------------------
 static FILE* g_logFile = NULL;
+static int   g_loggingEnabled = 1;
+static int   g_verboseEnabled = 1;
+static int   g_swapEyes       = 0;
+static int   g_wrapDevices    = 1;
 
 static void LogOpen(void)
 {
-    if (g_logFile) return;
+    if (g_logFile || !g_loggingEnabled) return;
     WCHAR dir[MAX_PATH];
     GetModuleFileNameW(NULL, dir, MAX_PATH);
     WCHAR* pSlash = wcsrchr(dir, L'\\');
@@ -41,6 +45,7 @@ static void LogOpen(void)
 
 static void Log(const char* fmt, ...)
 {
+    if (!g_loggingEnabled) return;
     if (!g_logFile) LogOpen();
     if (!g_logFile) return;
     va_list ap;
@@ -48,6 +53,55 @@ static void Log(const char* fmt, ...)
     vfprintf(g_logFile, fmt, ap);
     va_end(ap);
     fflush(g_logFile);
+}
+
+extern "C" void NvDM_Log(const char* fmt, ...)
+{
+    if (!g_loggingEnabled) return;
+    if (!g_logFile) LogOpen();
+    if (!g_logFile) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(g_logFile, fmt, ap);
+    va_end(ap);
+    fflush(g_logFile);
+}
+extern "C" int NvDM_VerboseEnabled() { return g_verboseEnabled; }
+extern "C" int NvDM_SwapEyes()       { return g_swapEyes; }
+
+static int ReadConfigInt(const char* xml, const char* tag, int defaultValue)
+{
+    char needle[64];
+    _snprintf_s(needle, sizeof(needle), _TRUNCATE, "<%s Value=\"", tag);
+    const char* p = strstr(xml, needle);
+    if (!p) return defaultValue;
+    p += strlen(needle);
+    return atoi(p);
+}
+
+static void LoadConfig(HMODULE hProxy)
+{
+    WCHAR cfgPath[MAX_PATH];
+    GetModuleFileNameW(hProxy, cfgPath, MAX_PATH);
+    WCHAR* pSlash = wcsrchr(cfgPath, L'\\');
+    if (pSlash) *(pSlash + 1) = L'\0';
+    lstrcatW(cfgPath, L"3DVision_Config.xml");
+    FILE* f = _wfopen(cfgPath, L"rb");
+    if (!f) return;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0 || sz > 16 * 1024) { fclose(f); return; }
+    char* buf = (char*)malloc((size_t)sz + 1);
+    if (!buf) { fclose(f); return; }
+    size_t n = fread(buf, 1, (size_t)sz, f);
+    buf[n] = '\0';
+    fclose(f);
+    g_loggingEnabled = ReadConfigInt(buf, "LoggingEnabled", g_loggingEnabled);
+    g_verboseEnabled = ReadConfigInt(buf, "VerboseLogging", g_verboseEnabled);
+    g_swapEyes       = ReadConfigInt(buf, "SwapEyes",       g_swapEyes);
+    g_wrapDevices    = ReadConfigInt(buf, "WrapDevices",    g_wrapDevices);
+    free(buf);
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +253,11 @@ extern "C" __declspec(dllexport) void* WINAPI Direct3DCreate9(UINT SDKVersion)
     if (!LoadRealD3D9() || !g_pfnRealCreate9) return NULL;
     void* real = g_pfnRealCreate9(SDKVersion);
     if (!real) { Log("  real Direct3DCreate9 returned NULL\n"); return NULL; }
+    if (!g_wrapDevices)
+    {
+        Log("  passthrough: WrapDevices=0; IDirect3D9=%p left unwrapped\n", real);
+        return real;
+    }
     void* proxy = NvDirectMode::CreateD3D9Proxy(real);
     Log("  wrapped IDirect3D9 %p -> proxy %p\n", real, proxy);
     return proxy;
@@ -212,6 +271,12 @@ extern "C" __declspec(dllexport) HRESULT WINAPI Direct3DCreate9Ex(UINT SDKVersio
     void* real = nullptr;
     HRESULT hr = g_pfnRealCreate9Ex(SDKVersion, &real);
     if (FAILED(hr) || !real) { *ppD3D = nullptr; return hr; }
+    if (!g_wrapDevices)
+    {
+        *ppD3D = real;
+        Log("  passthrough: WrapDevices=0; IDirect3D9Ex=%p left unwrapped\n", real);
+        return hr;
+    }
     *ppD3D = NvDirectMode::CreateD3D9ExProxy(real);
     Log("  wrapped IDirect3D9Ex %p -> proxy %p\n", real, *ppD3D);
     return hr;
@@ -293,6 +358,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
     case DLL_PROCESS_ATTACH:
         g_hProxy = hModule;
         DisableThreadLibraryCalls(hModule);
+        LoadConfig(hModule);
         LogOpen();
         g_hVEH = AddVectoredExceptionHandler(1, VectoredCrashHandler);
         {
@@ -303,6 +369,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             WCHAR proxyPath[MAX_PATH];
             GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
             Log("Proxy DLL: %ls\n", proxyPath);
+            Log("Config:    LoggingEnabled=%d  VerboseLogging=%d  SwapEyes=%d  WrapDevices=%d\n",
+                g_loggingEnabled, g_verboseEnabled, g_swapEyes, g_wrapDevices);
         }
         break;
 

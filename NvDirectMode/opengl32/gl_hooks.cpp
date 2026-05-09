@@ -64,11 +64,12 @@ namespace
 // ---------------------------------------------------------------------------
 // sys_glBindFramebuffer: returned by wglGetProcAddress for glBindFramebuffer,
 // glBindFramebufferEXT, glBindFramebufferARB. When the game asks to bind FB
-// 0, redirect to the active-eye internal FBO. Otherwise passthrough.
+// 0 AND WrapDevices is enabled, redirect to the active-eye internal FBO.
+// Otherwise plain passthrough to the real fn.
 // ---------------------------------------------------------------------------
 extern "C" void APIENTRY sys_glBindFramebuffer(GLenum target, GLuint framebuffer)
 {
-    if (framebuffer == 0)
+    if (framebuffer == 0 && NvDM_WrapDevices())
     {
         NvDirectMode::EyeFbosBindForActiveEye(target);
         return;
@@ -87,7 +88,7 @@ extern "C" __declspec(dllexport) BOOL WINAPI wglMakeCurrent(HDC hdc, HGLRC hglrc
 {
     EnsureReals();
     BOOL ok = pReal_wglMakeCurrent ? pReal_wglMakeCurrent(hdc, hglrc) : FALSE;
-    if (ok && hdc && hglrc)
+    if (ok && hdc && hglrc && NvDM_WrapDevices())
     {
         // Lazy-create / re-create the per-eye FBO pair at the window's
         // current client size. EyeFbosCreate is idempotent — same size = no-op.
@@ -101,10 +102,11 @@ extern "C" __declspec(dllexport) BOOL WINAPI wglMakeCurrent(HDC hdc, HGLRC hglrc
 extern "C" __declspec(dllexport) BOOL WINAPI wglSwapBuffers(HDC hdc)
 {
     EnsureReals();
-    // 1b-iii: blit active-eye FBO color to the real default framebuffer
-    // before the OS-level swap. Game sees a normal mono image (LEFT eye)
-    // on a non-stereo monitor.
-    NvDirectMode::EyeFbosBlitToDefault();
+    // Blit active-eye FBO color to the real default framebuffer before the
+    // OS-level swap, but only if FBO routing is on (WrapDevices=1). With
+    // WrapDevices=0 the FBO was never created, so just real swap.
+    if (NvDM_WrapDevices())
+        NvDirectMode::EyeFbosBlitToDefault();
     return pReal_wglSwapBuffers ? pReal_wglSwapBuffers(hdc) : FALSE;
 }
 

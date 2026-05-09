@@ -27,3 +27,7 @@ extern "C" pfnWglGetProcAddress orig_wglGetProcAddress;
 // Used by sys_glBindFramebuffer for the non-redirect passthrough case.
 typedef void (APIENTRY *PFN_glBindFramebuffer_t)(GLenum, GLuint);
 extern "C" PFN_glBindFramebuffer_t orig_glBindFramebuffer;
+
+// WrapDevices flag from 3DVision_Config.xml — 0 disables FBO redirect
+// so the proxy is pure-passthrough except for diagnostic logging.
+extern "C" int NvDM_WrapDevices();

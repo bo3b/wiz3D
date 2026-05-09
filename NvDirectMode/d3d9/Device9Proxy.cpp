@@ -9,6 +9,7 @@
 #include "Device9Proxy.h"
 #include "swapchain_helpers.h"
 #include "eye_state.h"
+#include "log.h"
 
 namespace NvDirectMode
 {
@@ -68,7 +69,9 @@ HRESULT STDMETHODCALLTYPE Device9Proxy::QueryInterface(REFIID riid, void** ppvOb
         AddRef();
         return S_OK;
     }
-    return m_real->QueryInterface(riid, ppvObj);
+    HRESULT hr = m_real->QueryInterface(riid, ppvObj);
+    NVDM_TRACE_FIRST_N(8, "  Device9Proxy::QI(unknown IID) hr=0x%08lX -- bypass risk\n", hr);
+    return hr;
 }
 
 ULONG STDMETHODCALLTYPE Device9Proxy::AddRef()  { return InterlockedIncrement(&m_refs); }
@@ -163,7 +166,12 @@ HRESULT Device9Proxy::SetRenderTarget(DWORD i, IDirect3DSurface9* p)
     // doubled 2W width — so we have to overwrite it here, after the bind.
     if (i == 0 && p == m_pTrackedBackBuffer && m_logicalWidth > 0 && m_logicalHeight > 0)
     {
-        const int eye = GetActiveEye();
+        int eye = GetActiveEye();
+        if (NvDM_SwapEyes())
+        {
+            if      (eye == kEyeLeft)  eye = kEyeRight;
+            else if (eye == kEyeRight) eye = kEyeLeft;
+        }
         D3DVIEWPORT9 vp;
         vp.X      = (eye == kEyeRight) ? m_logicalWidth : 0;
         vp.Y      = 0;
@@ -172,6 +180,8 @@ HRESULT Device9Proxy::SetRenderTarget(DWORD i, IDirect3DSurface9* p)
         vp.MinZ   = 0.0f;
         vp.MaxZ   = 1.0f;
         m_real->SetViewport(&vp);
+        NVDM_TRACE_FIRST_N(16, "  Device9Proxy::SetRenderTarget BB: eye=%d vp=(%u,%u %ux%u)\n",
+                           eye, vp.X, vp.Y, vp.Width, vp.Height);
     }
     return hr;
 }
