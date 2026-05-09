@@ -4,6 +4,8 @@
 #include <windows.h>
 #include <dxgi.h>
 
+extern "C" int NvDM_OutputIsTopBottom();
+
 namespace NvDirectMode
 {
 
@@ -32,8 +34,14 @@ const void* MakeDoubledSwapChainDesc(const void* pSwapChainDesc,
     if (outLogicalW) *outLogicalW = (unsigned int)tlsDesc.BufferDesc.Width;
     if (outLogicalH) *outLogicalH = (unsigned int)tlsDesc.BufferDesc.Height;
 
-    if (tlsDesc.BufferDesc.Width > 0)
-        tlsDesc.BufferDesc.Width *= 2;
+    if (NvDM_OutputIsTopBottom())
+    {
+        if (tlsDesc.BufferDesc.Height > 0) tlsDesc.BufferDesc.Height *= 2;
+    }
+    else
+    {
+        if (tlsDesc.BufferDesc.Width > 0)  tlsDesc.BufferDesc.Width  *= 2;
+    }
 
     return &tlsDesc;
 }

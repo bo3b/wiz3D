@@ -10,6 +10,8 @@
 extern "C" void NvDM_Log(const char* fmt, ...);
 extern "C" int  NvDM_VerboseEnabled();
 extern "C" int  NvDM_SwapEyes();
+extern "C" int  NvDM_OutputMode();
+extern "C" int  NvDM_OutputIsTopBottom();
 
 // LOG_VERBOSE: gated on the config flag — emits at most a small amount
 // of info per call site (use NVDM_TRACE_FIRST below for hot paths).

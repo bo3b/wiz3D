@@ -46,5 +46,36 @@
              Set this to 0 as a workaround — game will run mono but at least
              won't crash. A future dxgi.dll proxy will fix the underlying cause. -->
         <WrapDevices Value="1"/>
+
+        <!-- OutputMode: how the game's per-eye render lands in the swap chain
+             that gets presented. NvDirectMode's job is to route per-eye RTs
+             into a side-by-side or top-and-bottom doubled surface; this option
+             picks the geometry.
+
+             0 = Half Top-and-Bottom — game runs at full resolution; each eye
+                                       gets half the vertical height (stacked).
+                                       Backbuffer is W x 2H.
+             1 = Half Side-by-Side   — game runs at full resolution; each eye
+                                       gets half the horizontal width (default).
+                                       Backbuffer is 2W x H.
+             2 = Full Side-by-Side   — set the game to HALF the display's
+                                       horizontal resolution; each eye is
+                                       output at full display width. (Same
+                                       backend as mode 1; user-side res choice.)
+             3 = Full Top-and-Bottom — set the game to HALF the display's
+                                       vertical resolution; each eye is output
+                                       at full display height. (Same backend
+                                       as mode 0; user-side res choice.)
+             4 = Row Interleaved     — NOT YET IMPLEMENTED, falls back to 1.
+             5 = Column Interleaved  — NOT YET IMPLEMENTED, falls back to 1.
+             6 = Checkerboard        — NOT YET IMPLEMENTED, falls back to 1.
+             7 = Anaglyph            — NOT YET IMPLEMENTED, falls back to 1.
+             8 = Simulated Reality   — NOT YET IMPLEMENTED, falls back to 1.
+                                       (Will route the doubled SBS surface to
+                                       the SR / LeiaSR weaver runtime.)
+
+             Default: 1 (Half SBS) — matches the geometry NvDirectMode has
+             been routing into all along. -->
+        <OutputMode Value="1"/>
     </NvDirectMode>
 </Config>

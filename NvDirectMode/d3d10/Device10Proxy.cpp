@@ -102,16 +102,18 @@ void STDMETHODCALLTYPE Device10Proxy::OMSetRenderTargets(
         if      (eye == kEyeLeft)  eye = kEyeRight;
         else if (eye == kEyeRight) eye = kEyeLeft;
     }
+    const bool topBottom = NvDM_OutputIsTopBottom() != 0;
     D3D10_VIEWPORT vp;
-    vp.TopLeftX = (eye == kEyeRight) ? (INT)m_logicalWidth : 0;
-    vp.TopLeftY = 0;
+    vp.TopLeftX = (!topBottom && eye == kEyeRight) ? (INT)m_logicalWidth  : 0;
+    vp.TopLeftY = ( topBottom && eye == kEyeRight) ? (INT)m_logicalHeight : 0;
     vp.Width    = m_logicalWidth;
     vp.Height   = m_logicalHeight;
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     m_real->RSSetViewports(1, &vp);
-    NVDM_TRACE_FIRST_N(16, "  Device10Proxy::OMSet eye=%d viewport=(%u,%u %ux%u) rtv=%p\n",
-                       eye, vp.TopLeftX, vp.TopLeftY, vp.Width, vp.Height, ppRenderTargetViews[0]);
+    NVDM_TRACE_FIRST_N(16, "  Device10Proxy::OMSet eye=%d mode=%s vp=(%u,%u %ux%u) rtv=%p\n",
+                       eye, topBottom ? "T-B" : "SBS",
+                       vp.TopLeftX, vp.TopLeftY, vp.Width, vp.Height, ppRenderTargetViews[0]);
 }
 
 } // namespace NvDirectMode

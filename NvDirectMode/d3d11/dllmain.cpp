@@ -33,7 +33,11 @@ static FILE* g_logFile = NULL;
 static int   g_loggingEnabled  = 1;  // overridden by 3DVision_Config.xml LoggingEnabled
 static int   g_verboseEnabled  = 1;  // overridden by VerboseLogging — default ON during pre-release
 static int   g_swapEyes        = 0;  // overridden by SwapEyes
-static int   g_wrapDevices     = 1;  // overridden by WrapDevices — toggle device/context/swap-chain wrapping
+static int   g_wrapDevices     = 1;  // overridden by WrapDevices
+static int   g_outputMode      = 1;  // overridden by OutputMode — see 3DVision_Config.xml comments
+                                     //   0/3 = Top-and-Bottom (double H, vertical routing)
+                                     //   1/2 = Side-by-Side    (double W, horizontal routing — default)
+                                     //   4..8 = NYI, fall back to 1
 
 static void LogOpen(void)
 {
@@ -73,6 +77,12 @@ extern "C" void NvDM_Log(const char* fmt, ...)
 }
 extern "C" int NvDM_VerboseEnabled() { return g_verboseEnabled; }
 extern "C" int NvDM_SwapEyes()       { return g_swapEyes; }
+extern "C" int NvDM_OutputMode()     { return g_outputMode; }
+// Reduce OutputMode to one of two implemented backends:
+//   1 = SBS  (modes 1, 2, plus all NYI fall back here)
+//   0 = T-B  (modes 0, 3)
+// All routing/doubling code switches on this canonical 0/1.
+extern "C" int NvDM_OutputIsTopBottom() { return (g_outputMode == 0 || g_outputMode == 3) ? 1 : 0; }
 
 // ---------------------------------------------------------------------------
 // Tiny config reader — pulls <Tag Value="N"/> ints from 3DVision_Config.xml
@@ -115,6 +125,7 @@ static void LoadConfig(HMODULE hProxy)
     g_verboseEnabled = ReadConfigInt(buf, "VerboseLogging", g_verboseEnabled);
     g_swapEyes       = ReadConfigInt(buf, "SwapEyes",       g_swapEyes);
     g_wrapDevices    = ReadConfigInt(buf, "WrapDevices",    g_wrapDevices);
+    g_outputMode     = ReadConfigInt(buf, "OutputMode",     g_outputMode);
 
     free(buf);
 }
@@ -358,8 +369,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             WCHAR proxyPath[MAX_PATH];
             GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
             Log("Proxy DLL: %ls\n", proxyPath);
-            Log("Config:    LoggingEnabled=%d  VerboseLogging=%d  SwapEyes=%d  WrapDevices=%d\n",
-                g_loggingEnabled, g_verboseEnabled, g_swapEyes, g_wrapDevices);
+            Log("Config:    LoggingEnabled=%d  VerboseLogging=%d  SwapEyes=%d  WrapDevices=%d  OutputMode=%d (%s)\n",
+                g_loggingEnabled, g_verboseEnabled, g_swapEyes, g_wrapDevices, g_outputMode,
+                NvDM_OutputIsTopBottom() ? "Top-and-Bottom" : "Side-by-Side");
         }
         break;
 

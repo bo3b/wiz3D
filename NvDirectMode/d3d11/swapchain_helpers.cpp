@@ -4,6 +4,9 @@
 #include <windows.h>
 #include <dxgi.h>
 
+// Output-mode flag from dllmain (avoids dragging log.h's d3d11 deps in here).
+extern "C" int NvDM_OutputIsTopBottom();
+
 // NOTE: this TU intentionally includes ONLY <windows.h> + <dxgi.h>.
 // Do not pull in d3d11.h or any of the NvDirectMode proxy headers here —
 // that's what tripped the MSVC parser cascade described in swapchain_helpers.h.
@@ -40,8 +43,17 @@ const void* MakeDoubledSwapChainDesc(const void* pSwapChainDesc,
     if (outLogicalW) *outLogicalW = (unsigned int)tlsDesc.BufferDesc.Width;
     if (outLogicalH) *outLogicalH = (unsigned int)tlsDesc.BufferDesc.Height;
 
-    if (tlsDesc.BufferDesc.Width > 0)
-        tlsDesc.BufferDesc.Width *= 2;
+    // OutputMode controls which axis we double:
+    //   T-B → backbuffer is W x 2H (eyes stacked)
+    //   SBS → backbuffer is 2W x H (eyes side-by-side, default)
+    if (NvDM_OutputIsTopBottom())
+    {
+        if (tlsDesc.BufferDesc.Height > 0) tlsDesc.BufferDesc.Height *= 2;
+    }
+    else
+    {
+        if (tlsDesc.BufferDesc.Width > 0)  tlsDesc.BufferDesc.Width  *= 2;
+    }
 
     return &tlsDesc;
 }

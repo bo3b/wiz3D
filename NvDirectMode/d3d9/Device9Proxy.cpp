@@ -172,16 +172,18 @@ HRESULT Device9Proxy::SetRenderTarget(DWORD i, IDirect3DSurface9* p)
             if      (eye == kEyeLeft)  eye = kEyeRight;
             else if (eye == kEyeRight) eye = kEyeLeft;
         }
+        const bool topBottom = NvDM_OutputIsTopBottom() != 0;
         D3DVIEWPORT9 vp;
-        vp.X      = (eye == kEyeRight) ? m_logicalWidth : 0;
-        vp.Y      = 0;
+        vp.X      = (!topBottom && eye == kEyeRight) ? m_logicalWidth  : 0;
+        vp.Y      = ( topBottom && eye == kEyeRight) ? m_logicalHeight : 0;
         vp.Width  = m_logicalWidth;
         vp.Height = m_logicalHeight;
         vp.MinZ   = 0.0f;
         vp.MaxZ   = 1.0f;
         m_real->SetViewport(&vp);
-        NVDM_TRACE_FIRST_N(16, "  Device9Proxy::SetRenderTarget BB: eye=%d vp=(%u,%u %ux%u)\n",
-                           eye, vp.X, vp.Y, vp.Width, vp.Height);
+        NVDM_TRACE_FIRST_N(16, "  Device9Proxy::SetRenderTarget BB: eye=%d mode=%s vp=(%u,%u %ux%u)\n",
+                           eye, topBottom ? "T-B" : "SBS",
+                           vp.X, vp.Y, vp.Width, vp.Height);
     }
     return hr;
 }

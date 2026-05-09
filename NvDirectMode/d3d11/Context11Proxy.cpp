@@ -60,16 +60,18 @@ namespace
             if      (eye == NvDirectMode::kEyeLeft)  eye = NvDirectMode::kEyeRight;
             else if (eye == NvDirectMode::kEyeRight) eye = NvDirectMode::kEyeLeft;
         }
+        const bool topBottom = NvDM_OutputIsTopBottom() != 0;
         D3D11_VIEWPORT vp;
-        vp.TopLeftX = (eye == NvDirectMode::kEyeRight) ? (FLOAT)logicalW : 0.0f;
-        vp.TopLeftY = 0.0f;
+        vp.TopLeftX = (!topBottom && eye == NvDirectMode::kEyeRight) ? (FLOAT)logicalW : 0.0f;
+        vp.TopLeftY = ( topBottom && eye == NvDirectMode::kEyeRight) ? (FLOAT)logicalH : 0.0f;
         vp.Width    = (FLOAT)logicalW;
         vp.Height   = (FLOAT)logicalH;
         vp.MinDepth = 0.0f;
         vp.MaxDepth = 1.0f;
         ctx->RSSetViewports(1, &vp);
-        NVDM_TRACE_FIRST_N(16, "  Context11Proxy::OMSet eye=%d viewport=(%.0f,%.0f %.0fx%.0f) rtv=%p\n",
-                           eye, vp.TopLeftX, vp.TopLeftY, vp.Width, vp.Height, rtvs[0]);
+        NVDM_TRACE_FIRST_N(16, "  Context11Proxy::OMSet eye=%d mode=%s viewport=(%.0f,%.0f %.0fx%.0f) rtv=%p\n",
+                           eye, topBottom ? "T-B" : "SBS",
+                           vp.TopLeftX, vp.TopLeftY, vp.Width, vp.Height, rtvs[0]);
     }
 }
 

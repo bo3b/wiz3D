@@ -1,5 +1,7 @@
 #include "swapchain_helpers.h"
 
+extern "C" int NvDM_OutputIsTopBottom();
+
 namespace NvDirectMode
 {
 
@@ -24,8 +26,17 @@ void ResolveAndDoubleSwapchainParams(D3DPRESENT_PARAMETERS* p,
     if (outLogicalW) *outLogicalW = p->BackBufferWidth;
     if (outLogicalH) *outLogicalH = p->BackBufferHeight;
 
-    if (p->BackBufferWidth > 0)
-        p->BackBufferWidth *= 2;
+    // OutputMode picks which axis we double:
+    //   T-B → backbuffer is W x 2H (eyes stacked)
+    //   SBS → backbuffer is 2W x H (eyes side-by-side, default)
+    if (NvDM_OutputIsTopBottom())
+    {
+        if (p->BackBufferHeight > 0) p->BackBufferHeight *= 2;
+    }
+    else
+    {
+        if (p->BackBufferWidth  > 0) p->BackBufferWidth  *= 2;
+    }
 }
 
 } // namespace NvDirectMode

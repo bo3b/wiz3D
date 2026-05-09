@@ -31,6 +31,7 @@ static int   g_loggingEnabled = 1;
 static int   g_verboseEnabled = 1;
 static int   g_swapEyes       = 0;
 static int   g_wrapDevices    = 1;
+static int   g_outputMode     = 1;
 
 static void LogOpen(void)
 {
@@ -68,6 +69,8 @@ extern "C" void NvDM_Log(const char* fmt, ...)
 }
 extern "C" int NvDM_VerboseEnabled() { return g_verboseEnabled; }
 extern "C" int NvDM_SwapEyes()       { return g_swapEyes; }
+extern "C" int NvDM_OutputMode()     { return g_outputMode; }
+extern "C" int NvDM_OutputIsTopBottom() { return (g_outputMode == 0 || g_outputMode == 3) ? 1 : 0; }
 
 static int ReadConfigInt(const char* xml, const char* tag, int defaultValue)
 {
@@ -101,6 +104,7 @@ static void LoadConfig(HMODULE hProxy)
     g_verboseEnabled = ReadConfigInt(buf, "VerboseLogging", g_verboseEnabled);
     g_swapEyes       = ReadConfigInt(buf, "SwapEyes",       g_swapEyes);
     g_wrapDevices    = ReadConfigInt(buf, "WrapDevices",    g_wrapDevices);
+    g_outputMode     = ReadConfigInt(buf, "OutputMode",     g_outputMode);
     free(buf);
 }
 
@@ -369,8 +373,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             WCHAR proxyPath[MAX_PATH];
             GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
             Log("Proxy DLL: %ls\n", proxyPath);
-            Log("Config:    LoggingEnabled=%d  VerboseLogging=%d  SwapEyes=%d  WrapDevices=%d\n",
-                g_loggingEnabled, g_verboseEnabled, g_swapEyes, g_wrapDevices);
+            Log("Config:    LoggingEnabled=%d  VerboseLogging=%d  SwapEyes=%d  WrapDevices=%d  OutputMode=%d (%s)\n",
+                g_loggingEnabled, g_verboseEnabled, g_swapEyes, g_wrapDevices, g_outputMode,
+                NvDM_OutputIsTopBottom() ? "Top-and-Bottom" : "Side-by-Side");
         }
         break;
 
