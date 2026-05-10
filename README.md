@@ -409,7 +409,19 @@ Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'D
 
 | Game | API | Bits | iZ3D Profile | Testing | Notes |
 |------|-----|------|--------|-------|-------|
+| DiRT 2 | DX11 | x86 | ✕ | Untested | `hardware_settings_config.xml` needs `stereo enabled="true"`.<br> Game supports 3D Vision Direct Mode and HD3D. |
+| DiRT 3 | DX11 | x86  | ✕ | Untested | `hardware_settings_config.xml` needs `stereo enabled="true"`.<br> Game supports 3D Vision Direct Mode and HD3D. |
+| DiRT 3 Complete Edition | DX11 | x86 | ✕ | Untested | `hardware_settings_config.xml` needs `stereo enabled="true"`.<br> Game supports 3D Vision Direct Mode and HD3D. |
+| DiRT Showdown | DX11 | x86 | ✕ | Untested | `hardware_settings_config.xml` needs `stereo enabled="true"`.<br> Game supports 3D Vision Direct Mode and HD3D. |
+| DiRT Rally | DX11 | x86 | ✕ | Untested | `hardware_settings_config.xml` needs `stereo enabled="true"`.<br> Game supports 3D Vision Direct Mode and HD3D. |
+| F1 2010 | DX11 | x86 | ✕ | Untested | Game supports 3D Vision Direct Mode and HD3D. |
+| F1 2011 | DX11 | x86  | ✕ | Untested | Game supports 3D Vision Direct Mode and HD3D. |
+| F1 2012 | DX11 | x86 | ✕ | Untested | Game supports 3D Vision Direct Mode and HD3D. |
+| F1 2013 | DX11 | x86 | ✕ | Untested | Game supports 3D Vision Direct Mode and HD3D. |
+| GRID 2 | DX11 | x86 | ✕ | Untested | `hardware_settings_config.xml` needs `stereo enabled="true"`.<br>O Game supports 3D Vision Direct Mode and HD3D. |
+| GRID Autosport | DX11 | x86 | ✕ | Untested | `hardware_settings_config.xml` needs `stereo enabled="true"`.<br> Game supports 3D Vision Direct Mode and HD3D. |
 | Hard Reset | DX9 | x86 | ✕ | Untested |  |
+| Hitman: Absolution | DX11 | x86 | ✕ | Untested | Game supports 3D Vision Direct Mode and HD3D. |
 | Tomb Raider (2013) | DX11 | x86 | ✕ | Untested | Game supports 3D Vision Direct Mode and HD3D. |
 
 ### Nvidia 3D Vision "Ready" Games 
