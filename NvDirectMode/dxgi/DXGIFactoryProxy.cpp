@@ -91,39 +91,9 @@ HRESULT STDMETHODCALLTYPE DXGIFactoryProxy::QueryInterface(REFIID riid, void** p
     return E_NOINTERFACE;
 }
 
-// ---------------------------------------------------------------------------
-// EnumAdapters / EnumAdapters1: wrap returned adapters in DXGIAdapterProxy
-// so the GetDesc / GetDesc1 vendor spoof catches the EnumAdapters path
-// (otherwise games querying via this path see the real AMD/Intel vendor
-// and skip nvapi.dll loading entirely → stereo path never activates).
-// ---------------------------------------------------------------------------
-HRESULT STDMETHODCALLTYPE DXGIFactoryProxy::EnumAdapters(UINT Adapter, IDXGIAdapter** ppAdapter)
-{
-    IDXGIAdapter* realAdapter = nullptr;
-    HRESULT hr = m_real0->EnumAdapters(Adapter, &realAdapter);
-    if (FAILED(hr) || !realAdapter) { if (ppAdapter) *ppAdapter = nullptr; return hr; }
-    if (!ppAdapter) { realAdapter->Release(); return E_POINTER; }
-    *ppAdapter = WrapRealAdapter(realAdapter);
-    return S_OK;
-}
-
-HRESULT STDMETHODCALLTYPE DXGIFactoryProxy::EnumAdapters1(UINT Adapter, IDXGIAdapter1** ppAdapter)
-{
-    if (!m_real1) return E_NOINTERFACE;
-    IDXGIAdapter1* real1 = nullptr;
-    HRESULT hr = m_real1->EnumAdapters1(Adapter, &real1);
-    if (FAILED(hr) || !real1) { if (ppAdapter) *ppAdapter = nullptr; return hr; }
-    if (!ppAdapter) { real1->Release(); return E_POINTER; }
-    // Wrap as IDXGIAdapter (which is also IDXGIAdapter1 since real1 supports
-    // it). real1's parent IDXGIAdapter aspect IS the same object so use it as r0.
-    auto* proxy = new DXGIAdapterProxy(static_cast<IDXGIAdapter*>(real1), real1);
-    // real1 is now held by proxy in both slots — but we only QI'd real1 once
-    // from EnumAdapters1, so it's only one ref. Add a second ref so the
-    // dtor's two Release() calls (m_real0 + m_real1) don't double-free.
-    real1->AddRef();
-    *ppAdapter = static_cast<IDXGIAdapter1*>(proxy);
-    return S_OK;
-}
+// EnumAdapters / EnumAdapters1: now passthrough — see header comment.
+// (Wrapping these crashed system d3d11.dll's internal device-creation
+// code which walks adapter struct internals past the vtable.)
 
 // ---------------------------------------------------------------------------
 // Intercepted swap-chain creation methods

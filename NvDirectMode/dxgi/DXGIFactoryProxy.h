@@ -58,7 +58,18 @@ public:
     HRESULT STDMETHODCALLTYPE GetParent(REFIID riid, void** ppParent) override                                          { return m_real0->GetParent(riid, ppParent); }
 
     // IDXGIFactory
-    HRESULT STDMETHODCALLTYPE EnumAdapters(UINT Adapter, IDXGIAdapter** ppAdapter) override;
+    // EnumAdapters / EnumAdapters1: passthrough. We tried wrapping these
+    // (commit b9c6fcaa) so the GetDesc vendor spoof would catch the
+    // EnumAdapters path too, but it crashed inside system d3d11.dll —
+    // D3D11CreateDeviceAndSwapChain calls EnumAdapters1 internally and
+    // the d3d11 runtime does non-COM access into adapter struct internals
+    // (past the vtable) which doesn't survive our proxy layout. The
+    // device→IDXGIDevice→GetAdapter path is safe (no system runtime
+    // walks it) so the d3d11/DXGIAdapterProxy still spoofs GetDesc there.
+    // Real fix for the EnumAdapters case is vtable hot-patching of
+    // IDXGIAdapter's GetDesc / GetDesc1 slots (preserves layout) —
+    // separate task.
+    HRESULT STDMETHODCALLTYPE EnumAdapters(UINT Adapter, IDXGIAdapter** ppAdapter) override                            { return m_real0->EnumAdapters(Adapter, ppAdapter); }
     HRESULT STDMETHODCALLTYPE MakeWindowAssociation(HWND WindowHandle, UINT Flags) override                            { return m_real0->MakeWindowAssociation(WindowHandle, Flags); }
     HRESULT STDMETHODCALLTYPE GetWindowAssociation(HWND* pWindowHandle) override                                        { return m_real0->GetWindowAssociation(pWindowHandle); }
     HRESULT STDMETHODCALLTYPE CreateSwapChain(IUnknown* pDevice,
@@ -67,7 +78,7 @@ public:
     HRESULT STDMETHODCALLTYPE CreateSoftwareAdapter(HMODULE Module, IDXGIAdapter** ppAdapter) override                  { return m_real0->CreateSoftwareAdapter(Module, ppAdapter); }
 
     // IDXGIFactory1
-    HRESULT STDMETHODCALLTYPE EnumAdapters1(UINT Adapter, IDXGIAdapter1** ppAdapter) override;
+    HRESULT STDMETHODCALLTYPE EnumAdapters1(UINT Adapter, IDXGIAdapter1** ppAdapter) override                          { return m_real1 ? m_real1->EnumAdapters1(Adapter, ppAdapter) : E_NOINTERFACE; }
     BOOL    STDMETHODCALLTYPE IsCurrent() override                                                                      { return m_real1 ? m_real1->IsCurrent() : FALSE; }
 
     // IDXGIFactory2
