@@ -409,6 +409,7 @@ Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'D
 
 | Game | API | Bits | iZ3D Profile | Testing | Notes |
 |------|-----|------|--------|-------|-------|
+| Hard Reset | DX9 | x86 | ✕ | Untested |  |
 | Tomb Raider (2013) | DX11 | x86 | ✕ | Untested | Game supports 3D Vision Direct Mode and HD3D. |
 
 ### Nvidia 3D Vision "Ready" Games 
@@ -434,7 +435,6 @@ Games that use 3D Vision "Automatic Mode" stereo injection, but communicate with
 | Grand Theft Auto IV | DX9 | x32 | ✓ | Untested | `-stereo` command line argument. |
 | Grand Theft Auto V (Legacy) | DX11 | x64 | ✕ | Untested | `Stereo 3D` option in `Graphics` menu. |
 | GT Legends | DX9 | x86 | ✕ | Untested |  |
-| Hard Reset | DX9 | x86 | ✕ | Untested |  |
 | Inversion | DX9/DX11 | x86 | ✕ | ⚠️ Partial | Might need to implement more 3D Vison features or shader fix. |
 | Just Cause 2 | DX10 | x86 | ✓ | Untested |  |
 | L.A. Noire | DX9/DX11 | x86 | ✕ | Untested |  |
