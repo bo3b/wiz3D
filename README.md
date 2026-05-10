@@ -236,6 +236,7 @@ Configure your output mode (Half Side-by-Side, Anaglyph, etc.) and any other set
 | Mortal Kombat Komplete Edition | DX9 | x86 | ✕ | ✅ Working |  |
 | MTX: Mototrax | DX9 | x86 | ✓ | Untested |  |
 | Mythos | DX9 | x86 | ✓ | Untested | Mythos (2009) maybe? Not sure which game this is. |
+| Naruto Shippuden: Ultimate Ninja Storm 3 Full Burst (2013) | DX9 | x86 | ✕ | ✅ Mostly Working |  Needs shader fix and swap eye. |
 | Need for Speed: ProStreet | DX9 | x86 | ✓ | Untested |  |
 | Need for Speed: Undercover | DX9 | x86 | ✓ | Untested |  |
 | Need for Speed: Hot Pursuit (2010) | DX9 | x86 | ✓ | Untested |  |
