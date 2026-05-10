@@ -91,27 +91,40 @@
         <DisableStereoSpoof Value="0"/>
 
         <!-- UseLayoutStableProxy: D3D9 ONLY (ignored on d3d10/d3d11/opengl32).
-             Default 0 = use the existing D3D9Proxy class wrap.
-             1 = hot-patch the real IDirect3D9 vtable's CreateDevice slot
-             instead of wrapping. Game's Direct3DCreate9 returns the REAL
-             IDirect3D9 (passing anti-tamper sniffs that read bytes out of
-             the IDirect3D9 implementation memory looking for NVIDIA
-             signatures), and our hook fires when the game later calls
-             CreateDevice via the patched vtable.
+             Tiered for games whose anti-tamper sniffs IDirect3D9 / Device
+             internals.
 
-             Use this for games that crash immediately after Direct3DCreate9
-             returns when WrapDevices=1: confirmed needed by GTA IV (crash
-             at GTAIV.exe + 0x3BE0) and Hard Reset (hardreset.exe +
-             0x56B856). For most DX9 Direct Mode titles the default 0 is
-             fine and gives marginally cleaner state tracking.
+             0 = OFF. Use the existing D3D9Proxy + Device9Proxy class wrap.
+                 Default for new installs.
 
-             KNOWN LIMITATION: the vtable patch is process-global. All
-             IDirect3D9 instances in the process route through our hook
-             after the first patched Direct3DCreate9 call. Single-game
-             processes are the common case. If a game also sniffs
-             IDirect3DDevice9 after CreateDevice returns, the patch
-             doesn't help (would need an extension to patch the device
-             vtable too). -->
-        <UseLayoutStableProxy Value="0"/>
+             1 = FACTORY-LEVEL. Hot-patch the real IDirect3D9 vtable's
+                 CreateDevice / CreateDeviceEx slots and hand the GAME the
+                 real IDirect3D9 (passes sniffs that walk the IDirect3D9
+                 implementation looking for NVIDIA d3d9.dll signatures).
+                 The DEVICE returned from CreateDevice is still our
+                 Device9Proxy. Sufficient for: Hard Reset (boots, runs).
+                 Insufficient for: GTA IV (passes the factory sniff but
+                 crashes later inside Reset() because game's anti-tamper
+                 also sniffs the device).
+
+             2 = FACTORY + DEVICE. As level 1, plus hot-patch the real
+                 IDirect3DDevice9 vtable's Reset / Present / GetBackBuffer
+                 slots (and PresentEx / ResetEx for Ex devices). Game gets
+                 the REAL device pointer from CreateDevice — passes any
+                 sniff that walks the device's implementation. Our hooks
+                 still do shadow-buffer + per-eye composite work via a
+                 parallel state slot keyed by the real device pointer.
+                 Use this for GTA IV.
+
+             KNOWN LIMITATION: the vtable patches are process-global. All
+             IDirect3D9 / IDirect3DDevice9 instances in the process route
+             through our hooks after the first install. Single-game
+             processes are the common case.
+
+             Default 2 (factory + device) is the strictest superset and
+             handles the games we've found to need this (Hard Reset, GTA
+             IV). If a game later turns out to break under 2, drop to 1
+             or 0 for that game. -->
+        <UseLayoutStableProxy Value="2"/>
     </NvDirectMode>
 </Config>

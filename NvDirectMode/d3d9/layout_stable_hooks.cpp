@@ -10,7 +10,7 @@
  *
  * Approach: instead of returning our D3D9Proxy from Direct3DCreate9,
  * return the *real* IDirect3D9 with its CreateDevice (slot 16) and
- * CreateDeviceEx (slot 19, when Ex) hot-patched to our hooks. The sniff
+ * CreateDeviceEx (slot 20, when Ex) hot-patched to our hooks. The sniff
  * sees the real layout — passes. When the game later calls
  * iD3D9->CreateDevice via the patched vtable, our hook fires and we
  * wrap the returned device with the existing Device9Proxy.
@@ -35,6 +35,7 @@
 
 #include "proxy_factory.h"
 #include "Device9Proxy.h"
+#include "device_vtable_hooks.h"
 #include "swapchain_helpers.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -43,16 +44,32 @@
 
 extern "C" void NvDM_Log(const char* fmt, ...);
 extern "C" int  NvDM_VerboseEnabled();
+extern "C" int  NvDM_UseLayoutStableLevel();   // 0 / 1 / 2
 
 namespace NvDirectMode
 {
 
 namespace
 {
-    // IDirect3D9 vtable indices (defined by the IDL — stable across
-    // Windows versions and SDK revisions).
+    // IDirect3D9 / IDirect3D9Ex vtable indices (per d3d9.h IDL — stable
+    // across Windows versions and SDK revisions).
+    //
+    // IDirect3D9 ends at slot 16 (CreateDevice). IDirect3D9Ex extends:
+    //   17: GetAdapterModeCountEx
+    //   18: EnumAdapterModesEx
+    //   19: GetAdapterDisplayModeEx
+    //   20: CreateDeviceEx          <-- slot we want
+    //   21: GetAdapterLUID
+    //
+    // Earlier versions of this file had kSlotCreateDeviceEx = 19 (off by
+    // one — that's GetAdapterDisplayModeEx). Hard Reset / GTA IV / AC
+    // Revelations didn't hit this because they all use the non-Ex
+    // Direct3DCreate9. Bo3b's exp_dx9_dm Tutorial07 uses Direct3DCreate9Ex
+    // and crashed inside system d3d9.dll the first time we ran it because
+    // the game's GetAdapterDisplayModeEx call hit our hook expecting
+    // CreateDeviceEx's signature.
     constexpr int kSlotCreateDevice    = 16;   // IDirect3D9::CreateDevice
-    constexpr int kSlotCreateDeviceEx  = 19;   // IDirect3D9Ex::CreateDeviceEx
+    constexpr int kSlotCreateDeviceEx  = 20;   // IDirect3D9Ex::CreateDeviceEx
 
     typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateDevice)(
         IDirect3D9*, UINT, D3DDEVTYPE, HWND, DWORD,
@@ -94,6 +111,18 @@ namespace
             *ppReturnedDeviceInterface = nullptr;
             return hr;
         }
+        // Task #68: when UseLayoutStableProxy=2, hot-patch the real
+        // device's vtable too and hand the game the real pointer. Skips
+        // Device9Proxy entirely so the game's anti-tamper sniff of the
+        // device internals (GTA IV's Reset() validator) sees real layout.
+        if (NvDM_UseLayoutStableLevel() >= 2 &&
+            InstallDeviceVtablePatch(realDevice, /*isEx=*/false, logicalW, logicalH))
+        {
+            NvDM_Log("  Hook_CreateDevice: device vtable patched, returning real %p (logical=%ux%u)\n",
+                     realDevice, logicalW, logicalH);
+            *ppReturnedDeviceInterface = realDevice;
+            return hr;
+        }
         auto* proxy = new Device9Proxy(realDevice, /*isEx=*/false);
         if (logicalW > 0) proxy->SetLogicalBackBufferSize(logicalW, logicalH);
         proxy->StashBackBufferReference();
@@ -131,6 +160,14 @@ namespace
         {
             NvDM_Log("  Hook_CreateDeviceEx: real CreateDeviceEx failed hr=0x%08lX\n", hr);
             *ppReturnedDeviceInterface = nullptr;
+            return hr;
+        }
+        if (NvDM_UseLayoutStableLevel() >= 2 &&
+            InstallDeviceVtablePatch(realDevice, /*isEx=*/true, logicalW, logicalH))
+        {
+            NvDM_Log("  Hook_CreateDeviceEx: device vtable patched, returning real %p (logical=%ux%u)\n",
+                     realDevice, logicalW, logicalH);
+            *ppReturnedDeviceInterface = realDevice;
             return hr;
         }
         auto* proxy = new Device9Proxy(realDevice, /*isEx=*/true);

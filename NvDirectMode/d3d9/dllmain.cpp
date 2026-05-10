@@ -32,7 +32,7 @@ static int   g_verboseEnabled = 1;
 static int   g_swapEyes       = 0;
 static int   g_wrapDevices    = 1;
 static int   g_outputMode     = 1;
-static int   g_useLayoutStable = 0;   // task #61 — vtable hot-patch IDirect3D9 instead of wrapping
+static int   g_useLayoutStable = 0;   // 0=off  1=IDirect3D9 vtable patch (task #61)  2=+IDirect3DDevice9 vtable patch (task #68)
 
 static void LogOpen(void)
 {
@@ -72,6 +72,7 @@ extern "C" int NvDM_VerboseEnabled() { return g_verboseEnabled; }
 extern "C" int NvDM_SwapEyes()       { return g_swapEyes; }
 extern "C" int NvDM_OutputMode()     { return g_outputMode; }
 extern "C" int NvDM_OutputIsTopBottom() { return (g_outputMode == 0 || g_outputMode == 3) ? 1 : 0; }
+extern "C" int NvDM_UseLayoutStableLevel() { return g_useLayoutStable; }
 
 static int ReadConfigInt(const char* xml, const char* tag, int defaultValue)
 {
@@ -399,9 +400,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             WCHAR proxyPath[MAX_PATH];
             GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
             Log("Proxy DLL: %ls\n", proxyPath);
-            Log("Config:    OutputMode=%d (%s)  WrapDevices=%d  SwapEyes=%d  LoggingEnabled=%d  VerboseLogging=%d\n",
+            Log("Config:    OutputMode=%d (%s)  WrapDevices=%d  SwapEyes=%d  UseLayoutStableProxy=%d  LoggingEnabled=%d  VerboseLogging=%d\n",
                 g_outputMode, NvDM_OutputIsTopBottom() ? "Top-and-Bottom" : "Side-by-Side",
-                g_wrapDevices, g_swapEyes, g_loggingEnabled, g_verboseEnabled);
+                g_wrapDevices, g_swapEyes, g_useLayoutStable, g_loggingEnabled, g_verboseEnabled);
         }
         break;
 

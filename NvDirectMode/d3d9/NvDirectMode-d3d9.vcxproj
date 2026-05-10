@@ -149,12 +149,14 @@
     <ClCompile Include="Device9Proxy.cpp" />
     <ClCompile Include="swapchain_helpers.cpp" />
     <ClCompile Include="layout_stable_hooks.cpp" />
+    <ClCompile Include="device_vtable_hooks.cpp" />
     <ClCompile Include="eye_state.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D3D9Proxy.h" />
     <ClInclude Include="Device9Proxy.h" />
     <ClInclude Include="proxy_factory.h" />
+    <ClInclude Include="device_vtable_hooks.h" />
     <ClInclude Include="swapchain_helpers.h" />
     <ClInclude Include="eye_state.h" />
     <ClInclude Include="log.h" />
