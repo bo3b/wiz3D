@@ -1,5 +1,6 @@
 #include "DXGIFactoryProxy.h"
 #include "adapter_vtable_hooks.h"
+#include "factory_vtable_hooks.h"
 
 #include <stdio.h>
 #pragma comment(lib, "dxguid.lib")
@@ -278,48 +279,54 @@ HRESULT STDMETHODCALLTYPE DXGIFactoryProxy::CreateSwapChainForComposition(
 
 // ---------------------------------------------------------------------------
 // Public entry point used from dllmain.cpp
+//
+// Task #70: switched from class-wrap (DXGIFactoryProxy) to vtable hot-patch.
+// The class wrap caused Hitman Absolution + EGO engine games (Dirt Rally /
+// Dirt 3 / Dirt Showdown / Grid Autosport — all confirmed Direct Mode) to
+// crash post-DXGIAdapter::GetParent because their engines walk struct
+// internals past the vtable (same pattern that bit IDXGIAdapter, fixed in
+// task #66). Vtable hot-patching preserves layout while still intercepting
+// the swap-chain creation methods we need to double the desc on.
+//
+// We still QI for the higher-version faces here so we can patch the
+// IDXGIFactory2 slots when present, but we hand the GAME the real factory
+// pointer — DXGIFactoryProxy is no longer instantiated on the live path.
+// (Class kept in the codebase as documentation / fallback.)
 // ---------------------------------------------------------------------------
 IUnknown* WrapRealFactoryAsRequested(IUnknown* realFactory, REFIID riid)
 {
     if (!realFactory) return nullptr;
 
-    // Try to QI for each version we support; any of them might be available.
     IDXGIFactory*  r0 = nullptr;
-    IDXGIFactory1* r1 = nullptr;
     IDXGIFactory2* r2 = nullptr;
     realFactory->QueryInterface(IID_IDXGIFactory,  reinterpret_cast<void**>(&r0));
-    realFactory->QueryInterface(IID_IDXGIFactory1, reinterpret_cast<void**>(&r1));
     realFactory->QueryInterface(IID_IDXGIFactory2, reinterpret_cast<void**>(&r2));
     if (!r0)
     {
-        // Couldn't even get IDXGIFactory — bail. (Shouldn't happen for any
-        // factory CreateDXGIFactory* returns.)
-        if (r1) r1->Release();
         if (r2) r2->Release();
-        NvDM_DxgiLog("  WrapRealFactoryAsRequested: real factory %p doesn't expose IDXGIFactory; not wrapping\n",
+        NvDM_DxgiLog("  WrapRealFactoryAsRequested: real factory %p doesn't expose IDXGIFactory; not patching\n",
                      (void*)realFactory);
-        return nullptr;
+        return realFactory;
     }
 
-    // Drop the original ref from the caller — DXGIFactoryProxy now owns the
-    // ref chain (one each for r0/r1/r2 from our QI's above). The caller
-    // released their ref by handing it to us through this function's
-    // contract.
-    realFactory->Release();
+    // Hot-patch swap-chain creation slots on the real factory's vtable
+    // (idempotent — only the first call actually patches; the vtable is
+    // process-shared so all factories the game ever creates route through
+    // our hooks after this).
+    InstallFactoryVtablePatch(r0, r2);
 
-    auto* proxy = new DXGIFactoryProxy(r0, r1, r2);
-
-    // Task #66: hot-patch the IDXGIAdapter / IDXGIAdapter1 vtables so the
-    // GetDesc / GetDesc1 vendor spoof fires on real adapter pointers
-    // (preserving struct layout — the previous wrap-the-adapter approach
-    // crashed system d3d11.dll's internal device-creation walk). Idempotent
-    // — only the first factory wrap actually patches.
+    // Same pattern for adapters — ensures vendor spoof fires on adapters
+    // returned by EnumAdapters / GetAdapter without wrapping them.
     InstallAdapterVtablePatch(r0);
 
-    // Cast as requested IID for return.
-    if (riid == IID_IDXGIFactory2 && r2) return static_cast<IDXGIFactory2*>(proxy);
-    if (riid == IID_IDXGIFactory1 && r1) return static_cast<IDXGIFactory1*>(proxy);
-    return static_cast<IDXGIFactory*>(proxy);
+    if (r2) r2->Release();
+    r0->Release();
+
+    // Hand the game the REAL factory pointer it gave us. Layout sniff
+    // passes; our hooks intercept CreateSwapChain* via the patched vtable.
+    NvDM_DxgiLog("  WrapRealFactoryAsRequested: vtable-patched real factory %p (riid match)\n",
+                 (void*)realFactory);
+    return realFactory;
 }
 
 } // namespace NvDirectMode

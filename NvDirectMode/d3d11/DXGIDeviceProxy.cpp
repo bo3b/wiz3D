@@ -92,55 +92,27 @@ HRESULT STDMETHODCALLTYPE DXGIDeviceProxy::QueryInterface(REFIID riid, void** pp
     return hr;
 }
 
-// Helper used by GetAdapter and GetParent(IDXGIAdapter*): take a real
-// IDXGIAdapter, QI for the IDXGIAdapter1 face if available, hand both
-// refs to a fresh DXGIAdapterProxy.
-static IDXGIAdapter* WrapRealAdapter(IDXGIAdapter* realAdapter)
-{
-    if (!realAdapter) return nullptr;
-    IDXGIAdapter1* r1 = nullptr;
-    realAdapter->QueryInterface(IID_IDXGIAdapter1, reinterpret_cast<void**>(&r1));
-    auto* proxy = new DXGIAdapterProxy(realAdapter, r1);
-    return static_cast<IDXGIAdapter*>(proxy);
-}
+// GetAdapter / GetParent(IDXGIAdapter*) used to wrap returned adapters in
+// DXGIAdapterProxy so the game's adapter→GetParent walk would land on our
+// DXGIFactoryProxy. After tasks #66 + #70 the real adapter's GetDesc /
+// GetDesc1 vtable slots are spoofed for vendor and the real factory's
+// CreateSwapChain* slots are hooked — the entire DXGI walk is now
+// layout-stable on real pointers, no class wrap needed. Crucially this
+// fixes Hitman Absolution + EGO engine games (Dirt Rally, Dirt 3, Dirt
+// Showdown, Grid Autosport — all confirmed Direct Mode), whose engines
+// crash when they walk struct internals past the wrapper's vtable.
 
 HRESULT STDMETHODCALLTYPE DXGIDeviceProxy::GetAdapter(IDXGIAdapter** ppAdapter)
 {
-    if (!ppAdapter) return E_POINTER;
-    IDXGIAdapter* realAdapter = nullptr;
-    HRESULT hr = m_real0->GetAdapter(&realAdapter);
-    if (FAILED(hr) || !realAdapter) { *ppAdapter = nullptr; return hr; }
-    *ppAdapter = WrapRealAdapter(realAdapter);
-    NVDM_TRACE_FIRST_N(4, "  DXGIDeviceProxy::GetAdapter: wrapped real=%p -> %p\n",
-                       (void*)realAdapter, (void*)*ppAdapter);
-    return S_OK;
+    HRESULT hr = m_real0->GetAdapter(ppAdapter);
+    NVDM_TRACE_FIRST_N(4, "  DXGIDeviceProxy::GetAdapter: real adapter=%p (vtable-patched)\n",
+                       ppAdapter ? (void*)*ppAdapter : nullptr);
+    return hr;
 }
 
 HRESULT STDMETHODCALLTYPE DXGIDeviceProxy::GetParent(REFIID riid, void** ppParent)
 {
     if (!ppParent) return E_POINTER;
-
-    // For adapter queries: route through our DXGIAdapterProxy so that a
-    // game walking device → adapter → factory hits our wrapped factory
-    // when it eventually creates its swap chain.
-    if (riid == IID_IDXGIAdapter || riid == IID_IDXGIAdapter1)
-    {
-        IDXGIAdapter* realAdapter = nullptr;
-        HRESULT hr = m_real0->GetParent(IID_IDXGIAdapter, reinterpret_cast<void**>(&realAdapter));
-        if (FAILED(hr) || !realAdapter) { *ppParent = nullptr; return hr; }
-        IDXGIAdapter* wrapped = WrapRealAdapter(realAdapter);
-        if (riid == IID_IDXGIAdapter1)
-        {
-            // Round-trip via QI to get the IDXGIAdapter1 face with proper
-            // refcount; drop our IDXGIAdapter ref afterwards.
-            HRESULT qiHr = wrapped->QueryInterface(IID_IDXGIAdapter1, ppParent);
-            wrapped->Release();
-            return qiHr;
-        }
-        *ppParent = wrapped;   // transfer our ref to the caller
-        return S_OK;
-    }
-
     return m_real0->GetParent(riid, ppParent);
 }
 
