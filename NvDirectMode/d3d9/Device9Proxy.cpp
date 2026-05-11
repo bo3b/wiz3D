@@ -518,13 +518,12 @@ static bool IsSRIncompatibleExe()
     wchar_t exePath[MAX_PATH] = {};
     if (!GetModuleFileNameW(nullptr, exePath, MAX_PATH)) return false;
     for (wchar_t* p = exePath; *p; ++p) *p = (wchar_t)towlower(*p);
-    // Empty — see d3d11 SwapChainProxy.cpp for the two-step weaver init
-    // that obsoletes the previous TR2013 entry.
+    // Kept aligned with d3d11's blacklist. See d3d11 SwapChainProxy.cpp.
     static const wchar_t* const kBlacklist[] = {
-        nullptr,
+        L"tombraider.exe",
     };
     for (auto entry : kBlacklist)
-        if (entry && wcsstr(exePath, entry)) return true;
+        if (wcsstr(exePath, entry)) return true;
     return false;
 }
 

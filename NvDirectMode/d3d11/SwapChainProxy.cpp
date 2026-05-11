@@ -679,14 +679,19 @@ static bool IsSRIncompatibleExe()
     wchar_t exePath[MAX_PATH] = {};
     if (!GetModuleFileNameW(nullptr, exePath, MAX_PATH)) return false;
     for (wchar_t* p = exePath; *p; ++p) *p = (wchar_t)towlower(*p);
-    // Empty — TR2013 used to be here; the two-step weaver init in
-    // EnsureSRWeaver (NULL hWnd at construction + setWindowHandle after)
-    // sidesteps the cohabitation crash that put TR on the list originally.
     static const wchar_t* const kBlacklist[] = {
-        nullptr,
+        // TR2013: deep-diagnosed; the crash is inside CreateDX11Weaver itself,
+        // BEFORE setWindowHandle or ctx->initialize ever run. EOSOVH (Epic
+        // overlay) is in TR's process from its static EOSSDK import and hooks
+        // something the SR weaver constructor touches. Neither the two-step
+        // HWND-defer pattern nor reordering ctx->initialize() helped — both
+        // landed on the same EOSOVH+0x18060 strlen-loop crash. SBS fallback
+        // is the answer until/unless we ship a stub EOSSDK in the game folder.
+        // See project_tr2013_sr_dead_end memory for the full investigation.
+        L"tombraider.exe",
     };
     for (auto entry : kBlacklist)
-        if (entry && wcsstr(exePath, entry)) return true;
+        if (wcsstr(exePath, entry)) return true;
     return false;
 }
 
@@ -768,6 +773,7 @@ bool SwapChainProxy::EnsureSRWeaver()
     if (s_isBlacklisted) { m_srBlacklistedOrFailed = true; return false; }
 
     LOG_VERBOSE("  d3d11 EnsureSRWeaver: entering, tid=%lu\n", GetCurrentThreadId());
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 1/5 — SafeSRContextCreate calling...\n");
 
     // Step 1: create SR context. Delay-load failure (MOD_NOT_FOUND) caught
     // by SEH; ServerNotAvailableException + generic catches handle the
@@ -797,6 +803,7 @@ bool SwapChainProxy::EnsureSRWeaver()
         m_srBlacklistedOrFailed = true;
         return false;
     }
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 1/5 OK — ctx=%p\n", (void*)ctx);
 
     // Step 2: create DX11 weaver bound to the swap chain's output window.
     DXGI_SWAP_CHAIN_DESC scDesc = {};
@@ -824,6 +831,9 @@ bool SwapChainProxy::EnsureSRWeaver()
         return false;
     }
 
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 2/5 — CreateDX11Weaver(ctx=%p, immCtx=%p, hWnd=nullptr) calling...\n",
+             (void*)ctx, (void*)immCtx);
+
     // Two-step weaver init: create with NULL hWnd, then setWindowHandle()
     // separately. Constructor-time HWND wiring crashes some games where
     // 3rd-party DLLs (EOSOVH and friends) hook the resulting window-init
@@ -840,14 +850,20 @@ bool SwapChainProxy::EnsureSRWeaver()
         m_srBlacklistedOrFailed = true;
         return false;
     }
-    weaver->setWindowHandle(hWnd);
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 2/5 OK — weaver=%p\n", (void*)weaver);
 
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 3/5 — weaver->setWindowHandle(hWnd=%p) calling...\n", (void*)hWnd);
+    weaver->setWindowHandle(hWnd);
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 3/5 OK\n");
+
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 4/5 — ctx->initialize() calling...\n");
     ctx->initialize();
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 4/5 OK\n");
 
     m_srContextOpaque = ctx;
     m_srWeaverOpaque  = weaver;
-    LOG_VERBOSE("  d3d11 EnsureSRWeaver: ready (hWnd=%p ctx=%p weaver=%p)\n",
-                (void*)hWnd, (void*)ctx, (void*)weaver);
+    NvDM_Log("  d3d11 EnsureSRWeaver: step 5/5 — ready (hWnd=%p ctx=%p weaver=%p)\n",
+             (void*)hWnd, (void*)ctx, (void*)weaver);
     return true;
 #else
     return false;
