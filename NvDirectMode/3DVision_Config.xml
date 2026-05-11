@@ -115,6 +115,39 @@
              Default: 0. -->
         <ForceSRWeave Value="0"/>
 
+        <!-- BlockEOSOverlay: 1 = block Epic Online Services overlay
+             (EOSOVH-Win32-Shipping.dll) from loading into the game process;
+             0 = allow it to load normally.
+
+             Epic Games Launcher's overlay DLL gets injected into ANY game
+             that ships EOSSDK-Win32-Shipping.dll (e.g. Steam-edition Tomb
+             Raider 2013, many recent UE-based games). The overlay has a
+             known bug at +0x18060 (an unbounded string-scan loop that
+             derefs an invalid pointer); under stereo + SR weave it's
+             triggered every frame and tight-loops the process to death.
+
+             We IAT-patch LoadLibrary in EOSSDK's import table so when it
+             tries to LoadLibraryW("EOSOVH-Win32-Shipping.dll") during
+             init, the call returns ERROR_MOD_NOT_FOUND. EOSSDK gracefully
+             tolerates the overlay being absent (it's optional) and the
+             game runs without it.
+
+             Side-effects on the game: in-game Epic friends overlay /
+             notifications (the Shift+F3 popup) are unavailable. Game
+             integration with EOS itself (achievements, leaderboards,
+             matchmaking) is NOT affected — that's EOSSDK, which keeps
+             working. Only the overlay UI on top of the game is suppressed.
+
+             KNOWN LIMITATION: when a game statically imports EOSSDK in
+             its EXE (e.g. Tomb Raider 2013), EOSSDK and EOSOVH are loaded
+             by the Windows loader BEFORE any user-mode code in d3d11.dll
+             runs. Our IAT-patch then arrives too late to prevent the
+             overlay load. The block only works for games that load
+             EOSSDK lazily (LoadLibrary at runtime). Default: 0 (off) —
+             enable per-game if you confirm the game loads EOSSDK
+             lazily. -->
+        <BlockEOSOverlay Value="0"/>
+
         <!-- AnaglyphMethod: ghosting-vs-colour trade-off (only used when
              OutputMode=7). All seven methods come from the same coefficient
              tables wiz3D's main HD3D wrap (AmdQbProxy) ships with.
