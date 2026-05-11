@@ -219,6 +219,33 @@ private:
     bool RunShaderComposite(int mode);
     void UpdateAnaglyphConsts();
     void CompositeAndPresent();   // called at Present before forwarding
+
+    // OutputMode 8 — Simulated Reality weave (Leia / Samsung Odyssey ML displays).
+    // SR runtime DLLs are delay-loaded (vcxproj's DelayLoadDLLs); first call to
+    // EnsureSRWeaver attempts to create the context via SafeSRContextCreate's
+    // SEH-protected wrapper. If the runtime isn't installed (MOD_NOT_FOUND on
+    // delay-load) or no display device responds (ServerNotAvailableException),
+    // the wrap downgrades OutputMode to SBS for the remainder of the session.
+    //
+    // Mirror of the DX10/DX11 SR weave pipeline, adapted for DX9:
+    //   - SBS intermediate is an IDirect3DTexture9 (2W × H, RENDERTARGET, DEFAULT pool)
+    //   - Eye contents are copied via StretchRect from m_leftEyeSurf / m_rightEyeSurf
+    //     into the left/right halves of the SBS texture's surface (no shader pass
+    //     needed — DX9's StretchRect is the cheap path for surface→surface blits)
+    //   - IDX9Weaver1::setInputViewTexture(m_srSBSTex, ...) + weave() with the
+    //     real back buffer bound as RT produces the weaved frame
+    bool EnsureSRWeaver();
+    bool EnsureSRSBSTexture();
+    void ReleaseSRPipeline();
+    bool RunSRWeave();
+    bool                  m_srBlacklistedOrFailed;
+    void*                 m_srContextOpaque;   // SR::SRContext*  (void* to keep SDK out of header)
+    void*                 m_srWeaverOpaque;    // SR::IDX9Weaver1*
+    IDirect3DTexture9*    m_srSBSTex;
+    IDirect3DSurface9*    m_srSBSSurf;         // surface-level-0 of m_srSBSTex, cached
+    UINT                  m_srSBSW;            // == m_logicalWidth * 2
+    UINT                  m_srSBSH;            // == m_logicalHeight
+    D3DFORMAT             m_srSBSFmt;
 };
 
 } // namespace NvDirectMode

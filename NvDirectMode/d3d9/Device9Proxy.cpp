@@ -12,12 +12,31 @@
 #include "log.h"
 #include "../anaglyph_matrices.h"
 
+#ifdef SR_WEAVE_ENABLED
+// Leia / Simulated Reality SDK headers (DelayLoad'd via vcxproj — DLLs
+// are only attempted on first weaver create, so non-SR systems pay no
+// cost beyond import-table entries).
+#include "sr/weaver/dx9weaver.h"
+
+// OpenCV-free stub: SR's Exception header references cv::String::deallocate.
+// Same trick as d3d11/d3d10 — provide an empty body so the linker is happy
+// without pulling in opencv_world343.lib (~10 MB of OpenCV static init).
+// See d3d11/SwapChainProxy.cpp for full rationale.
+void cv::String::deallocate() {}
+#endif
+
+#include <ctype.h>
+#include <stdlib.h>
+
 #include <d3dcommon.h>
 #include <string.h>
 
 extern "C" int NvDM_OutputMode();
+extern "C" int NvDM_SwapEyes();
+extern "C" int NvDM_OutputIsTopBottom();
 extern "C" int NvDM_AnaglyphColour();
 extern "C" int NvDM_AnaglyphMethod();
+extern "C" int NvDM_ForceSRWeave();
 
 namespace NvDirectMode
 {
@@ -67,6 +86,14 @@ Device9Proxy::Device9Proxy(IDirect3DDevice9* real, bool isEx)
     , m_compositeVB(nullptr)
     , m_compositeDecl(nullptr)
     , m_shadersFailed(false)
+    , m_srBlacklistedOrFailed(false)
+    , m_srContextOpaque(nullptr)
+    , m_srWeaverOpaque(nullptr)
+    , m_srSBSTex(nullptr)
+    , m_srSBSSurf(nullptr)
+    , m_srSBSW(0)
+    , m_srSBSH(0)
+    , m_srSBSFmt(D3DFMT_UNKNOWN)
 {
     EnsurePrimaryLock();
     EnterCriticalSection(&g_primaryLock);
@@ -82,6 +109,7 @@ Device9Proxy::~Device9Proxy()
     if (g_primaryDevice == this) g_primaryDevice = nullptr;
     LeaveCriticalSection(&g_primaryLock);
 
+    ReleaseSRPipeline();
     ReleaseShaderPipeline();
     ReleaseShadow();
     ReleaseBackBufferReference();
@@ -468,6 +496,256 @@ bool Device9Proxy::RunShaderComposite(int mode)
     return true;
 }
 
+#ifdef SR_WEAVE_ENABLED
+
+// SEH-protected wrapper for SR::SRContext::create(). DelayLoad'd SR DLLs
+// raise VcppException 0xC06D007E (MOD_NOT_FOUND) when missing, which
+// C++ try/catch can't intercept — same trick as d3d10/d3d11.
+static SR::SRContext* SafeSRContextCreate(bool* pDllMissing)
+{
+    *pDllMissing = false;
+    __try { return SR::SRContext::create(); }
+    __except (GetExceptionCode() == 0xC06D007E ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+    {
+        *pDllMissing = true;
+        return nullptr;
+    }
+}
+
+// Mirror of the d3d10/d3d11 blacklist. Keep the three lists aligned manually.
+static bool IsSRIncompatibleExe()
+{
+    wchar_t exePath[MAX_PATH] = {};
+    if (!GetModuleFileNameW(nullptr, exePath, MAX_PATH)) return false;
+    for (wchar_t* p = exePath; *p; ++p) *p = (wchar_t)towlower(*p);
+    static const wchar_t* const kBlacklist[] = {
+        L"tombraider.exe",   // TR2013 (DX9 mode also exists) — see project_tr2013_sr_dead_end memory
+    };
+    for (auto entry : kBlacklist)
+        if (wcsstr(exePath, entry)) return true;
+    return false;
+}
+
+#endif // SR_WEAVE_ENABLED
+
+void Device9Proxy::ReleaseSRPipeline()
+{
+#ifdef SR_WEAVE_ENABLED
+    if (m_srSBSSurf) { m_srSBSSurf->Release(); m_srSBSSurf = nullptr; }
+    if (m_srSBSTex)  { m_srSBSTex->Release();  m_srSBSTex  = nullptr; }
+    m_srSBSW = 0; m_srSBSH = 0; m_srSBSFmt = D3DFMT_UNKNOWN;
+
+    if (m_srWeaverOpaque)
+    {
+        SR::IDX9Weaver1* w = static_cast<SR::IDX9Weaver1*>(m_srWeaverOpaque);
+        w->destroy();
+        m_srWeaverOpaque = nullptr;
+    }
+    if (m_srContextOpaque)
+    {
+        SR::SRContext* c = static_cast<SR::SRContext*>(m_srContextOpaque);
+        SR::SRContext::deleteSRContext(c);
+        m_srContextOpaque = nullptr;
+    }
+#endif
+}
+
+bool Device9Proxy::EnsureSRSBSTexture()
+{
+#ifdef SR_WEAVE_ENABLED
+    if (!m_real) return false;
+    if (m_logicalWidth == 0 || m_logicalHeight == 0) return false;
+
+    // BB format — query from tracked BB or fall back to A8R8G8B8.
+    D3DFORMAT wantFmt = D3DFMT_A8R8G8B8;
+    if (m_pTrackedBackBuffer)
+    {
+        D3DSURFACE_DESC desc = {};
+        if (SUCCEEDED(m_pTrackedBackBuffer->GetDesc(&desc)))
+            wantFmt = desc.Format;
+    }
+
+    UINT wantW = m_logicalWidth * 2;
+    UINT wantH = m_logicalHeight;
+    if (m_srSBSTex && m_srSBSW == wantW && m_srSBSH == wantH && m_srSBSFmt == wantFmt)
+        return true;
+
+    if (m_srSBSSurf) { m_srSBSSurf->Release(); m_srSBSSurf = nullptr; }
+    if (m_srSBSTex)  { m_srSBSTex->Release();  m_srSBSTex  = nullptr; }
+
+    // Render-target texture, DEFAULT pool. StretchRect from m_leftEyeSurf /
+    // m_rightEyeSurf into its surface level 0 every frame populates the SBS.
+    HRESULT hr = m_real->CreateTexture(wantW, wantH, 1, D3DUSAGE_RENDERTARGET,
+                                       wantFmt, D3DPOOL_DEFAULT,
+                                       &m_srSBSTex, nullptr);
+    if (FAILED(hr) || !m_srSBSTex)
+    {
+        LOG_VERBOSE("  d3d9 EnsureSRSBSTexture: CreateTexture(%ux%u fmt=%d) FAILED hr=0x%08lX\n",
+                    wantW, wantH, (int)wantFmt, hr);
+        m_srSBSTex = nullptr;
+        return false;
+    }
+    if (FAILED(m_srSBSTex->GetSurfaceLevel(0, &m_srSBSSurf)) || !m_srSBSSurf)
+    {
+        m_srSBSTex->Release(); m_srSBSTex = nullptr;
+        return false;
+    }
+
+    m_srSBSW = wantW; m_srSBSH = wantH; m_srSBSFmt = wantFmt;
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool Device9Proxy::EnsureSRWeaver()
+{
+#ifdef SR_WEAVE_ENABLED
+    if (m_srBlacklistedOrFailed) return false;
+    if (m_srWeaverOpaque) return true;
+    if (!m_real) return false;
+
+    static bool s_blacklistChecked = false;
+    static bool s_isBlacklisted    = false;
+    if (!s_blacklistChecked)
+    {
+        s_blacklistChecked = true;
+        s_isBlacklisted    = IsSRIncompatibleExe();
+        if (s_isBlacklisted)
+        {
+            if (NvDM_ForceSRWeave())
+            {
+                LOG_VERBOSE("  d3d9 EnsureSRWeaver: exe is SR-blacklisted but ForceSRWeave=1 — attempting anyway (diagnostic)\n");
+                s_isBlacklisted = false;
+            }
+            else
+            {
+                LOG_VERBOSE("  d3d9 EnsureSRWeaver: exe is SR-blacklisted; falling back to SBS (set ForceSRWeave=1 to override)\n");
+            }
+        }
+    }
+    if (s_isBlacklisted) { m_srBlacklistedOrFailed = true; return false; }
+
+    LOG_VERBOSE("  d3d9 EnsureSRWeaver: entering, tid=%lu\n", GetCurrentThreadId());
+
+    bool dllMissing = false;
+    SR::SRContext* ctx = nullptr;
+    try { ctx = SafeSRContextCreate(&dllMissing); }
+    catch (...)
+    {
+        LOG_VERBOSE("  d3d9 EnsureSRWeaver: SRContext::create threw exception (SR Service down or other failure)\n");
+        m_srBlacklistedOrFailed = true;
+        return false;
+    }
+    if (dllMissing)
+    {
+        LOG_VERBOSE("  d3d9 EnsureSRWeaver: SR runtime DLLs not installed; downgrading SR weave -> SBS\n");
+        m_srBlacklistedOrFailed = true;
+        return false;
+    }
+    if (!ctx) { m_srBlacklistedOrFailed = true; return false; }
+
+    // Output-window HWND comes from the swap-chain's presentation parameters.
+    // GetCreationParameters gives us the device focus window, which matches
+    // the present window in 99%+ of cases.
+    D3DDEVICE_CREATION_PARAMETERS cp = {};
+    HWND hWnd = nullptr;
+    if (SUCCEEDED(m_real->GetCreationParameters(&cp)))
+        hWnd = cp.hFocusWindow;
+    if (!hWnd)
+    {
+        IDirect3DSwapChain9* sc = nullptr;
+        if (SUCCEEDED(m_real->GetSwapChain(0, &sc)) && sc)
+        {
+            D3DPRESENT_PARAMETERS pp = {};
+            sc->GetPresentParameters(&pp);
+            hWnd = pp.hDeviceWindow;
+            sc->Release();
+        }
+    }
+
+    SR::IDX9Weaver1* weaver = nullptr;
+    WeaverErrorCode res = SR::CreateDX9Weaver(ctx, m_real, hWnd, &weaver);
+    if (res != WeaverSuccess || !weaver)
+    {
+        LOG_VERBOSE("  d3d9 EnsureSRWeaver: CreateDX9Weaver failed (err=%d hWnd=%p dev=%p)\n",
+                    (int)res, (void*)hWnd, (void*)m_real);
+        SR::SRContext::deleteSRContext(ctx);
+        m_srBlacklistedOrFailed = true;
+        return false;
+    }
+
+    ctx->initialize();
+
+    m_srContextOpaque = ctx;
+    m_srWeaverOpaque  = weaver;
+    LOG_VERBOSE("  d3d9 EnsureSRWeaver: ready (hWnd=%p ctx=%p weaver=%p)\n",
+                (void*)hWnd, (void*)ctx, (void*)weaver);
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool Device9Proxy::RunSRWeave()
+{
+#ifdef SR_WEAVE_ENABLED
+    if (!EnsureSRWeaver())     return false;
+    if (!EnsureSRSBSTexture()) return false;
+    if (!m_leftEyeSurf || !m_rightEyeSurf || !m_pTrackedBackBuffer) return false;
+
+    NVDM_TRACE_FIRST_N(5, "  d3d9 RunSRWeave: entry tid=%lu L=%p R=%p sbs=%p bb=%p\n",
+                       GetCurrentThreadId(),
+                       (void*)m_leftEyeSurf, (void*)m_rightEyeSurf,
+                       (void*)m_srSBSSurf, (void*)m_pTrackedBackBuffer);
+
+    bool swap = (NvDM_SwapEyes() != 0);
+    IDirect3DSurface9* leftSrc  = swap ? m_rightEyeSurf : m_leftEyeSurf;
+    IDirect3DSurface9* rightSrc = swap ? m_leftEyeSurf  : m_rightEyeSurf;
+
+    // Step A: blit each eye into the corresponding half of the SBS texture.
+    RECT leftHalf  = { 0,                                 0,
+                       (LONG)m_logicalWidth,              (LONG)m_logicalHeight };
+    RECT rightHalf = { (LONG)m_logicalWidth,              0,
+                       (LONG)(m_logicalWidth * 2),        (LONG)m_logicalHeight };
+    HRESULT hr;
+    hr = m_real->StretchRect(leftSrc,  nullptr, m_srSBSSurf, &leftHalf,  D3DTEXF_LINEAR);
+    if (FAILED(hr)) return false;
+    hr = m_real->StretchRect(rightSrc, nullptr, m_srSBSSurf, &rightHalf, D3DTEXF_LINEAR);
+    if (FAILED(hr)) return false;
+
+    // Step B: bind the real BB as RT and let the SR weaver write into it.
+    // The weaver internally manages all its own state (shaders, samplers,
+    // blend); we just need a valid RT and a BeginScene/EndScene framing.
+    IDirect3DSurface9* prevRT = nullptr;
+    m_real->GetRenderTarget(0, &prevRT);
+    m_real->SetRenderTarget(0, m_pTrackedBackBuffer);
+
+    D3DVIEWPORT9 vp = { 0, 0, m_logicalWidth, m_logicalHeight, 0.0f, 1.0f };
+    m_real->SetViewport(&vp);
+
+    bool sceneBegun = SUCCEEDED(m_real->BeginScene());
+    SR::IDX9Weaver1* weaver = static_cast<SR::IDX9Weaver1*>(m_srWeaverOpaque);
+    NVDM_TRACE_FIRST_N(5, "  d3d9 RunSRWeave: weave call - weaver=%p SBS=%ux%u fmt=%d\n",
+                       (void*)weaver, m_srSBSW, m_srSBSH, (int)m_srSBSFmt);
+    weaver->setInputViewTexture(m_srSBSTex, (int)m_srSBSW, (int)m_srSBSH, m_srSBSFmt, /*isSRGB*/ false);
+    weaver->weave();
+    NVDM_TRACE_FIRST_N(5, "  d3d9 RunSRWeave: weave returned OK\n");
+    if (sceneBegun) m_real->EndScene();
+
+    if (prevRT) { m_real->SetRenderTarget(0, prevRT); prevRT->Release(); }
+
+    static volatile long s_weaveCount = 0;
+    long n = _InterlockedIncrement(&s_weaveCount);
+    if (n == 60 || n == 180 || n == 600 || n == 1800)
+        NvDM_Log("  d3d9 RunSRWeave: heartbeat #%ld (SR still alive)\n", n);
+
+    return true;
+#else
+    return false;
+#endif
+}
+
 void Device9Proxy::CompositeAndPresent()
 {
     if (!m_real || !m_pTrackedBackBuffer) return;
@@ -477,9 +755,13 @@ void Device9Proxy::CompositeAndPresent()
         CaptureEye(currentEye);
 
     // OutputMode 4-7: shader composite (Line/Col Interleaved, Checker, Anaglyph).
-    // Falls through to the legacy StretchRect path below if shaders aren't
-    // available (no d3dcompiler, runtime compile failure, etc.).
+    // OutputMode 8:   SR weave (Leia / Samsung Odyssey ML).
+    // Both fall through to the legacy StretchRect path below if their
+    // resources aren't available (no d3dcompiler, runtime compile failure,
+    // SR runtime not installed, SR Service down, blacklisted exe, etc.).
     int mode = NvDM_OutputMode();
+    if (mode == 8 && m_leftEyeSurf && m_rightEyeSurf && RunSRWeave())
+        return;
     if (mode >= 4 && mode <= 7 && m_leftEyeSurf && m_rightEyeSurf &&
         RunShaderComposite(mode))
         return;
@@ -601,6 +883,9 @@ UINT    Device9Proxy::GetNumberOfSwapChains()                                   
 HRESULT Device9Proxy::Reset(D3DPRESENT_PARAMETERS* p)
 {
     // Old back buffer dies in Reset; release our tracking ref before forwarding.
+    // SR weaver + intermediate texture also live in D3DPOOL_DEFAULT and must be
+    // released before Reset; lazy-recreate on next RunSRWeave.
+    ReleaseSRPipeline();
     ReleaseBackBufferReference();
 
     D3DPRESENT_PARAMETERS modified;
@@ -782,6 +1067,7 @@ HRESULT Device9Proxy::CreateOffscreenPlainSurfaceEx(UINT W, UINT H, D3DFORMAT F,
 HRESULT Device9Proxy::CreateDepthStencilSurfaceEx(UINT W, UINT H, D3DFORMAT F, D3DMULTISAMPLE_TYPE M, DWORD MQ, BOOL D, IDirect3DSurface9** pp, HANDLE* sh, DWORD U)     { return m_realEx->CreateDepthStencilSurfaceEx(W, H, F, M, MQ, D, pp, sh, U); }
 HRESULT Device9Proxy::ResetEx(D3DPRESENT_PARAMETERS* pP, D3DDISPLAYMODEEX* pF)
 {
+    ReleaseSRPipeline();
     ReleaseBackBufferReference();
 
     D3DPRESENT_PARAMETERS modified;
