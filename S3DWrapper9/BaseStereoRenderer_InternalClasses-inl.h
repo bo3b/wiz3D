@@ -100,6 +100,39 @@ BOOL ShaderPipelineData<T, Q>::GetShaderPrivateData(Q* shader)
 			if(p[1] == ((dataSizeInDwords << 16) | 0xFFFE))
 			{
 				memcpy(&m_CurrentShaderData, (p+2), sizeof T);
+
+				// Foreign-shader guard: 0xFFFE is the DX9 shader-bytecode COMMENT
+				// opcode used by CTAB and other tools, not just our metadata. SR's
+				// LeiaSR/Dimenco weaver vertex shader has a CTAB comment whose
+				// size happens to match sizeof(SHADER_PRIVATE_DATA)/4, so the
+				// magic check above passes but the bytes we memcpy'd are CTAB
+				// data, not our struct — the `stereoShader` field becomes a
+				// garbage pointer that crashes real d3d9 when SetVertexShader
+				// passes it on (Tales of Berseria / FFIX x64, 2026-05-11).
+				// Validate stereoShader is actually a wrapper-tracked shader
+				// (every shader we create is pushed into m_ShadersList in
+				// BaseStereoRenderer_Modified.cpp); if it isn't, this is a
+				// coincidental bytecode match — pass through as a foreign shader.
+				if (m_CurrentShaderData.stereoShader)
+				{
+					bool tracked = false;
+					for (size_t i = 0, n = m_ShadersList.size(); i < n; ++i)
+					{
+						if (m_ShadersList[i].m_T.p == m_CurrentShaderData.stereoShader)
+						{
+							tracked = true;
+							break;
+						}
+					}
+					if (!tracked)
+					{
+						m_CurrentShaderData.Clear();
+						m_bShaderDataAvailable = FALSE;
+						m_ShaderVersion = 0;
+						return FALSE;
+					}
+				}
+
 				m_bShaderDataAvailable = TRUE;
 				m_ShaderVersion = D3DXGetShaderVersion(p);
 				return TRUE;
