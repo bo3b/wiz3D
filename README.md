@@ -43,7 +43,7 @@ Configure your output mode (Half Side-by-Side, Anaglyph, etc.) and any other set
 
 ## wiz3D Game Test Results
 
-*Legend: ✅ **Working** = Stereo output activated and playable. ⚠️ **Partial** = Stereo activated but with issues (crash, wrong settings, shader problems). **Not loading** = Wrapper not activating. **Untested** = I haven't tested yet or don't have access to that game*
+*Legend:* ✅ ***Working** = Stereo output activated and playable.* ⚠️ ***Partial** = Stereo activated but with issues (crash, wrong settings, shader problems).* ❌ ***Not loading** = Wrapper not activating. **Untested** = I haven't tested yet or don't have access to that game*
 
 ### Nvidia 3D Vision "Direct Mode" Games 
 Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'Direct Mode'.
@@ -366,10 +366,10 @@ Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'D
 |------|-----|---------|--------|-------|-------|
 | Chess Titans | DX9 | x86/x64 | ✕ | Untested | Freezes on level load. |
 | Far Cry | DX9 | x86/x64 | ✓ | ❌ Not Working | Crashes on startup. |
-| Final Fantasy IX | DX9 | x64 | ✕ | ❌ Not Working | Crashes on startup. |
+| Final Fantasy IX | DX9 | x64 | ✕ | ⚠️ Partial | Dual-View Output works, flat 3D though. |
 | Pro Evolution Soccer 2016 | DX9 | x64 | ✕ | ✅ Working |  |
 | REFLEX XTR² | DX9 | x86/x64 | ✓ | Untested |  |
-| Tales of Berseria | DX9 | x64 | ✕ | ❌ Not Working | Crashes on startup. |
+| Tales of Berseria | DX9 | x64 | ✕ | ✅ Mostly Working | Not working in SR Weave outpuut, working in other 3D outputs. |
 | Ultimate Marvel vs. Capcom 3 | DX9 | x64 | ✕ | ❌ Not Working |  |
 | Unreal Tournament 2004 | DX9 | x64 | ✓ | ✅ Working |  |
 
@@ -450,7 +450,7 @@ Games that used 3D Vision "Automatic Mode" driver stereo injection, but communic
 | Metro 2033 | DX9/DX11 | x86 | ✓ | ✅ Mostly Working | Can't see weapon in hand. |
 | Metro: Last Light | DX9/DX11 | x86 | ✕ | Untested | Lists 3D Vision support in [Official PC Requirements](https://www.reddit.com/r/Games/comments/1cjh4l/metro_last_light_official_pc_requirements/). |
 | [Orbiter Space Flight Simulator](https://github.com/orbitersim/orbiter) | DX9 | x64 | ✕ | Untested | `Stereoscopic 3D` in settings. |
-| Resident Evil 5 | DX9/DX10 | x86 | ✓ | ❌ Not Working | `Stereo=ON` in `config.ini`.<br>DX9 only on Steam. Crashes on Startup. |
+| Resident Evil 5 | DX9/DX10 | x86 | ✓ | ✅ Working | `Stereo=ON` in `config.ini`.<br>DX9 only on Steam, only tested DX9. |
 | Resident Evil 6 | DX9 | x86 | ✕ | Untested | `Stereo=ON` in `config.ini`. |
 | rFactor 2 | DX9/DX11 | x64 | ✕ | Untested | Use Single-player only. |
 | Roller Coaster Rampage | DX9 | x86 | ✕ | Untested |  |
