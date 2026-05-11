@@ -27,7 +27,7 @@ static int   g_loggingEnabled = 1;
 static int   g_verboseEnabled = 1;   // default ON during pre-release
 static int   g_swapEyes       = 0;
 static int   g_wrapDevices    = 1;
-static int   g_outputMode     = 1;
+static int   g_outputMode     = 8;
 static int   g_anaglyphColour  = 0;
 static int   g_anaglyphMethod  = 0;
 

@@ -31,7 +31,7 @@ static int   g_loggingEnabled = 1;
 static int   g_verboseEnabled = 1;
 static int   g_swapEyes       = 0;
 static int   g_wrapDevices    = 1;
-static int   g_outputMode     = 1;
+static int   g_outputMode     = 8;
 static int   g_useLayoutStable = 0;   // 0=off  1=IDirect3D9 vtable patch (task #61)  2=+IDirect3DDevice9 vtable patch (task #68)
 static int   g_anaglyphColour  = 0;   // 0=RC (default), 1=GM, 2=AB
 static int   g_anaglyphMethod  = 0;   // 0=Dubois (default), 1=Compromise, 2=Color, 3=HalfColor, 4=Optimised, 5=Grey, 6=True

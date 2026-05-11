@@ -750,9 +750,21 @@ bool SwapChainProxy::EnsureSRWeaver()
         s_blacklistChecked = true;
         s_isBlacklisted    = IsSRIncompatibleExe();
         if (s_isBlacklisted)
-            LOG_VERBOSE("  d3d11 EnsureSRWeaver: exe is SR-blacklisted; falling back to SBS\n");
+        {
+            if (NvDM_ForceSRWeave())
+            {
+                LOG_VERBOSE("  d3d11 EnsureSRWeaver: exe is SR-blacklisted but ForceSRWeave=1 — attempting anyway (diagnostic)\n");
+                s_isBlacklisted = false;
+            }
+            else
+            {
+                LOG_VERBOSE("  d3d11 EnsureSRWeaver: exe is SR-blacklisted; falling back to SBS (set ForceSRWeave=1 to override)\n");
+            }
+        }
     }
     if (s_isBlacklisted) { m_srBlacklistedOrFailed = true; return false; }
+
+    LOG_VERBOSE("  d3d11 EnsureSRWeaver: entering, tid=%lu\n", GetCurrentThreadId());
 
     // Step 1: create SR context. Delay-load failure (MOD_NOT_FOUND) caught
     // by SEH; ServerNotAvailableException + generic catches handle the
@@ -836,10 +848,20 @@ bool SwapChainProxy::EnsureSRWeaver()
 bool SwapChainProxy::RunSRWeave()
 {
 #ifdef SR_WEAVE_ENABLED
+    NVDM_TRACE_FIRST_N(5, "  d3d11 RunSRWeave: entry tid=%lu shaders=%d leftSRV=%p rightSRV=%p\n",
+                       GetCurrentThreadId(),
+                       (int)EnsureCompositeShaders(),
+                       (void*)m_leftEyeSRV, (void*)m_rightEyeSRV);
+
     if (!EnsureCompositeShaders()) return false;
     if (!EnsureSRWeaver())         return false;
     if (!EnsureSRSBSTexture())     return false;
-    if (!m_leftEyeSRV || !m_rightEyeSRV) return false;
+    if (!m_leftEyeSRV || !m_rightEyeSRV)
+    {
+        NVDM_TRACE_FIRST_N(5, "  d3d11 RunSRWeave: ABORT — eye SRVs not ready (L=%p R=%p)\n",
+                           (void*)m_leftEyeSRV, (void*)m_rightEyeSRV);
+        return false;
+    }
 
     ID3D11Device* dev = m_parent ? m_parent->GetReal() : nullptr;
     if (!dev) return false;
@@ -903,13 +925,23 @@ bool SwapChainProxy::RunSRWeave()
     ctx->RSSetViewports(1, &vpBB);
 
     SR::IDX11Weaver1* weaver = static_cast<SR::IDX11Weaver1*>(m_srWeaverOpaque);
+    NVDM_TRACE_FIRST_N(5, "  d3d11 RunSRWeave: weave call - weaver=%p SBS=%ux%u fmt=%d srv=%p rtv=%p tid=%lu\n",
+                       (void*)weaver, m_srSBSW, m_srSBSH, (int)m_srSBSFmt,
+                       (void*)m_srSBSSRV, (void*)m_realBBRTV, GetCurrentThreadId());
     weaver->setContext(ctx);
     weaver->setInputViewTexture(m_srSBSSRV, (int)m_srSBSW, (int)m_srSBSH, m_srSBSFmt);
     weaver->weave();
+    NVDM_TRACE_FIRST_N(5, "  d3d11 RunSRWeave: weave returned OK (frame %d-ish)\n",
+                       (int)GetCurrentThreadId());
+
+    // Lifetime heartbeat — log every Nth weave so we can see how long SR
+    // stayed alive before the crash. Cheap (just atomic inc + modulo).
+    static volatile long s_weaveCount = 0;
+    long n = _InterlockedIncrement(&s_weaveCount);
+    if (n == 60 || n == 180 || n == 600 || n == 1800)
+        NvDM_Log("  d3d11 RunSRWeave: heartbeat #%ld (SR still alive)\n", n);
 
     ctx->Release();
-    NVDM_TRACE_FIRST_N(2, "  d3d11 RunSRWeave: SBS=%ux%u -> realBB rtv=%p\n",
-                       m_srSBSW, m_srSBSH, (void*)m_realBBRTV);
     return true;
 #else
     return false;

@@ -24,6 +24,8 @@
 #include <dbghelp.h>
 #pragma comment(lib, "dbghelp.lib")
 #pragma comment(lib, "psapi.lib")
+#include <tlhelp32.h>
+#include <psapi.h>
 
 // ---------------------------------------------------------------------------
 // Diagnostic log — shared filename with NvDirectMode/d3d9/d3d10/opengl32 since
@@ -34,7 +36,7 @@ static int   g_loggingEnabled  = 1;  // overridden by 3DVision_Config.xml Loggin
 static int   g_verboseEnabled  = 1;  // overridden by VerboseLogging — default ON during pre-release
 static int   g_swapEyes        = 0;  // overridden by SwapEyes
 static int   g_wrapDevices     = 1;  // overridden by WrapDevices
-static int   g_outputMode      = 1;  // overridden by OutputMode — see 3DVision_Config.xml comments
+static int   g_outputMode      = 8;  // overridden by OutputMode — see 3DVision_Config.xml comments
                                      //   0/3 = Top-and-Bottom
                                      //   1/2 = Side-by-Side    (default)
                                      //   4   = Line/Row Interleaved
@@ -44,6 +46,7 @@ static int   g_outputMode      = 1;  // overridden by OutputMode — see 3DVisio
                                      //   8   = SR weave (Leia / Samsung Odyssey ML displays)
 static int   g_anaglyphColour   = 0; // 0=RC (default), 1=GM, 2=AB
 static int   g_anaglyphMethod   = 0; // 0=Dubois (default), 1=Compromise, 2=Color, 3=HalfColor, 4=Optimised, 5=Grey, 6=True
+static int   g_forceSRWeave     = 0; // diagnostic — bypass SR-incompatible exe blacklist
 
 static void LogOpen(void)
 {
@@ -93,6 +96,7 @@ extern "C" int NvDM_OutputMode()     { return g_outputMode; }
 extern "C" int NvDM_OutputIsTopBottom() { return (g_outputMode == 0 || g_outputMode == 3) ? 1 : 0; }
 extern "C" int NvDM_AnaglyphColour() { return g_anaglyphColour; }
 extern "C" int NvDM_AnaglyphMethod() { return g_anaglyphMethod; }
+extern "C" int NvDM_ForceSRWeave()   { return g_forceSRWeave; }
 
 // ---------------------------------------------------------------------------
 // Tiny config reader — pulls <Tag Value="N"/> ints from 3DVision_Config.xml
@@ -138,6 +142,7 @@ static void LoadConfig(HMODULE hProxy)
     g_outputMode      = ReadConfigInt(buf, "OutputMode",      g_outputMode);
     g_anaglyphColour  = ReadConfigInt(buf, "AnaglyphColour",  g_anaglyphColour);
     g_anaglyphMethod  = ReadConfigInt(buf, "AnaglyphMethod",  g_anaglyphMethod);
+    g_forceSRWeave    = ReadConfigInt(buf, "ForceSRWeave",    g_forceSRWeave);
 
     free(buf);
 }
@@ -215,6 +220,121 @@ static LONG CALLBACK VectoredCrashHandler(EXCEPTION_POINTERS* pExInfo)
                               &mei, NULL, NULL);
             CloseHandle(hFile);
             Log("Minidump written to: %ls\n", dumpPath);
+        }
+    }
+
+    // Faulting thread metadata — start-address tells us which DLL owns the
+    // thread (e.g. SimulatedRealityCore vs the game vs EOSOVH). Critical
+    // for diagnosing SR-cohabitation crashes where the fault address is
+    // mid-DLL but the *thread* belongs to a known module.
+    Log("Faulting thread id: %lu\n", GetCurrentThreadId());
+
+    // Resolve NtQueryInformationThread lazily so we don't need ntdll.lib.
+    typedef LONG (WINAPI *pfnNtQIT)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+    static pfnNtQIT s_pNtQIT = NULL;
+    if (!s_pNtQIT)
+    {
+        HMODULE hNtdll = GetModuleHandleW(L"ntdll.dll");
+        if (hNtdll)
+            s_pNtQIT = (pfnNtQIT)GetProcAddress(hNtdll, "NtQueryInformationThread");
+    }
+    if (s_pNtQIT)
+    {
+        // ThreadQuerySetWin32StartAddress = 9
+        PVOID startAddr = NULL;
+        if (s_pNtQIT(GetCurrentThread(), 9, &startAddr, sizeof(startAddr), NULL) == 0 && startAddr)
+        {
+            HMODULE hStartMod = NULL;
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                   (LPCSTR)startAddr, &hStartMod))
+            {
+                WCHAR startModName[MAX_PATH];
+                GetModuleFileNameW(hStartMod, startModName, MAX_PATH);
+                Log("Faulting thread start: %p (%ls + 0x%IX)\n",
+                    startAddr, startModName, (DWORD_PTR)startAddr - (DWORD_PTR)hStartMod);
+            }
+            else
+            {
+                Log("Faulting thread start: %p (module UNKNOWN)\n", startAddr);
+            }
+        }
+    }
+
+    // Module list dump — answers "is the SR runtime loaded?" "is EOSOVH
+    // loaded?" "are there any other injected DLLs we don't recognise?"
+    // We log full paths so callers can spot game-local vs system-wide.
+    {
+        HMODULE hMods[256];
+        DWORD cbNeeded = 0;
+        if (EnumProcessModules(GetCurrentProcess(), hMods, sizeof(hMods), &cbNeeded))
+        {
+            DWORD nMods = cbNeeded / sizeof(HMODULE);
+            if (nMods > 256) nMods = 256;
+            Log("Loaded modules (%lu):\n", nMods);
+            for (DWORD i = 0; i < nMods; ++i)
+            {
+                WCHAR modPath[MAX_PATH];
+                if (GetModuleFileNameW(hMods[i], modPath, MAX_PATH))
+                    Log("  %p  %ls\n", hMods[i], modPath);
+            }
+        }
+    }
+
+    // Thread list dump — for each thread in the process, log its TEB-level
+    // start address and the module that owns that address. Lets us see which
+    // foreign DLLs have spawned worker threads inside the game's process.
+    {
+        HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+        if (hSnap != INVALID_HANDLE_VALUE)
+        {
+            THREADENTRY32 te = { sizeof(te) };
+            DWORD ownPid = GetCurrentProcessId();
+            int   nThreads = 0;
+            Log("Threads in process:\n");
+            if (Thread32First(hSnap, &te))
+            {
+                do
+                {
+                    if (te.th32OwnerProcessID != ownPid) continue;
+                    nThreads++;
+                    PVOID startAddr = NULL;
+                    if (s_pNtQIT)
+                    {
+                        HANDLE hThr = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, te.th32ThreadID);
+                        if (hThr)
+                        {
+                            s_pNtQIT(hThr, 9, &startAddr, sizeof(startAddr), NULL);
+                            CloseHandle(hThr);
+                        }
+                    }
+                    if (startAddr)
+                    {
+                        HMODULE hStartMod = NULL;
+                        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                               (LPCSTR)startAddr, &hStartMod))
+                        {
+                            WCHAR startModName[MAX_PATH];
+                            GetModuleFileNameW(hStartMod, startModName, MAX_PATH);
+                            const WCHAR* leaf = wcsrchr(startModName, L'\\');
+                            Log("  tid=%lu  start=%p  %ls\n",
+                                te.th32ThreadID, startAddr, leaf ? leaf + 1 : startModName);
+                        }
+                        else
+                        {
+                            Log("  tid=%lu  start=%p  (module UNKNOWN)\n",
+                                te.th32ThreadID, startAddr);
+                        }
+                    }
+                    else
+                    {
+                        Log("  tid=%lu  start=??\n", te.th32ThreadID);
+                    }
+                } while (Thread32Next(hSnap, &te));
+            }
+            CloseHandle(hSnap);
+            Log("Thread count: %d\n", nThreads);
         }
     }
 
@@ -381,9 +501,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
             WCHAR proxyPath[MAX_PATH];
             GetModuleFileNameW(hModule, proxyPath, MAX_PATH);
             Log("Proxy DLL: %ls\n", proxyPath);
-            Log("Config:    OutputMode=%d (%s)  WrapDevices=%d  SwapEyes=%d  LoggingEnabled=%d  VerboseLogging=%d\n",
+            Log("Config:    OutputMode=%d (%s)  WrapDevices=%d  SwapEyes=%d  LoggingEnabled=%d  VerboseLogging=%d  ForceSRWeave=%d\n",
                 g_outputMode, NvDM_OutputIsTopBottom() ? "Top-and-Bottom" : "Side-by-Side",
-                g_wrapDevices, g_swapEyes, g_loggingEnabled, g_verboseEnabled);
+                g_wrapDevices, g_swapEyes, g_loggingEnabled, g_verboseEnabled, g_forceSRWeave);
         }
         break;
 

@@ -44,7 +44,7 @@ static int   g_loggingEnabled = 1;
 static int   g_verboseEnabled = 1;
 static int   g_swapEyes       = 0;
 static int   g_wrapDevices    = 1;
-static int   g_outputMode     = 1;
+static int   g_outputMode     = 8;
 
 static void LogOpen(void)
 {

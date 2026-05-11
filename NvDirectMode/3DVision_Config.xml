@@ -88,10 +88,14 @@
                                         back to SBS. Tracking the rest in task
                                         #74 follow-ups.
 
-             Default: 1 (Half SBS) — broadly supported, works on all stereo
-             displays we've tested. Change to 8 if you have an SR/Leia/Odyssey
-             3D-screen and want the weave path. -->
-        <OutputMode Value="1"/>
+             Default: 8 (SR weave) — auto-falls back to Half SBS when no SR
+             runtime is installed or when running a game that crashes with
+             SR loaded (TombRaider.exe and similar are auto-blacklisted to
+             SBS internally). On non-SR displays this still produces Half
+             SBS output, so the default is safe across hardware. Change to
+             1 to force Half SBS unconditionally, or to 0/3 for T-B, or
+             4-7 for interleaved/checker/anaglyph. -->
+        <OutputMode Value="8"/>
 
         <!-- AnaglyphColour: glasses filter colour pair (only used when
              OutputMode=7).
@@ -100,6 +104,16 @@
              2 = Amber / Blue    — best colour rendition; "ColorCode 3-D" style.
              Default: 0. -->
         <AnaglyphColour Value="0"/>
+
+        <!-- ForceSRWeave: 0 = honour SR-incompatible exe blacklist (default,
+             safe); 1 = bypass blacklist and attempt SR weave anyway. Diagnostic
+             only — used to gather logs from games (like Tomb Raider 2013) that
+             we've blacklisted because SR runtime cohabitation crashes them.
+             With ForceSRWeave=1 you'll see the actual SR engagement attempt,
+             the deep-trace logs, and the fatal-crash module/thread dump that
+             tells us *which* DLL/thread is killing the game. Expect a crash.
+             Default: 0. -->
+        <ForceSRWeave Value="0"/>
 
         <!-- AnaglyphMethod: ghosting-vs-colour trade-off (only used when
              OutputMode=7). All seven methods come from the same coefficient
