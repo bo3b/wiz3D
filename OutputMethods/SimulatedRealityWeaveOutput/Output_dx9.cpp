@@ -269,12 +269,33 @@ HRESULT SimulatedRealityWeaveOutput::Output(CBaseSwapChain* pSwapChain)
     // Route weaved output to the primary back buffer
     m_pd3dDevice->SetRenderTarget(0, pSwapChain->m_pPrimaryBackBuffer);
 
+    // State-block save/restore around weave(). The Dimenco/LeiaSR DX9 weaver
+    // mutates D3D9 device state (vertex shader, pixel shader, render states,
+    // samplers, vertex declaration, etc.) and does NOT restore it. When the
+    // wrapper's post-Present path then forwards a SetVertexShader through
+    // the proxied device, d3d9.dll dereferences whatever pointer SR left
+    // behind and crashes — symbol-resolved repro: Tales of Berseria x64
+    // crash signature `d3d9.dll +0x258FF` reached via
+    // `ProxyDevice9::SetVertexShader → CBaseStereoRenderer::SetVertexShader →
+    // SimulatedRealityWeaveOutput::Output → CBaseSwapChain::PresentData`.
+    // Capturing a D3DSBT_ALL state block, calling weave(), then Apply()'ing
+    // the block restores the device to the state the wrapper expects, so the
+    // post-weave wrapper code sees the same state it set up.
+    IDirect3DStateBlock9* pSavedState = nullptr;
+    HRESULT hrSB = m_pd3dDevice->CreateStateBlock(D3DSBT_ALL, &pSavedState);
+
     // IDX9Weaver1: supply the SBS texture per-frame, then weave with no size args.
     // sRGB pairing matches the SR SDK directx9_weaving sample — both flags must agree
     // or weave-edge interpolation goes non-linear and colours look clipped/banded.
     m_Weaver->setInputViewTexture(m_pSBSTexture, m_ViewWidth, m_ViewHeight, m_ViewFormat, m_bSRGB);
     m_Weaver->setOutputSRGBWrite(m_bSRGB);
     m_Weaver->weave();
+
+    if (SUCCEEDED(hrSB) && pSavedState)
+    {
+        pSavedState->Apply();
+        pSavedState->Release();
+    }
 
     return S_OK;
 }
