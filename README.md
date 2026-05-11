@@ -25,7 +25,8 @@ This project modernizes that source code, replaces kernel-level hooks with a pro
 * **DirectX 7:** ⚠️ **In Progress.** Wrapper to convert DX7 to use DX9's stereoization. DX7 to DX9 converstion is working. Here for testing.
 * **DirectX 10/11:** ⚠️ **Partial.** The DX10/11 wrapper was never completely finished by iZ3D Inc. Some games work, but implementation in wiz3D still has some way to go and hasn't got any games booting with stereo3D initialised yet.
 * **OpenGL:** ⚠️ **In Progress.** Basic build has been made, untested. 
-* **Nvidia 3D Vision 'Ready':** ✅ **Partially Working.** Still in very early stages, only a handful of games working atm, need to expand the wrapper to include more 3D Vision functions like in-game Seperaiton and Convergance sliders, as well as be compatible with 3D Vision shader fixes like GHelixMod and 3DMigoto. Most 3D Vision Ready games don't have internal stereo rendering, they just have shader compatability toggles and sometimes some 3D toggles and sliders. This isn't using any of 3D Vision's stereoizer, it's relying on iZ3D instead to run 3d vision games.
+* **Nvidia 3D Vision 'Direct Mode':** ✅ **Partially Working.** DirectX11 games currently working, DX9 and 10 games to com. Tomb Raider not wearing to SR currently.
+* **Nvidia 3D Vision 'Automatic Mode':** ✅ **Partially Working.** These are games that rlied on Nvidia's driver stereo injection. The ones listes speciffically have 3D Vision ingame settings, shader fixes and config settings. current aim for these is to inject stereo via iZ3D instead, and make the ingame settings and shaderfixes apply to iZ3D. Currently, enable/disable settings do work. But convergance and seperations liders aren't hooked up to iZ3D, and shader fixes arnt triggering yet.
 
 ---
 
