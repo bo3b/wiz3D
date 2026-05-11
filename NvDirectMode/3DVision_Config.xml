@@ -66,17 +66,46 @@
                                        vertical resolution; each eye is output
                                        at full display height. (Same backend
                                        as mode 0; user-side res choice.)
-             4 = Row Interleaved     — NOT YET IMPLEMENTED, falls back to 1.
-             5 = Column Interleaved  — NOT YET IMPLEMENTED, falls back to 1.
-             6 = Checkerboard        — NOT YET IMPLEMENTED, falls back to 1.
-             7 = Anaglyph            — NOT YET IMPLEMENTED, falls back to 1.
-             8 = Simulated Reality   — NOT YET IMPLEMENTED, falls back to 1.
-                                       (Will route the doubled SBS surface to
-                                       the SR / LeiaSR weaver runtime.)
+             4 = Row/Line Interleaved — alternating horizontal rows; passive
+                                        3D TVs and FPR LG/Vizio panels.
+             5 = Column Interleaved   — alternating vertical columns; rare,
+                                        some old polarised monitors.
+             6 = Checkerboard         — alternating pixels in a checkerboard
+                                        pattern; DLP 3D projectors.
+             7 = Anaglyph             — colour-filtered stereo (red/cyan etc.,
+                                        works through coloured glasses on any
+                                        monitor). See AnaglyphColour and
+                                        AnaglyphMethod below to pick filter
+                                        colour and ghosting-suppression style.
+             8 = Simulated Reality    — Leia / Samsung Odyssey moving-lightfield
+                                        weave. NOT YET IMPLEMENTED in DX11 wrap;
+                                        currently falls back to mode 1 (SBS).
+                                        Will use the LeiaSR runtime when wired.
 
-             Default: 1 (Half SBS) — matches the geometry NvDirectMode has
-             been routing into all along. -->
+             Default: 1 (Half SBS) — broadly supported, works on all stereo
+             displays we've tested. -->
         <OutputMode Value="1"/>
+
+        <!-- AnaglyphColour: glasses filter colour pair (only used when
+             OutputMode=7).
+             0 = Red / Cyan      — most common; widely available glasses.
+             1 = Green / Magenta — alt pair; better motion fidelity.
+             2 = Amber / Blue    — best colour rendition; "ColorCode 3-D" style.
+             Default: 0. -->
+        <AnaglyphColour Value="0"/>
+
+        <!-- AnaglyphMethod: ghosting-vs-colour trade-off (only used when
+             OutputMode=7). All seven methods come from the same coefficient
+             tables wiz3D's main HD3D wrap (AmdQbProxy) ships with.
+             0 = Dubois     — spectral fit; best ghosting suppression (default).
+             1 = Compromise — Ahtik 2011; balanced for glasses + no glasses.
+             2 = Color      — direct channel passthrough; severe colour fringing.
+             3 = HalfColor  — left desaturated, right keeps colour; lower ghosting.
+             4 = Optimised  — Wimmer weighted-channel; less colour than Dubois.
+             5 = Grey       — both eyes greyscale; near-zero ghosting, no colour.
+             6 = True       — classic single-channel luma; max ghosting, historical.
+             Default: 0. -->
+        <AnaglyphMethod Value="0"/>
 
         <!-- DisableStereoSpoof: 0 = NvApiProxy reports stereo as enabled +
              activated (default — games see "3D Vision available" and try to

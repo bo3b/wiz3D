@@ -144,7 +144,16 @@ private:
     ID3D11VertexShader*       m_compositeVS;
     ID3D11PixelShader*        m_compositePS_SBS;
     ID3D11PixelShader*        m_compositePS_TB;
-    ID3D11SamplerState*       m_compositeSampler;
+    // OutputMode 4-7 — line/column interleaved, checkerboard, anaglyph.
+    // Same VS as SBS/TB; shaders sample left/right SRVs (t0/t1) and
+    // pick per-pixel based on screen-space pixel coordinates.
+    ID3D11PixelShader*        m_compositePS_Line;
+    ID3D11PixelShader*        m_compositePS_Col;
+    ID3D11PixelShader*        m_compositePS_Checker;
+    ID3D11PixelShader*        m_compositePS_Anaglyph;
+    ID3D11Buffer*             m_anaglyphCB;     // 6 float4 rows of colour-matrix coefficients (slot b2)
+    ID3D11SamplerState*       m_compositeSampler;       // linear (SBS / TB / anaglyph)
+    ID3D11SamplerState*       m_compositeSamplerPoint;  // point   (interleaved / checker — avoids row blending)
     ID3D11RasterizerState*    m_compositeRS;
     ID3D11BlendState*         m_compositeBlend;
     ID3D11DepthStencilState*  m_compositeDSS;
@@ -155,6 +164,7 @@ private:
     bool EnsureCompositeShaders();
     void ReleaseCompositePipeline();   // shaders+states+SRVs+RTV
     bool RunCompositePass();           // returns true if composite ran (and replaces single-eye blit)
+    void UpdateAnaglyphCB();           // upload current AnaglyphColour x AnaglyphMethod matrix pair to b2
 };
 
 } // namespace NvDirectMode

@@ -35,9 +35,15 @@ static int   g_verboseEnabled  = 1;  // overridden by VerboseLogging — default
 static int   g_swapEyes        = 0;  // overridden by SwapEyes
 static int   g_wrapDevices     = 1;  // overridden by WrapDevices
 static int   g_outputMode      = 1;  // overridden by OutputMode — see 3DVision_Config.xml comments
-                                     //   0/3 = Top-and-Bottom (double H, vertical routing)
-                                     //   1/2 = Side-by-Side    (double W, horizontal routing — default)
-                                     //   4..8 = NYI, fall back to 1
+                                     //   0/3 = Top-and-Bottom
+                                     //   1/2 = Side-by-Side    (default)
+                                     //   4   = Line/Row Interleaved
+                                     //   5   = Column Interleaved
+                                     //   6   = Checkerboard
+                                     //   7   = Anaglyph
+                                     //   8   = SR weave (Leia / Samsung Odyssey ML displays)
+static int   g_anaglyphColour   = 0; // 0=RC (default), 1=GM, 2=AB
+static int   g_anaglyphMethod   = 0; // 0=Dubois (default), 1=Compromise, 2=Color, 3=HalfColor, 4=Optimised, 5=Grey, 6=True
 
 static void LogOpen(void)
 {
@@ -78,11 +84,15 @@ extern "C" void NvDM_Log(const char* fmt, ...)
 extern "C" int NvDM_VerboseEnabled() { return g_verboseEnabled; }
 extern "C" int NvDM_SwapEyes()       { return g_swapEyes; }
 extern "C" int NvDM_OutputMode()     { return g_outputMode; }
-// Reduce OutputMode to one of two implemented backends:
-//   1 = SBS  (modes 1, 2, plus all NYI fall back here)
-//   0 = T-B  (modes 0, 3)
-// All routing/doubling code switches on this canonical 0/1.
+// Reduce OutputMode to one of two implemented BB-doubling backends. The
+// composite pass on top of the doubled BB then picks the actual final
+// output (SBS/TB/interleaved/checkerboard/anaglyph/SR weave) per
+// g_outputMode. Everything except the literal T-B modes (0, 3) flattens
+// to "doubled width" here so the per-eye capture path lays out a SBS
+// shadow regardless of the eventual on-screen format.
 extern "C" int NvDM_OutputIsTopBottom() { return (g_outputMode == 0 || g_outputMode == 3) ? 1 : 0; }
+extern "C" int NvDM_AnaglyphColour() { return g_anaglyphColour; }
+extern "C" int NvDM_AnaglyphMethod() { return g_anaglyphMethod; }
 
 // ---------------------------------------------------------------------------
 // Tiny config reader — pulls <Tag Value="N"/> ints from 3DVision_Config.xml
@@ -121,11 +131,13 @@ static void LoadConfig(HMODULE hProxy)
     buf[n] = '\0';
     fclose(f);
 
-    g_loggingEnabled = ReadConfigInt(buf, "LoggingEnabled", g_loggingEnabled);
-    g_verboseEnabled = ReadConfigInt(buf, "VerboseLogging", g_verboseEnabled);
-    g_swapEyes       = ReadConfigInt(buf, "SwapEyes",       g_swapEyes);
-    g_wrapDevices    = ReadConfigInt(buf, "WrapDevices",    g_wrapDevices);
-    g_outputMode     = ReadConfigInt(buf, "OutputMode",     g_outputMode);
+    g_loggingEnabled  = ReadConfigInt(buf, "LoggingEnabled",  g_loggingEnabled);
+    g_verboseEnabled  = ReadConfigInt(buf, "VerboseLogging",  g_verboseEnabled);
+    g_swapEyes        = ReadConfigInt(buf, "SwapEyes",        g_swapEyes);
+    g_wrapDevices     = ReadConfigInt(buf, "WrapDevices",     g_wrapDevices);
+    g_outputMode      = ReadConfigInt(buf, "OutputMode",      g_outputMode);
+    g_anaglyphColour  = ReadConfigInt(buf, "AnaglyphColour",  g_anaglyphColour);
+    g_anaglyphMethod  = ReadConfigInt(buf, "AnaglyphMethod",  g_anaglyphMethod);
 
     free(buf);
 }
