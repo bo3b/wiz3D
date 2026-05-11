@@ -270,15 +270,15 @@ static ID3D11PixelShader*        g_pAnaglyphPS        = nullptr;
 static ID3D11Buffer*             g_pAnaglyphCB        = nullptr;
 static ID3D11DepthStencilState*  g_pDSState = nullptr;
 static ID3D11RasterizerState*    g_pRSState = nullptr;
-// Cursor rendering resources
-static ID3D11VertexShader*       g_pCursorVS = nullptr;
-static ID3D11PixelShader*        g_pCursorPS = nullptr;
-static ID3D11Buffer*             g_pCursorCB = nullptr;
-static ID3D11Texture2D*          g_pCursorTex = nullptr;
-static ID3D11ShaderResourceView* g_pCursorSRV = nullptr;
-static ID3D11BlendState*         g_pAlphaBlend = nullptr;
-
-// (cursor GPU resources declared above)
+// NvDirectMode-style cursor handling: rely entirely on the OS hardware
+// cursor drawn by DWM/the display driver post-Present. No software
+// composite, no Win32 hooks, no doubled sprite. Previous implementation
+// (~600 lines including SetCursor/ShowCursor/ClipCursor/SetCursorPos
+// hooks, a WM_SETCURSOR window subclass, GPU-rendered cursor sprite per
+// eye, and a blank-cursor fallback) was reliable on NVIDIA HD3D-driver
+// setups but produced flicker / wrong position / disappeared cursor
+// on AMD HD3D and SR-weave setups, plus added several hundred lines
+// of game-specific cursor-hide-detection workarounds. Removed wholesale.
 
 // SR (Simulated Reality / Leia) weave resources
 #ifdef SR_WEAVE_ENABLED
@@ -680,184 +680,6 @@ static bool EnsureShaders()
 
 
 
-// Cursor shaders
-static const char s_CursorVSSource[] =
-    "cbuffer CUR:register(b1){float2 screen; float2 pad0; float2 rectPos; float2 rectSize;};"
-    "void VSMain(uint vid:SV_VertexID,out float4 pos:SV_Position,out float2 uv:TEXCOORD0){"
-    " float2 verts[6]={float2(0,0),float2(1,0),float2(1,1),float2(0,0),float2(1,1),float2(0,1)};"
-    " float2 v=verts[vid];"
-    " float2 pixel = rectPos + v*rectSize;"
-    " float ndcX = pixel.x*2.0f/screen.x - 1.0f;"
-    " float ndcY = 1.0f - pixel.y*2.0f/screen.y;"
-    " pos = float4(ndcX, ndcY, 0, 1); uv = v; }";
-
-static const char s_CursorPSSource[] =
-    "Texture2D<float4> curTex:register(t1); SamplerState curSmp:register(s1);"
-    "float4 PSMain(float4 p:SV_Position,float2 uv:TEXCOORD0):SV_Target{ return curTex.Sample(curSmp, uv); }";
-
-static bool EnsureCursorResources(UINT screenW, UINT screenH)
-{
-    if (!g_pDevice11 || !g_pContext) return false;
-    // Blend state
-    if (!g_pAlphaBlend)
-    {
-        D3D11_BLEND_DESC bd = {};
-        bd.RenderTarget[0].BlendEnable = TRUE;
-        bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-        bd.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-        bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-        bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-        bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-        bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-        bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-        g_pDevice11->CreateBlendState(&bd, &g_pAlphaBlend);
-    }
-
-    auto D3DCompileFn = GetD3DCompile();
-    if (!D3DCompileFn) return false;
-
-    if (!g_pCursorVS)
-    {
-        ID3DBlob *blob = nullptr, *err = nullptr;
-        D3DCompileFn(s_CursorVSSource, strlen(s_CursorVSSource), nullptr, nullptr, nullptr,
-                     "VSMain", "vs_5_0", 0, 0, &blob, &err);
-        if (blob)
-        {
-            g_pDevice11->CreateVertexShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &g_pCursorVS);
-            blob->Release();
-        }
-        if (err) err->Release();
-    }
-    if (!g_pCursorVS) return false;
-
-    if (!g_pCursorPS)
-    {
-        ID3DBlob *blob = nullptr, *err = nullptr;
-        D3DCompileFn(s_CursorPSSource, strlen(s_CursorPSSource), nullptr, nullptr, nullptr,
-                     "PSMain", "ps_5_0", 0, 0, &blob, &err);
-        if (blob)
-        {
-            g_pDevice11->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &g_pCursorPS);
-            blob->Release();
-        }
-        if (err) err->Release();
-    }
-    if (!g_pCursorPS) return false;
-
-    if (!g_pCursorCB)
-    {
-        D3D11_BUFFER_DESC bd = {};
-        bd.ByteWidth = 16 * 2; // screen(float2)+pad + rectPos(float2)+rectSize(float2)
-        bd.Usage = D3D11_USAGE_DYNAMIC;
-        bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-        bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        g_pDevice11->CreateBuffer(&bd, nullptr, &g_pCursorCB);
-    }
-
-    return true;
-}
-
-// Last cursor handle the game set — saved by our SetCursor hook so CaptureCursorBitmap
-// can render it even after the hardware cursor has been suppressed.
-static HCURSOR g_hGameCursor  = nullptr;
-// Fully transparent cursor used instead of SetCursor(nullptr) to suppress the hardware
-// cursor. Using nullptr risks Windows falling back to the window class cursor; a blank
-// cursor wins that race reliably.
-static HCURSOR g_hBlankCursor = nullptr;
-
-// Capture cursor into a 32bpp BGRA buffer via DrawIconEx into a DIB section.
-static bool CaptureCursorBitmap(HWND hwnd, std::vector<uint8_t>& outPixels, int& outW, int& outH, int& outHotX, int& outHotY)
-{
-    // When stereo is active our SetCursor hook hides the hardware cursor and saves
-    // the game's handle in g_hGameCursor.  Use it directly so we can still render
-    // the cursor even though GetCursorInfo would report it as hidden.
-    HCURSOR hCursor = nullptr;
-    if (g_hGameCursor)
-    {
-        hCursor = g_hGameCursor;
-    }
-    else
-    {
-        CURSORINFO ci = { sizeof(ci) };
-        if (GetCursorInfo(&ci) && ci.hCursor)
-        {
-            hCursor = ci.hCursor;
-        }
-        else
-        {
-            // GetCursorInfo returns null when we've called SetCursor(nullptr) to suppress
-            // the hardware cursor.  Fall back to the window class cursor, then plain arrow.
-            hCursor = hwnd ? (HCURSOR)GetClassLongPtrW(hwnd, GCLP_HCURSOR) : nullptr;
-            if (!hCursor) hCursor = LoadCursor(nullptr, IDC_ARROW);
-            if (!hCursor) return false;
-        }
-    }
-    ICONINFO ii = {};
-    if (!GetIconInfo(hCursor, &ii)) return false;
-
-    // Determine size. For mask-only (B&W) cursors, hbmMask height is 2x the actual
-    // cursor height (AND mask in top half, XOR mask in bottom half).
-    int cx = 32, cy = 32;
-    bool hasColorBitmap = false;
-    BITMAP bm = {};
-    if (ii.hbmColor && GetObject(ii.hbmColor, sizeof(bm), &bm))
-    {
-        cx = bm.bmWidth; cy = bm.bmHeight;
-        hasColorBitmap = true;
-    }
-    else if (ii.hbmMask && GetObject(ii.hbmMask, sizeof(bm), &bm))
-    {
-        cx = bm.bmWidth; cy = bm.bmHeight / 2;
-    }
-
-    outW = cx; outH = cy; outHotX = (int)ii.xHotspot; outHotY = (int)ii.yHotspot;
-
-    BITMAPINFO bmi = {};
-    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth = cx;
-    bmi.bmiHeader.biHeight = -cy; // top-down
-    bmi.bmiHeader.biPlanes = 1;
-    bmi.bmiHeader.biBitCount = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
-
-    void* pvBits = nullptr;
-    HBITMAP hBmp = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &pvBits, nullptr, 0);
-    if (!hBmp) { if (ii.hbmMask) DeleteObject(ii.hbmMask); if (ii.hbmColor) DeleteObject(ii.hbmColor); return false; }
-
-    HDC hdcScreen = GetDC(nullptr);
-    HDC hdcMem = CreateCompatibleDC(hdcScreen);
-    HBITMAP hOld = (HBITMAP)SelectObject(hdcMem, hBmp);
-    // Fill transparent
-    RECT r = {0,0,cx,cy};
-    HBRUSH hb = (HBRUSH)GetStockObject(NULL_BRUSH);
-    FillRect(hdcMem, &r, hb);
-
-    // Draw the icon into the DIB
-    DrawIconEx(hdcMem, 0, 0, hCursor, cx, cy, 0, nullptr, DI_NORMAL);
-
-    // Copy pixels (DIB section gives BGRA byte order)
-    outPixels.resize(cx * cy * 4);
-    memcpy(outPixels.data(), pvBits, outPixels.size());
-
-    // For mask-only (B&W) cursors, DrawIconEx does not populate the alpha channel.
-    // Synthesize alpha=255 for any pixel with non-zero RGB so the cursor is visible.
-    if (!hasColorBitmap)
-    {
-        uint8_t* px = outPixels.data();
-        for (int i = 0; i < cx * cy; i++, px += 4)
-            if (px[0] | px[1] | px[2]) px[3] = 0xFF;
-    }
-
-    // Cleanup
-    SelectObject(hdcMem, hOld);
-    DeleteObject(hBmp);
-    DeleteDC(hdcMem);
-    ReleaseDC(nullptr, hdcScreen);
-    if (ii.hbmMask) DeleteObject(ii.hbmMask);
-    if (ii.hbmColor) DeleteObject(ii.hbmColor);
-    return true;
-}
-
 static bool EnsureStagingTexture(UINT W, UINT H, DXGI_FORMAT Fmt)
 {
     if (g_pStagingTex && g_nStagingW == W && g_nStagingH == H && g_StagingFmt == Fmt)
@@ -924,157 +746,12 @@ static void UpdateCB(float uvYOffset)
 static bool g_bStereoActive       = false;
 static bool g_bQbsCreated         = false;
 static bool g_bHooked             = false;
-// Set true when we've called ShowCursor(FALSE) ourselves to force the count
-// negative while stereo is active.  The hook adjusts reported counts so the
-// game never sees our extra decrement.
-static bool g_bStereoShowApplied  = false;
-
-static HCURSOR (WINAPI *g_pfnOrigSetCursor)(HCURSOR) = nullptr;
-
-// Two independent hide signals — both must be clear for the software cursor to render.
-// Kept separate so DefWindowProc calling SetCursor(class_cursor) can't clobber
-// a ShowCursor(FALSE) that the game already issued.
-static bool g_bShowCursorHidden = false; // ShowCursor refcount went negative
-static bool g_bSetCursorHidden  = false; // game explicitly called SetCursor(NULL)
-
-static HCURSOR WINAPI HookedSetCursor(HCURSOR hCursor)
-{
-    if (hCursor)
-    {
-        g_hGameCursor      = hCursor;
-        g_bSetCursorHidden = false;   // SetCursor(non-null) clears only the SetCursor signal;
-                                      // ShowCursor hide state is untouched.
-    }
-    else
-    {
-        g_bSetCursorHidden = true;    // game explicitly asked for no cursor shape
-    }
-    if (g_bStereoActive)
-        return g_pfnOrigSetCursor(g_hBlankCursor);
-    return g_pfnOrigSetCursor(hCursor);
-}
-
-static int (WINAPI *g_pfnOrigShowCursor)(BOOL) = nullptr;
-
-static int WINAPI HookedShowCursor(BOOL bShow)
-{
-    int count = g_pfnOrigShowCursor(bShow);
-    // When stereo is active we hold an extra ShowCursor(FALSE) to guarantee the
-    // hardware cursor is always hidden.  Add 1 to the count we report back so
-    // the game's own show/hide logic is unaffected by our extra decrement.
-    if (g_bStereoShowApplied) count++;
-    g_bShowCursorHidden = (count < 0);
-    return count;
-}
-
-// ClipCursor lock: some games clip cursor to a 1x1 rect instead of hiding it.
-static bool g_bCursorClipLocked = false;
-static BOOL (WINAPI *g_pfnOrigClipCursor)(const RECT*) = nullptr;
-
-static BOOL WINAPI HookedClipCursor(const RECT* pRect)
-{
-    if (pRect)
-    {
-        int w = pRect->right - pRect->left;
-        int h = pRect->bottom - pRect->top;
-        g_bCursorClipLocked = (w <= 2 && h <= 2);
-    }
-    else
-    {
-        g_bCursorClipLocked = false;
-    }
-    return g_pfnOrigClipCursor(pRect);
-}
-
-// SetCursorPos lock: games like Sleeping Dogs snap the cursor back to screen centre
-// every frame (SetCursorPos to the same point repeatedly) as their cursor-hide mechanism
-// rather than calling ShowCursor(FALSE).  Detect this by counting consecutive calls to the
-// same position.  Unlock when that position hasn't been set for >200 ms (e.g. menu opened).
-static bool  g_bCursorPosLocked = false;
-static POINT g_ptCursorPosLock  = { INT_MIN, INT_MIN };
-static int   g_nCursorPosRep    = 0;
-static DWORD g_dwLastCursorSnap = 0;  // GetTickCount() of last snap to locked position
-static BOOL (WINAPI *g_pfnOrigSetCursorPos)(int, int) = nullptr;
-
-static BOOL WINAPI HookedSetCursorPos(int X, int Y)
-{
-    if (X == g_ptCursorPosLock.x && Y == g_ptCursorPosLock.y)
-    {
-        g_dwLastCursorSnap = GetTickCount();
-        if (++g_nCursorPosRep >= 3)
-            g_bCursorPosLocked = true;
-    }
-    else if (!g_bCursorPosLocked)
-    {
-        // Only update the candidate lock position while not yet locked.
-        // Once locked, proximity tracking in HookedPresent handles unlock.
-        g_ptCursorPosLock = { X, Y };
-        g_nCursorPosRep   = 1;
-    }
-    return g_pfnOrigSetCursorPos(X, Y);
-}
-
-// Window subclass to intercept WM_SETCURSOR from the game's message loop.
-// Games with NULL class cursors skip DefWindowProc's SetCursor call, so the
-// SetCursor hook alone won't fire. The subclass catches WM_SETCURSOR on the
-// window's own thread, where it IS safe to hide the hardware cursor.
-static HWND    g_cursorSubclassHWND = nullptr;
-static WNDPROC g_cursorOrigWndProc  = nullptr;
-
-static LRESULT CALLBACK CursorSubclassWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    if (msg == WM_SETCURSOR && g_bStereoActive)
-    {
-        // Run the game's own WndProc FIRST so that any ShowCursor(FALSE) / SetCursor(NULL)
-        // it makes in its WM_SETCURSOR handler propagate through our hooks and correctly
-        // update g_bGameCursorVisible.  Without this, intercepting before the game runs
-        // prevents the game from ever signalling "cursor should be hidden".
-        // Guard against re-entrance in case the original proc triggers another WM_SETCURSOR.
-        static bool s_reentrant = false;
-        if (!s_reentrant)
-        {
-            s_reentrant = true;
-            CallWindowProcW(g_cursorOrigWndProc, hwnd, msg, wParam, lParam);
-            s_reentrant = false;
-        }
-
-        // Populate g_hGameCursor if the game's handler didn't call SetCursor with a real
-        // handle (e.g. NULL-class-cursor game that relies on DefWindowProc).
-        if (!g_hGameCursor)
-        {
-            HCURSOR hc = (HCURSOR)GetClassLongPtrW(hwnd, GCLP_HCURSOR);
-            // GetCursorInfo fallback: skip our own blank cursor to avoid rendering an
-            // invisible software cursor.
-            if (!hc)
-            {
-                CURSORINFO ci = { sizeof(ci) };
-                if (GetCursorInfo(&ci) && ci.hCursor != g_hBlankCursor)
-                    hc = ci.hCursor;
-            }
-            if (!hc) hc = LoadCursor(nullptr, IDC_ARROW);
-            if (hc) g_hGameCursor = hc;
-        }
-
-        // Suppress hardware cursor with a transparent cursor — a real HCURSOR handle
-        // prevents Windows falling back to the class cursor between WM_SETCURSOR events.
-        if (g_pfnOrigSetCursor) g_pfnOrigSetCursor(g_hBlankCursor);
-        return TRUE;
-    }
-    return CallWindowProcW(g_cursorOrigWndProc, hwnd, msg, wParam, lParam);
-}
 
 // Expose small control APIs so other in-tree proxies (NVAPI proxy) can
 // drive our compositor without duplicating heavy internals.
 extern "C" {
 __declspec(dllexport) void AmdQbProxy_SetStereoActive(bool active)
 {
-    // When stereo deactivates, remove the ShowCursor −1 offset we applied so the
-    // hardware cursor's show count returns to what the game expects.
-    if (!active && g_bStereoShowApplied && g_pfnOrigShowCursor)
-    {
-        g_pfnOrigShowCursor(TRUE);
-        g_bStereoShowApplied = false;
-    }
     g_bStereoActive = active;
     char buf[128];
     wsprintfA(buf, "[AmdQbProxy] External SetStereoActive -> %d\n", (int)active);
@@ -2614,179 +2291,10 @@ static HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain* pSC, UINT SyncInt
         }
     }
 
-    // --- Cursor GPU compositing: capture OS cursor and draw as textured quad ---
-    if (g_bStereoActive)
-    {
-        DXGI_SWAP_CHAIN_DESC scDesc = {};
-        if (SUCCEEDED(pSC->GetDesc(&scDesc)))
-        {
-            // Subclass the game window once to intercept WM_SETCURSOR from the window thread.
-            // This catches games whose WndProc/DefWindowProc never calls SetCursor directly.
-            if (g_cursorSubclassHWND == nullptr && scDesc.OutputWindow)
-            {
-                WNDPROC prev = (WNDPROC)GetWindowLongPtrW(scDesc.OutputWindow, GWLP_WNDPROC);
-                if (prev && prev != CursorSubclassWndProc)
-                {
-                    g_cursorOrigWndProc = prev;
-                    SetWindowLongPtrW(scDesc.OutputWindow, GWLP_WNDPROC, (LONG_PTR)&CursorSubclassWndProc);
-                    g_cursorSubclassHWND = scDesc.OutputWindow;
-                    WriteLog("[AmdQbProxy] Game window subclassed for cursor suppression\n");
-                }
-            }
-
-            // Apply/remove the ShowCursor −1 offset that guarantees the hardware cursor
-            // count stays negative while stereo is active, regardless of cursor shape.
-            if (!g_bStereoShowApplied && g_pfnOrigShowCursor)
-            {
-                g_pfnOrigShowCursor(FALSE);
-                g_bStereoShowApplied = true;
-            }
-
-            // Unlock SetCursorPos-based lock when cursor has been far from the lock point
-            // for 500ms (indicates genuine free movement, e.g. menu opened).
-            // While cursor stays near the lock position, keep the timeout fresh so a
-            // stationary mouse (no snaps) doesn't accidentally unlock.
-            if (g_bCursorPosLocked)
-            {
-                POINT pt; GetCursorPos(&pt);
-                int dx = pt.x - g_ptCursorPosLock.x;
-                int dy = pt.y - g_ptCursorPosLock.y;
-                if (dx*dx + dy*dy <= 50*50)
-                    g_dwLastCursorSnap = GetTickCount();  // still near lock pos — stay locked
-                if (GetTickCount() - g_dwLastCursorSnap > 500)
-                    g_bCursorPosLocked = false;
-            }
-
-            // Capture cursor bitmap
-            std::vector<uint8_t> bmp;
-            int curW=0, curH=0, hotX=0, hotY=0;
-            if (!g_bShowCursorHidden && !g_bSetCursorHidden && !g_bCursorClipLocked && !g_bCursorPosLocked
-                && CaptureCursorBitmap(scDesc.OutputWindow, bmp, curW, curH, hotX, hotY))
-            {
-                // Ensure cursor resources
-                if (EnsureCursorResources(W, H))
-                {
-                    // Create or recreate cursor texture if it doesn't exist or cursor size changed.
-                    // DIB section uses BGRA byte order, so use B8G8R8A8 to avoid channel swap.
-                    static int s_curTexW = 0, s_curTexH = 0;
-                    if (!g_pCursorTex || !g_pCursorSRV || curW != s_curTexW || curH != s_curTexH)
-                    {
-                        if (g_pCursorSRV) { g_pCursorSRV->Release(); g_pCursorSRV = nullptr; }
-                        if (g_pCursorTex) { g_pCursorTex->Release(); g_pCursorTex = nullptr; }
-                        s_curTexW = 0; s_curTexH = 0;
-                        D3D11_TEXTURE2D_DESC td = {};
-                        td.Width = curW; td.Height = curH; td.MipLevels = 1; td.ArraySize = 1;
-                        td.Format = DXGI_FORMAT_B8G8R8A8_UNORM; td.SampleDesc.Count = 1;
-                        td.Usage = D3D11_USAGE_DEFAULT; td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-                        g_pDevice11->CreateTexture2D(&td, nullptr, &g_pCursorTex);
-                        if (g_pCursorTex)
-                        {
-                            D3D11_SHADER_RESOURCE_VIEW_DESC svd = {};
-                            svd.Format = td.Format; svd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-                            svd.Texture2D.MipLevels = 1;
-                            if (SUCCEEDED(g_pDevice11->CreateShaderResourceView(g_pCursorTex, &svd, &g_pCursorSRV)))
-                            { s_curTexW = curW; s_curTexH = curH; }
-                        }
-                    }
-                    if (g_pCursorTex)
-                    {
-                        // Upload pixels
-                        D3D11_BOX box = {0,0,0, (UINT)curW, (UINT)curH, 1};
-                        g_pContext->UpdateSubresource(g_pCursorTex, 0, &box, bmp.data(), curW*4, 0);
-
-                        // Compute OS cursor position in window (client) space.
-                        POINT pt; GetCursorPos(&pt);
-                        ScreenToClient(scDesc.OutputWindow, &pt);
-                        float posX = (float)(pt.x - hotX);
-                        float posY = (float)(pt.y - hotY);
-
-                        // Scale cursor position and size for half-res stereo modes.
-                        // In SBS_HALF the compositor squishes each full-width eye into W/2 pixels,
-                        // so game position X maps to BB X/2 in the left half and W/2+X/2 in the right.
-                        // TAB_HALF is the vertical equivalent. Full-res modes write one eye at full
-                        // display size, so no second eye region exists.
-                        bool halfSBS = (g_OutputMode == OM_SBS_HALF);
-                        bool halfTAB = (g_OutputMode == OM_OU_HALF);
-
-                        float leftX, leftY, rightX = 0.0f, rightY = 0.0f;
-                        float drawW = (float)curW, drawH = (float)curH;
-                        bool drawRight = false;
-
-                        if (halfSBS)
-                        {
-                            leftX = posX * 0.5f; leftY = posY;
-                            rightX = (float)(W / 2) + posX * 0.5f; rightY = posY;
-                            drawW = (float)curW * 0.5f;
-                            drawRight = true;
-                        }
-                        else if (halfTAB)
-                        {
-                            leftX = posX; leftY = posY * 0.5f;
-                            rightX = posX; rightY = (float)(H / 2) + posY * 0.5f;
-                            drawH = (float)curH * 0.5f;
-                            drawRight = true;
-                        }
-                        else
-                        {
-                            leftX = posX; leftY = posY;
-                        }
-
-                        // cbuffer layout (b1, 32 bytes):
-                        //   f[0..1] screen   (float2) — display dimensions for NDC mapping
-                        //   f[2..3] pad0     (float2) — unused padding
-                        //   f[4..5] rectPos  (float2) — cursor top-left in pixels
-                        //   f[6..7] rectSize (float2) — cursor width/height in pixels
-                        auto UploadCursorCB = [&](float rx, float ry, float rw, float rh) -> bool {
-                            D3D11_MAPPED_SUBRESOURCE m = {};
-                            if (FAILED(g_pContext->Map(g_pCursorCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &m)))
-                                return false;
-                            float* f = (float*)m.pData;
-                            f[0] = (float)W; f[1] = (float)H;
-                            f[2] = 0.0f;     f[3] = 0.0f;
-                            f[4] = rx;       f[5] = ry;
-                            f[6] = rw;       f[7] = rh;
-                            g_pContext->Unmap(g_pCursorCB, 0);
-                            return true;
-                        };
-
-                        // Set blend and shaders
-                        float blendFactor[4] = {0,0,0,0};
-                        g_pContext->OMSetBlendState(g_pAlphaBlend, blendFactor, 0xFFFFFFFF);
-                        g_pContext->IASetInputLayout(nullptr);
-                        g_pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                        // Full-screen viewport: pixel->NDC mapping covers the whole BB
-                        D3D11_VIEWPORT vpFull = { 0.0f, 0.0f, static_cast<float>(W), static_cast<float>(H), 0.0f, 1.0f };
-                        g_pContext->RSSetViewports(1, &vpFull);
-
-                        g_pContext->VSSetShader(g_pCursorVS, nullptr, 0);
-                        g_pContext->PSSetShader(g_pCursorPS, nullptr, 0);
-                        g_pContext->PSSetShaderResources(1, 1, &g_pCursorSRV);
-                        g_pContext->PSSetSamplers(1, 1, &g_pSampler);
-                        g_pContext->VSSetConstantBuffers(1, 1, &g_pCursorCB);
-
-                        // Left eye (or only eye for full-res modes)
-                        if (UploadCursorCB(leftX, leftY, drawW, drawH))
-                            g_pContext->Draw(6, 0);
-
-                        // Right eye — only for half-res modes that have a distinct right-eye region
-                        if (drawRight && UploadCursorCB(rightX, rightY, drawW, drawH))
-                        {
-                            g_pContext->Draw(6, 0);
-                        }
-
-                        // Unbind SRV
-                        ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
-                        g_pContext->PSSetShaderResources(1, 1, nullSRV);
-                        // Restore blend state to none
-                        g_pContext->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFF);
-
-                        // Restore previous viewport(s)
-                        g_pContext->RSSetViewports(numVPs, &oldVP);
-                    }
-                }
-            }
-        }
-    }
+    // Cursor compositing block removed: the OS hardware cursor is drawn by
+    // DWM/the display driver AFTER our Present, so it appears as a single
+    // sprite on top of the composited stereo output naturally — exactly
+    // the behaviour NvDirectMode relies on.
 
     // ---- Restore render state ----
     g_pContext->OMSetRenderTargets(1, &pOldRTV, pOldDSV);
@@ -2970,61 +2478,6 @@ static void InstallPresentHook()
 
     pFactory->Release();
     DestroyWindow(hWnd);
-
-    // Hook user32!SetCursor and user32!ShowCursor to track the game's cursor intent.
-    // SetCursor(null) = game wants cursor hidden; ShowCursor count < 0 = hidden (FPS mode).
-    // These update g_bGameCursorVisible independently of our own SetCursor(nullptr) calls.
-    {
-        HMODULE hU32 = GetModuleHandleW(L"user32.dll");
-        if (!g_pfnOrigSetCursor)
-        {
-            LPVOID pSC = hU32 ? GetProcAddress(hU32, "SetCursor") : nullptr;
-            if (pSC && MH_CreateHook(pSC,
-                                     reinterpret_cast<LPVOID>(&HookedSetCursor),
-                                     reinterpret_cast<LPVOID*>(&g_pfnOrigSetCursor)) == MH_OK)
-            {
-                MH_EnableHook(pSC);
-                WriteLog("[AmdQbProxy] user32::SetCursor hook installed\n");
-            }
-            else WriteLog("[AmdQbProxy] WARNING: user32::SetCursor hook FAILED\n");
-        }
-        if (!g_pfnOrigShowCursor)
-        {
-            LPVOID pShow = hU32 ? GetProcAddress(hU32, "ShowCursor") : nullptr;
-            if (pShow && MH_CreateHook(pShow,
-                                       reinterpret_cast<LPVOID>(&HookedShowCursor),
-                                       reinterpret_cast<LPVOID*>(&g_pfnOrigShowCursor)) == MH_OK)
-            {
-                MH_EnableHook(pShow);
-                WriteLog("[AmdQbProxy] user32::ShowCursor hook installed\n");
-            }
-            else WriteLog("[AmdQbProxy] WARNING: user32::ShowCursor hook FAILED\n");
-        }
-        if (!g_pfnOrigClipCursor)
-        {
-            LPVOID pClip = hU32 ? GetProcAddress(hU32, "ClipCursor") : nullptr;
-            if (pClip && MH_CreateHook(pClip,
-                                       reinterpret_cast<LPVOID>(&HookedClipCursor),
-                                       reinterpret_cast<LPVOID*>(&g_pfnOrigClipCursor)) == MH_OK)
-            {
-                MH_EnableHook(pClip);
-                WriteLog("[AmdQbProxy] user32::ClipCursor hook installed\n");
-            }
-            else WriteLog("[AmdQbProxy] WARNING: user32::ClipCursor hook FAILED\n");
-        }
-        if (!g_pfnOrigSetCursorPos)
-        {
-            LPVOID pSCP = hU32 ? GetProcAddress(hU32, "SetCursorPos") : nullptr;
-            if (pSCP && MH_CreateHook(pSCP,
-                                      reinterpret_cast<LPVOID>(&HookedSetCursorPos),
-                                      reinterpret_cast<LPVOID*>(&g_pfnOrigSetCursorPos)) == MH_OK)
-            {
-                MH_EnableHook(pSCP);
-                WriteLog("[AmdQbProxy] user32::SetCursorPos hook installed\n");
-            }
-            else WriteLog("[AmdQbProxy] WARNING: user32::SetCursorPos hook FAILED\n");
-        }
-    }
 }
 
 // ============================================================
@@ -3259,14 +2712,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
         g_hSelf = hModule;
         DisableThreadLibraryCalls(hModule);
         LoadConfig();
-        MH_Initialize();
-        {
-            // Blank cursor: 32x32, fully transparent (AND mask all 1s = show-through, XOR all 0s).
-            // Used instead of SetCursor(nullptr) so Windows never falls back to a class cursor.
-            BYTE andMask[128]; memset(andMask, 0xFF, sizeof(andMask));
-            BYTE xorMask[128]; memset(xorMask, 0x00, sizeof(xorMask));
-            g_hBlankCursor = CreateCursor(hModule, 0, 0, 32, 32, andMask, xorMask);
-        }
+        MH_Initialize();   // still needed for the IDXGIFactory::CreateSwapChain hook
         WriteLog("[AmdQbProxy] DLL_PROCESS_ATTACH: atidxx loaded OK (wiz3D " DISPLAYED_VERSION ")\n");
         break;
 
@@ -3294,12 +2740,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
         if (g_pSampler)    { g_pSampler->Release();    g_pSampler = nullptr; }
         if (g_pDSState)    { g_pDSState->Release();    g_pDSState = nullptr; }
         if (g_pRSState)    { g_pRSState->Release();    g_pRSState = nullptr; }
-        if (g_pCursorTex)  { g_pCursorTex->Release();  g_pCursorTex = nullptr; }
-        if (g_pCursorSRV)  { g_pCursorSRV->Release();  g_pCursorSRV = nullptr; }
-        if (g_pCursorVS)   { g_pCursorVS->Release();   g_pCursorVS = nullptr; }
-        if (g_pCursorPS)   { g_pCursorPS->Release();   g_pCursorPS = nullptr; }
-        if (g_pCursorCB)   { g_pCursorCB->Release();   g_pCursorCB = nullptr; }
-        if (g_pAlphaBlend) { g_pAlphaBlend->Release(); g_pAlphaBlend = nullptr; }
         if (g_pContext)    { g_pContext->Release();    g_pContext = nullptr; }
         if (g_pDevice11)   { g_pDevice11->Release();   g_pDevice11 = nullptr; }
         break;
