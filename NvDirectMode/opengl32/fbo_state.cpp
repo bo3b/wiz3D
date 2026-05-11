@@ -27,10 +27,15 @@
 
 #include <GL/gl.h>
 #include "eye_state.h"
+#include "../anaglyph_matrices.h"
 
 // OutputMode flag from dllmain
 extern "C" int NvDM_OutputIsTopBottom();
 extern "C" int NvDM_SwapEyes();
+extern "C" int NvDM_OutputMode();
+extern "C" int NvDM_AnaglyphColour();
+extern "C" int NvDM_AnaglyphMethod();
+extern "C" void NvDM_Log(const char* fmt, ...);
 
 // ---------------------------------------------------------------------------
 // GL constants and types we need that are NOT in <GL/gl.h>'s GL 1.1 set.
@@ -49,6 +54,19 @@ extern "C" int NvDM_SwapEyes();
 #define GL_FRAMEBUFFER_COMPLETE           0x8CD5
 #endif
 
+// GL constants for the shader-mode composite path (modes 4-7)
+#ifndef GL_FRAGMENT_SHADER
+#define GL_FRAGMENT_SHADER                0x8B30
+#define GL_VERTEX_SHADER                  0x8B31
+#define GL_COMPILE_STATUS                 0x8B81
+#define GL_LINK_STATUS                    0x8B82
+#define GL_INFO_LOG_LENGTH                0x8B84
+#define GL_ARRAY_BUFFER                   0x8892
+#define GL_STATIC_DRAW                    0x88E4
+#define GL_TEXTURE0                       0x84C0
+#define GL_TEXTURE1                       0x84C1
+#endif
+
 typedef void   (APIENTRY *PFN_glGenFramebuffers)(GLsizei n, GLuint* ids);
 typedef void   (APIENTRY *PFN_glDeleteFramebuffers)(GLsizei n, const GLuint* ids);
 typedef void   (APIENTRY *PFN_glBindFramebuffer)(GLenum target, GLuint id);
@@ -60,6 +78,35 @@ typedef void   (APIENTRY *PFN_glBindRenderbuffer)(GLenum target, GLuint id);
 typedef void   (APIENTRY *PFN_glRenderbufferStorage)(GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
 typedef GLenum (APIENTRY *PFN_glCheckFramebufferStatus)(GLenum target);
 typedef void   (APIENTRY *PFN_glBlitFramebuffer)(GLint sx0, GLint sy0, GLint sx1, GLint sy1, GLint dx0, GLint dy0, GLint dx1, GLint dy1, GLbitfield mask, GLenum filter);
+
+// Shader / program / VBO entry points used for OutputMode 4-7 composite paths.
+// All resolved via wglGetProcAddress like the FBO ones above.
+typedef GLuint (APIENTRY *PFN_glCreateShader)(GLenum type);
+typedef void   (APIENTRY *PFN_glShaderSource)(GLuint shader, GLsizei count, const char* const* string, const GLint* length);
+typedef void   (APIENTRY *PFN_glCompileShader)(GLuint shader);
+typedef void   (APIENTRY *PFN_glGetShaderiv)(GLuint shader, GLenum pname, GLint* params);
+typedef void   (APIENTRY *PFN_glGetShaderInfoLog)(GLuint shader, GLsizei bufSize, GLsizei* length, char* infoLog);
+typedef void   (APIENTRY *PFN_glDeleteShader)(GLuint shader);
+typedef GLuint (APIENTRY *PFN_glCreateProgram)(void);
+typedef void   (APIENTRY *PFN_glAttachShader)(GLuint program, GLuint shader);
+typedef void   (APIENTRY *PFN_glLinkProgram)(GLuint program);
+typedef void   (APIENTRY *PFN_glGetProgramiv)(GLuint program, GLenum pname, GLint* params);
+typedef void   (APIENTRY *PFN_glDeleteProgram)(GLuint program);
+typedef void   (APIENTRY *PFN_glUseProgram)(GLuint program);
+typedef GLint  (APIENTRY *PFN_glGetUniformLocation)(GLuint program, const char* name);
+typedef void   (APIENTRY *PFN_glUniform1i)(GLint location, GLint v0);
+typedef void   (APIENTRY *PFN_glUniform4fv)(GLint location, GLsizei count, const GLfloat* value);
+typedef void   (APIENTRY *PFN_glActiveTexture)(GLenum texture);
+typedef void   (APIENTRY *PFN_glGenBuffers)(GLsizei n, GLuint* buffers);
+typedef void   (APIENTRY *PFN_glDeleteBuffers)(GLsizei n, const GLuint* buffers);
+typedef void   (APIENTRY *PFN_glBindBuffer)(GLenum target, GLuint buffer);
+typedef void   (APIENTRY *PFN_glBufferData)(GLenum target, ptrdiff_t size, const void* data, GLenum usage);
+typedef void   (APIENTRY *PFN_glEnableVertexAttribArray)(GLuint index);
+typedef void   (APIENTRY *PFN_glVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
+typedef void   (APIENTRY *PFN_glBindAttribLocation)(GLuint program, GLuint index, const char* name);
+typedef void   (APIENTRY *PFN_glViewport)(GLint x, GLint y, GLsizei width, GLsizei height);
+typedef void   (APIENTRY *PFN_glDrawArrays)(GLenum mode, GLint first, GLsizei count);
+typedef void   (APIENTRY *PFN_glDisable)(GLenum cap);
 
 // ---------------------------------------------------------------------------
 // dllmain owns g_hRealOpenGL32 + the orig_wglGetProcAddress entry. We resolve
@@ -113,6 +160,49 @@ namespace
     };
     EyeFbos g_fbos;
 
+    // Shader / program / VBO entry points for OutputMode 4-7.
+    PFN_glCreateShader            p_glCreateShader            = nullptr;
+    PFN_glShaderSource            p_glShaderSource            = nullptr;
+    PFN_glCompileShader           p_glCompileShader           = nullptr;
+    PFN_glGetShaderiv             p_glGetShaderiv             = nullptr;
+    PFN_glGetShaderInfoLog        p_glGetShaderInfoLog        = nullptr;
+    PFN_glDeleteShader            p_glDeleteShader            = nullptr;
+    PFN_glCreateProgram           p_glCreateProgram           = nullptr;
+    PFN_glAttachShader            p_glAttachShader            = nullptr;
+    PFN_glLinkProgram             p_glLinkProgram             = nullptr;
+    PFN_glGetProgramiv            p_glGetProgramiv            = nullptr;
+    PFN_glDeleteProgram           p_glDeleteProgram           = nullptr;
+    PFN_glUseProgram              p_glUseProgram              = nullptr;
+    PFN_glGetUniformLocation      p_glGetUniformLocation      = nullptr;
+    PFN_glUniform1i               p_glUniform1i               = nullptr;
+    PFN_glUniform4fv              p_glUniform4fv              = nullptr;
+    PFN_glActiveTexture           p_glActiveTexture           = nullptr;
+    PFN_glGenBuffers              p_glGenBuffers              = nullptr;
+    PFN_glDeleteBuffers           p_glDeleteBuffers           = nullptr;
+    PFN_glBindBuffer              p_glBindBuffer              = nullptr;
+    PFN_glBufferData              p_glBufferData              = nullptr;
+    PFN_glEnableVertexAttribArray p_glEnableVertexAttribArray = nullptr;
+    PFN_glVertexAttribPointer     p_glVertexAttribPointer     = nullptr;
+    PFN_glBindAttribLocation      p_glBindAttribLocation      = nullptr;
+    PFN_glViewport                p_glViewport                = nullptr;
+    PFN_glDrawArrays              p_glDrawArrays              = nullptr;
+    PFN_glDisable                 p_glDisable                 = nullptr;
+
+    // OutputMode 4-7 shader pipeline state. One program per mode (Line/Col/
+    // Checker/Anaglyph), shared fullscreen-quad VBO. Compiled lazily on first
+    // composite. Anaglyph uniform array carries the selected coefficients.
+    enum ShaderProgIdx { PROG_LINE = 0, PROG_COL = 1, PROG_CHECKER = 2, PROG_ANAGLYPH = 3, PROG_COUNT = 4 };
+    struct CompositePrograms
+    {
+        GLuint prog[PROG_COUNT]    = {};
+        GLint  locLeftTex[PROG_COUNT]  = { -1, -1, -1, -1 };
+        GLint  locRightTex[PROG_COUNT] = { -1, -1, -1, -1 };
+        GLint  locAnaglyphRows = -1;     // valid only on PROG_ANAGLYPH (slot 3)
+        GLuint quadVBO         = 0;
+        bool   compileFailed   = false;  // set if any compile/link errored — won't retry
+    };
+    CompositePrograms g_progs;
+
     template<typename T>
     bool ResolveExt(T& dst, const char* name)
     {
@@ -159,6 +249,41 @@ bool ResolveFboExtensions()
     if (!p_glBindRenderbuffer)        ResolveExt(p_glBindRenderbuffer,        "glBindRenderbufferEXT");
     if (!p_glRenderbufferStorage)     ResolveExt(p_glRenderbufferStorage,     "glRenderbufferStorageEXT");
     if (!p_glCheckFramebufferStatus)  ResolveExt(p_glCheckFramebufferStatus,  "glCheckFramebufferStatusEXT");
+
+    // Shader/program/VBO entry points (modes 4-7). Resolution failure here
+    // is non-fatal — the SBS / TB blit path doesn't need them. We just refuse
+    // to enter the shader-mode composite path if these aren't all present.
+    ResolveExt(p_glCreateShader,            "glCreateShader");
+    ResolveExt(p_glShaderSource,            "glShaderSource");
+    ResolveExt(p_glCompileShader,           "glCompileShader");
+    ResolveExt(p_glGetShaderiv,             "glGetShaderiv");
+    ResolveExt(p_glGetShaderInfoLog,        "glGetShaderInfoLog");
+    ResolveExt(p_glDeleteShader,            "glDeleteShader");
+    ResolveExt(p_glCreateProgram,           "glCreateProgram");
+    ResolveExt(p_glAttachShader,            "glAttachShader");
+    ResolveExt(p_glLinkProgram,             "glLinkProgram");
+    ResolveExt(p_glGetProgramiv,            "glGetProgramiv");
+    ResolveExt(p_glDeleteProgram,           "glDeleteProgram");
+    ResolveExt(p_glUseProgram,              "glUseProgram");
+    ResolveExt(p_glGetUniformLocation,      "glGetUniformLocation");
+    ResolveExt(p_glUniform1i,               "glUniform1i");
+    ResolveExt(p_glUniform4fv,              "glUniform4fv");
+    ResolveExt(p_glActiveTexture,           "glActiveTexture");
+    ResolveExt(p_glGenBuffers,              "glGenBuffers");
+    ResolveExt(p_glDeleteBuffers,           "glDeleteBuffers");
+    ResolveExt(p_glBindBuffer,              "glBindBuffer");
+    ResolveExt(p_glBufferData,              "glBufferData");
+    ResolveExt(p_glEnableVertexAttribArray, "glEnableVertexAttribArray");
+    ResolveExt(p_glVertexAttribPointer,     "glVertexAttribPointer");
+    ResolveExt(p_glBindAttribLocation,      "glBindAttribLocation");
+    if (g_hRealOpenGL32)
+    {
+        // glViewport / glDrawArrays / glDisable are GL 1.x — pull from
+        // opengl32.dll directly (wglGetProcAddress can return NULL for them).
+        p_glViewport   = (PFN_glViewport)  GetProcAddress(g_hRealOpenGL32, "glViewport");
+        p_glDrawArrays = (PFN_glDrawArrays)GetProcAddress(g_hRealOpenGL32, "glDrawArrays");
+        p_glDisable    = (PFN_glDisable)   GetProcAddress(g_hRealOpenGL32, "glDisable");
+    }
 
     return p_glGenFramebuffers      && p_glBindFramebuffer        &&
            p_glFramebufferTexture2D && p_glFramebufferRenderbuffer &&
@@ -249,11 +374,295 @@ void EyeFbosBindForActiveEye(GLenum target)
     p_glBindFramebuffer(target, id);
 }
 
+// ---------------------------------------------------------------------------
+// OutputMode 4-7 composite shaders + helpers
+//
+// Common vertex shader: a fullscreen quad in NDC (-1..1) with vUV = (0..1).
+// Fragment shaders sample the two eye textures and select per-pixel based on
+// gl_FragCoord (interleaved/checkerboard) or blend channel-wise (anaglyph).
+// GLSL 120 syntax keeps us compatible with older OpenGL contexts; gl_FragCoord
+// and texture2D are both available there.
+// ---------------------------------------------------------------------------
+namespace
+{
+    const char* const kCompositeVS =
+        "#version 120\n"
+        "attribute vec2 aPos;\n"
+        "varying   vec2 vUV;\n"
+        "void main() {\n"
+        "  vUV = aPos * 0.5 + 0.5;\n"
+        "  gl_Position = vec4(aPos, 0.0, 1.0);\n"
+        "}\n";
+
+    const char* const kCompositeFS_Line =
+        "#version 120\n"
+        "uniform sampler2D leftTex;\n"
+        "uniform sampler2D rightTex;\n"
+        "varying vec2 vUV;\n"
+        "void main() {\n"
+        "  vec4 L = texture2D(leftTex,  vUV);\n"
+        "  vec4 R = texture2D(rightTex, vUV);\n"
+        "  float ev = mod(floor(gl_FragCoord.y), 2.0);\n"
+        "  gl_FragColor = (ev < 1.0) ? L : R;\n"
+        "}\n";
+
+    const char* const kCompositeFS_Col =
+        "#version 120\n"
+        "uniform sampler2D leftTex;\n"
+        "uniform sampler2D rightTex;\n"
+        "varying vec2 vUV;\n"
+        "void main() {\n"
+        "  vec4 L = texture2D(leftTex,  vUV);\n"
+        "  vec4 R = texture2D(rightTex, vUV);\n"
+        "  float ev = mod(floor(gl_FragCoord.x), 2.0);\n"
+        "  gl_FragColor = (ev < 1.0) ? L : R;\n"
+        "}\n";
+
+    const char* const kCompositeFS_Checker =
+        "#version 120\n"
+        "uniform sampler2D leftTex;\n"
+        "uniform sampler2D rightTex;\n"
+        "varying vec2 vUV;\n"
+        "void main() {\n"
+        "  vec4 L = texture2D(leftTex,  vUV);\n"
+        "  vec4 R = texture2D(rightTex, vUV);\n"
+        "  float ev = mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0);\n"
+        "  gl_FragColor = (ev < 1.0) ? L : R;\n"
+        "}\n";
+
+    // Anaglyph: 6 vec4 rows uploaded via glUniform4fv to gAnaglyphRows[].
+    // GLSL 120 lacks UBOs; an array uniform handles it cleanly.
+    const char* const kCompositeFS_Anaglyph =
+        "#version 120\n"
+        "uniform sampler2D leftTex;\n"
+        "uniform sampler2D rightTex;\n"
+        "uniform vec4 gAnaglyphRows[6];\n"  // lR, lG, lB, rR, rG, rB
+        "varying vec2 vUV;\n"
+        "void main() {\n"
+        "  vec3 L = texture2D(leftTex,  vUV).rgb;\n"
+        "  vec3 R = texture2D(rightTex, vUV).rgb;\n"
+        "  vec3 a;\n"
+        "  a.r = dot(gAnaglyphRows[0].xyz, L) + dot(gAnaglyphRows[3].xyz, R);\n"
+        "  a.g = dot(gAnaglyphRows[1].xyz, L) + dot(gAnaglyphRows[4].xyz, R);\n"
+        "  a.b = dot(gAnaglyphRows[2].xyz, L) + dot(gAnaglyphRows[5].xyz, R);\n"
+        "  gl_FragColor = vec4(clamp(a, 0.0, 1.0), 1.0);\n"
+        "}\n";
+
+    // Compile + link a VS+FS pair. Returns 0 on failure (with the failure
+    // recorded via NvDM_Log so the user can find it). The bound aPos
+    // attribute is location 0 — we glBindAttribLocation before linking.
+    GLuint CompileProgram(const char* fsSource)
+    {
+        if (!p_glCreateShader || !p_glShaderSource || !p_glCompileShader ||
+            !p_glGetShaderiv || !p_glCreateProgram || !p_glAttachShader ||
+            !p_glLinkProgram || !p_glGetProgramiv || !p_glBindAttribLocation)
+            return 0;
+
+        auto compile = [](GLenum stage, const char* src) -> GLuint {
+            GLuint sh = p_glCreateShader(stage);
+            if (!sh) return 0;
+            p_glShaderSource(sh, 1, &src, nullptr);
+            p_glCompileShader(sh);
+            GLint ok = 0;
+            p_glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+            if (!ok)
+            {
+                char log[512] = {};
+                if (p_glGetShaderInfoLog) p_glGetShaderInfoLog(sh, sizeof(log) - 1, nullptr, log);
+                NvDM_Log("  ogl CompileProgram: shader stage=0x%04X compile FAILED: %s\n",
+                         (unsigned)stage, log);
+                if (p_glDeleteShader) p_glDeleteShader(sh);
+                return 0;
+            }
+            return sh;
+        };
+
+        GLuint vs = compile(GL_VERTEX_SHADER, kCompositeVS);
+        if (!vs) return 0;
+        GLuint fs = compile(GL_FRAGMENT_SHADER, fsSource);
+        if (!fs) { if (p_glDeleteShader) p_glDeleteShader(vs); return 0; }
+
+        GLuint prog = p_glCreateProgram();
+        if (!prog) { p_glDeleteShader(vs); p_glDeleteShader(fs); return 0; }
+        p_glAttachShader(prog, vs);
+        p_glAttachShader(prog, fs);
+        p_glBindAttribLocation(prog, 0, "aPos");
+        p_glLinkProgram(prog);
+        GLint linked = 0;
+        p_glGetProgramiv(prog, GL_LINK_STATUS, &linked);
+        // Shaders can be deleted after link — program retains its own refs.
+        if (p_glDeleteShader) { p_glDeleteShader(vs); p_glDeleteShader(fs); }
+        if (!linked)
+        {
+            NvDM_Log("  ogl CompileProgram: link FAILED\n");
+            if (p_glDeleteProgram) p_glDeleteProgram(prog);
+            return 0;
+        }
+        return prog;
+    }
+
+    // Lazy-build all four programs + the fullscreen-quad VBO. Returns true
+    // when the requested mode's program is ready; false if compile failed
+    // (caller falls back to SBS blit).
+    bool EnsureCompositePrograms()
+    {
+        if (g_progs.compileFailed) return false;
+        if (g_progs.prog[PROG_LINE]     && g_progs.prog[PROG_COL] &&
+            g_progs.prog[PROG_CHECKER]  && g_progs.prog[PROG_ANAGLYPH] &&
+            g_progs.quadVBO != 0)
+            return true;
+        if (!p_glCreateProgram || !p_glGenBuffers || !p_glBufferData)
+            { g_progs.compileFailed = true; return false; }
+
+        const char* sources[PROG_COUNT] = {
+            kCompositeFS_Line,
+            kCompositeFS_Col,
+            kCompositeFS_Checker,
+            kCompositeFS_Anaglyph,
+        };
+        const char* names[PROG_COUNT] = { "Line", "Col", "Checker", "Anaglyph" };
+
+        for (int i = 0; i < PROG_COUNT; ++i)
+        {
+            if (g_progs.prog[i]) continue;
+            g_progs.prog[i] = CompileProgram(sources[i]);
+            if (!g_progs.prog[i])
+            {
+                NvDM_Log("  ogl EnsureCompositePrograms: %s shader unavailable — modes 4-7 disabled\n",
+                         names[i]);
+                g_progs.compileFailed = true;
+                return false;
+            }
+            if (p_glGetUniformLocation)
+            {
+                g_progs.locLeftTex[i]  = p_glGetUniformLocation(g_progs.prog[i], "leftTex");
+                g_progs.locRightTex[i] = p_glGetUniformLocation(g_progs.prog[i], "rightTex");
+                if (i == PROG_ANAGLYPH)
+                    g_progs.locAnaglyphRows = p_glGetUniformLocation(g_progs.prog[i], "gAnaglyphRows");
+            }
+        }
+
+        // Fullscreen quad: two triangles, NDC positions (no separate UV — VS
+        // derives uv from position).
+        if (g_progs.quadVBO == 0)
+        {
+            const GLfloat verts[] = {
+                -1.0f, -1.0f,
+                 3.0f, -1.0f,
+                -1.0f,  3.0f,
+            };
+            p_glGenBuffers(1, &g_progs.quadVBO);
+            if (!g_progs.quadVBO) { g_progs.compileFailed = true; return false; }
+            p_glBindBuffer(GL_ARRAY_BUFFER, g_progs.quadVBO);
+            p_glBufferData(GL_ARRAY_BUFFER, (ptrdiff_t)sizeof(verts), verts, GL_STATIC_DRAW);
+            p_glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+
+        NvDM_Log("  ogl EnsureCompositePrograms: OK (Line/Col/Checker/Anaglyph + quadVBO=%u)\n",
+                 (unsigned)g_progs.quadVBO);
+        return true;
+    }
+
+    // Run shader-mode composite for OutputMode 4-7. The default framebuffer
+    // (target=0) is bound by the caller. Returns true on success.
+    bool RunShaderComposite(int mode)
+    {
+        if (!EnsureCompositePrograms()) return false;
+
+        ShaderProgIdx idx = PROG_LINE;
+        switch (mode)
+        {
+            case 4: idx = PROG_LINE;     break;
+            case 5: idx = PROG_COL;      break;
+            case 6: idx = PROG_CHECKER;  break;
+            case 7: idx = PROG_ANAGLYPH; break;
+            default: return false;
+        }
+        GLuint prog = g_progs.prog[idx];
+        if (!prog || !p_glUseProgram || !p_glActiveTexture ||
+            !p_glBindBuffer || !p_glEnableVertexAttribArray ||
+            !p_glVertexAttribPointer || !p_glDrawArrays || !p_glViewport)
+            return false;
+
+        const bool swap = NvDM_SwapEyes() != 0;
+        const GLuint leftTexId  = swap ? g_fbos.texRight : g_fbos.texLeft;
+        const GLuint rightTexId = swap ? g_fbos.texLeft  : g_fbos.texRight;
+
+        p_glViewport(0, 0, g_fbos.width, g_fbos.height);
+        if (p_glDisable)
+        {
+            // GL_DEPTH_TEST = 0x0B71, GL_BLEND = 0x0BE2, GL_CULL_FACE = 0x0B44
+            p_glDisable(0x0B71);
+            p_glDisable(0x0BE2);
+            p_glDisable(0x0B44);
+        }
+        p_glUseProgram(prog);
+        p_glActiveTexture(GL_TEXTURE0);
+        p_glBindTexture(GL_TEXTURE_2D, leftTexId);
+        p_glActiveTexture(GL_TEXTURE1);
+        p_glBindTexture(GL_TEXTURE_2D, rightTexId);
+        if (p_glUniform1i)
+        {
+            if (g_progs.locLeftTex[idx]  >= 0) p_glUniform1i(g_progs.locLeftTex[idx],  0);
+            if (g_progs.locRightTex[idx] >= 0) p_glUniform1i(g_progs.locRightTex[idx], 1);
+        }
+
+        if (idx == PROG_ANAGLYPH && g_progs.locAnaglyphRows >= 0 && p_glUniform4fv)
+        {
+            int colour = NvDM_AnaglyphColour();
+            int method = NvDM_AnaglyphMethod();
+            if (colour < 0 || colour > 2) colour = 0;
+            if (method < 0 || method > 6) method = 0;
+            const NvDirectMode::AnaglyphMatrix& m =
+                NvDirectMode::kAnaglyphMatrices[colour][method];
+            // 6 vec4 rows: lR, lG, lB, rR, rG, rB (xyz used; w = 0).
+            const float* rows[6] = { m.lR, m.lG, m.lB, m.rR, m.rG, m.rB };
+            float buf[6 * 4] = {};
+            for (int i = 0; i < 6; ++i)
+            {
+                buf[i * 4 + 0] = rows[i][0];
+                buf[i * 4 + 1] = rows[i][1];
+                buf[i * 4 + 2] = rows[i][2];
+                buf[i * 4 + 3] = 0.0f;
+            }
+            p_glUniform4fv(g_progs.locAnaglyphRows, 6, buf);
+        }
+
+        // Bind quad VBO and feed position to attribute 0.
+        p_glBindBuffer(GL_ARRAY_BUFFER, g_progs.quadVBO);
+        p_glEnableVertexAttribArray(0);
+        p_glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), nullptr);
+        p_glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Detach our state so the game's next frame doesn't pick up our
+        // texture bindings on TEXTURE0/TEXTURE1. Game rebinds program +
+        // attribs on its own draw setup so we leave those.
+        p_glUseProgram(0);
+        p_glActiveTexture(GL_TEXTURE1);
+        p_glBindTexture(GL_TEXTURE_2D, 0);
+        p_glActiveTexture(GL_TEXTURE0);
+        p_glBindTexture(GL_TEXTURE_2D, 0);
+        p_glBindBuffer(GL_ARRAY_BUFFER, 0);
+        return true;
+    }
+} // anonymous namespace
+
 void EyeFbosBlitToDefault()
 {
     if (!g_fbos.ready || !p_glBindFramebuffer || !p_glBlitFramebuffer) return;
 
     p_glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+    const int mode = NvDM_OutputMode();
+    if (mode >= 4 && mode <= 7 && RunShaderComposite(mode))
+    {
+        // Re-bind our LEFT FBO for next frame (game rebinds 0 first thing
+        // anyway, which our hook redirects to the active eye).
+        p_glBindFramebuffer(GL_FRAMEBUFFER, g_fbos.fboLeft);
+        return;
+    }
+    // Modes 0-3 (and any fallback from the shader path) use the existing
+    // glBlitFramebuffer route — cheaper and well-tested.
 
     const int W = g_fbos.width;
     const int H = g_fbos.height;

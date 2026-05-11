@@ -39,7 +39,9 @@ static int   g_loggingEnabled = 1;
 static int   g_verboseEnabled = 1;
 static int   g_swapEyes       = 0;
 static int   g_wrapDevices    = 1;
-static int   g_outputMode     = 1;
+static int   g_outputMode      = 1;
+static int   g_anaglyphColour  = 0;
+static int   g_anaglyphMethod  = 0;
 
 static void LogOpen(void)
 {
@@ -80,6 +82,8 @@ extern "C" int NvDM_SwapEyes()       { return g_swapEyes; }
 extern "C" int NvDM_WrapDevices()    { return g_wrapDevices; }
 extern "C" int NvDM_OutputMode()     { return g_outputMode; }
 extern "C" int NvDM_OutputIsTopBottom() { return (g_outputMode == 0 || g_outputMode == 3) ? 1 : 0; }
+extern "C" int NvDM_AnaglyphColour() { return g_anaglyphColour; }
+extern "C" int NvDM_AnaglyphMethod() { return g_anaglyphMethod; }
 
 static int ReadConfigInt(const char* xml, const char* tag, int defaultValue)
 {
@@ -109,11 +113,13 @@ static void LoadConfig(HMODULE hProxy)
     size_t n = fread(buf, 1, (size_t)sz, f);
     buf[n] = '\0';
     fclose(f);
-    g_loggingEnabled = ReadConfigInt(buf, "LoggingEnabled", g_loggingEnabled);
-    g_verboseEnabled = ReadConfigInt(buf, "VerboseLogging", g_verboseEnabled);
-    g_swapEyes       = ReadConfigInt(buf, "SwapEyes",       g_swapEyes);
-    g_wrapDevices    = ReadConfigInt(buf, "WrapDevices",    g_wrapDevices);
-    g_outputMode     = ReadConfigInt(buf, "OutputMode",     g_outputMode);
+    g_loggingEnabled  = ReadConfigInt(buf, "LoggingEnabled",  g_loggingEnabled);
+    g_verboseEnabled  = ReadConfigInt(buf, "VerboseLogging",  g_verboseEnabled);
+    g_swapEyes        = ReadConfigInt(buf, "SwapEyes",        g_swapEyes);
+    g_wrapDevices     = ReadConfigInt(buf, "WrapDevices",     g_wrapDevices);
+    g_outputMode      = ReadConfigInt(buf, "OutputMode",      g_outputMode);
+    g_anaglyphColour  = ReadConfigInt(buf, "AnaglyphColour",  g_anaglyphColour);
+    g_anaglyphMethod  = ReadConfigInt(buf, "AnaglyphMethod",  g_anaglyphMethod);
     free(buf);
 }
 
