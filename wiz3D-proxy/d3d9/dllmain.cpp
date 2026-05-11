@@ -49,6 +49,38 @@ static void Log(const char* fmt, ...)
 static PVOID g_hVEH = NULL;
 static volatile LONG g_crashLogged = 0;  // prevent re-entrant logging
 
+// Known false-alarm 3rd-party modules: AVs originating inside these DLLs are
+// caught by the OWNING code (via __try/__except) and don't fatally affect the
+// game, but our VEH was logging them as if they were fatal — confusing users
+// reporting "crashes" that the game itself recovered from cleanly.
+//
+// Pattern across user reports (`project_known_false_alarms.md`):
+//   - dxdiagn.dll / SETUPAPI.dll / SPFILEQ.dll: DirectX-diagnostics + setup-api
+//     null-derefs during game init; game's launcher wraps in SEH. Bionic
+//     Commando-AMD is the canonical example.
+//   - EOSOVH-Win32-Shipping.dll: Epic Online Services overlay strlen-loop
+//     trap when SR weave runs in TR2013-class titles (project_tr2013_sr_dead_end).
+// Compared by leaf filename (case-insensitive). If a fault originates inside
+// one of these, we return CONTINUE_SEARCH WITHOUT writing a dump — the
+// existing SEH chain still gets the exception, the game still recovers.
+static const wchar_t* const kFalseAlarmModules[] = {
+    L"dxdiagn.dll",
+    L"SETUPAPI.dll",
+    L"SPFILEQ.dll",
+    L"drvstore.dll",
+    L"EOSOVH-Win32-Shipping.dll",
+};
+
+static bool IsKnownFalseAlarmModule(LPCWSTR fullPath)
+{
+    if (!fullPath) return false;
+    LPCWSTR leaf = wcsrchr(fullPath, L'\\');
+    leaf = leaf ? leaf + 1 : fullPath;
+    for (const wchar_t* known : kFalseAlarmModules)
+        if (_wcsicmp(leaf, known) == 0) return true;
+    return false;
+}
+
 static LONG CALLBACK VectoredCrashHandler(EXCEPTION_POINTERS* pExInfo)
 {
     DWORD code = pExInfo->ExceptionRecord->ExceptionCode;
@@ -76,26 +108,57 @@ static LONG CALLBACK VectoredCrashHandler(EXCEPTION_POINTERS* pExInfo)
         return EXCEPTION_CONTINUE_SEARCH; // skip PRIV/ILLEGAL/C++/breakpoints
     }
 
+    // Identify the faulting module FIRST — needed both for the false-alarm
+    // filter below and the full crash log further down.
+    void* crashAddr = pExInfo->ExceptionRecord->ExceptionAddress;
+    HMODULE hMod = NULL;
+    WCHAR faultingModName[MAX_PATH] = {};
+    bool haveMod = false;
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCSTR)crashAddr, &hMod))
+    {
+        GetModuleFileNameW(hMod, faultingModName, MAX_PATH);
+        haveMod = true;
+    }
+
+    // P2 false-alarm filter: AVs inside known-noisy 3rd-party DLLs get
+    // swallowed by the OWNING code's SEH and the game keeps running fine.
+    // Skip the full dump path entirely and let the exception propagate.
+    // We intentionally do NOT set g_crashLogged here, so a real fatal crash
+    // later in the session still produces a dump.
+    if (haveMod && IsKnownFalseAlarmModule(faultingModName))
+    {
+        // One-line trace per session is enough for triage; SAFE: no
+        // MiniDumpWriteDump, no full stack walk, no loader-lock-sensitive
+        // operations. Single fprintf-equivalent under Log()'s existing lock.
+        static volatile LONG s_falseAlarmLogged = 0;
+        if (InterlockedCompareExchange(&s_falseAlarmLogged, 1, 0) == 0)
+        {
+            BYTE* base = (BYTE*)hMod;
+            DWORD_PTR offset = (BYTE*)crashAddr - base;
+            LPCWSTR leaf = wcsrchr(faultingModName, L'\\');
+            leaf = leaf ? leaf + 1 : faultingModName;
+            Log("[VEH] Suppressed known-false-alarm exception in %ls + 0x%IX "
+                "(code 0x%08lX) — game's own SEH handles this cleanly.\n",
+                leaf, offset, code);
+        }
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     // Only log the first fatal exception (avoid flooding from re-entrant crashes)
     if (InterlockedCompareExchange(&g_crashLogged, 1, 0) != 0)
         return EXCEPTION_CONTINUE_SEARCH;
 
     Log("\n!!! FATAL EXCEPTION (VEH) !!!\n");
     Log("Exception code: 0x%08lX\n", code);
-    void* crashAddr = pExInfo->ExceptionRecord->ExceptionAddress;
     Log("Crash address:  %p\n", crashAddr);
 
-    // Find which module the crash address belongs to
-    HMODULE hMod = NULL;
-    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                           (LPCSTR)crashAddr, &hMod))
+    if (haveMod)
     {
-        WCHAR modName[MAX_PATH];
-        GetModuleFileNameW(hMod, modName, MAX_PATH);
         BYTE* base = (BYTE*)hMod;
         DWORD_PTR offset = (BYTE*)crashAddr - base;
-        Log("Faulting module: %ls + 0x%IX\n", modName, offset);
+        Log("Faulting module: %ls + 0x%IX\n", faultingModName, offset);
     }
     else
     {
