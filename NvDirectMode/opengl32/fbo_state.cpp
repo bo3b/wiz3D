@@ -27,7 +27,22 @@
 
 #include <GL/gl.h>
 #include "eye_state.h"
+#include "log.h"
 #include "../anaglyph_matrices.h"
+
+#ifdef SR_WEAVE_ENABLED
+// Leia / Simulated Reality SDK headers (DelayLoad'd via vcxproj — DLLs
+// are only attempted on first weaver create, so non-SR systems pay no
+// cost beyond import-table entries).
+#include "sr/weaver/glweaver.h"
+
+// OpenCV-free stub: SR's Exception header references cv::String::deallocate.
+// Same trick as d3d9/d3d10/d3d11 — provide an empty body so the linker is
+// happy without pulling in opencv_world343.lib (~10 MB).
+void cv::String::deallocate() {}
+#endif
+
+#include <ctype.h>
 
 // OutputMode flag from dllmain
 extern "C" int NvDM_OutputIsTopBottom();
@@ -35,7 +50,9 @@ extern "C" int NvDM_SwapEyes();
 extern "C" int NvDM_OutputMode();
 extern "C" int NvDM_AnaglyphColour();
 extern "C" int NvDM_AnaglyphMethod();
+extern "C" int NvDM_ForceSRWeave();
 extern "C" void NvDM_Log(const char* fmt, ...);
+extern "C" int NvDM_VerboseEnabled();
 
 // ---------------------------------------------------------------------------
 // GL constants and types we need that are NOT in <GL/gl.h>'s GL 1.1 set.
@@ -159,6 +176,24 @@ namespace
         bool   ready           = false;
     };
     EyeFbos g_fbos;
+
+#ifdef SR_WEAVE_ENABLED
+    // OutputMode 8 SR weave state. SR runtime DLLs are delay-loaded; first
+    // RunSRWeave() call lazy-creates the context + IGLWeaver1 + 2W × H SBS
+    // intermediate texture + its FBO wrapper. ReleaseSRPipeline() tears it
+    // all down on context loss / window resize / DLL detach.
+    struct SRState
+    {
+        bool   blacklistedOrFailed = false;
+        void*  contextOpaque       = nullptr;   // SR::SRContext*
+        void*  weaverOpaque        = nullptr;   // SR::IGLWeaver1*
+        GLuint sbsTex              = 0;         // 2W × H, RGBA8
+        GLuint sbsFbo              = 0;         // FBO whose color attachment is sbsTex
+        int    sbsW                = 0;
+        int    sbsH                = 0;
+    };
+    SRState g_sr;
+#endif
 
     // Shader / program / VBO entry points for OutputMode 4-7.
     PFN_glCreateShader            p_glCreateShader            = nullptr;
@@ -343,8 +378,11 @@ bool EyeFbosCreate(int width, int height)
     return g_fbos.ready;
 }
 
+static void ReleaseSRPipeline();   // forward decl — defined below
+
 void EyeFbosDestroy()
 {
+    ReleaseSRPipeline();
     if (p_glDeleteFramebuffers)
     {
         if (g_fbos.fboLeft)  p_glDeleteFramebuffers(1, &g_fbos.fboLeft);
@@ -359,6 +397,273 @@ void EyeFbosDestroy()
     }
     g_fbos = EyeFbos{};
 }
+
+// ---------------------------------------------------------------------------
+// SR weave (OutputMode 8) — mirror of the DX9/DX10/DX11 path but using GL.
+//
+// Pipeline: per frame
+//   1. glBlitFramebuffer left-eye  FBO  ->  left half  of m_srSBSFbo
+//   2. glBlitFramebuffer right-eye FBO  ->  right half of m_srSBSFbo
+//   3. glBindFramebuffer(GL_FRAMEBUFFER, 0)
+//   4. weaver->setInputViewTexture(m_srSBSTex, 2W, H, GL_RGBA8)
+//   5. weaver->weave()  — writes to the now-bound default framebuffer
+//
+// SR DLLs are DelayLoad'd; missing runtime cleanly downgrades to SBS via
+// SafeSRContextCreate's SEH catch on 0xC06D007E (MOD_NOT_FOUND).
+// ---------------------------------------------------------------------------
+#ifndef GL_RGBA8
+#define GL_RGBA8                          0x8058
+#endif
+#ifndef GL_LINEAR
+#define GL_LINEAR                         0x2601
+#endif
+#ifndef GL_TEXTURE_2D
+#define GL_TEXTURE_2D                     0x0DE1
+#endif
+#ifndef GL_TEXTURE_MIN_FILTER
+#define GL_TEXTURE_MIN_FILTER             0x2801
+#endif
+#ifndef GL_TEXTURE_MAG_FILTER
+#define GL_TEXTURE_MAG_FILTER             0x2800
+#endif
+#ifndef GL_RGBA
+#define GL_RGBA                           0x1908
+#endif
+#ifndef GL_UNSIGNED_BYTE
+#define GL_UNSIGNED_BYTE                  0x1401
+#endif
+#ifndef GL_COLOR_BUFFER_BIT
+#define GL_COLOR_BUFFER_BIT               0x00004000
+#endif
+
+#ifdef SR_WEAVE_ENABLED
+
+// SEH-protected wrapper for SR::SRContext::create(). Mirrors d3d9/d3d10/d3d11.
+static SR::SRContext* SafeSRContextCreate(bool* pDllMissing)
+{
+    *pDllMissing = false;
+    __try { return SR::SRContext::create(); }
+    __except (GetExceptionCode() == 0xC06D007E ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+    {
+        *pDllMissing = true;
+        return nullptr;
+    }
+}
+
+// Mirror of the d3d9/d3d10/d3d11 blacklist. Keep aligned manually.
+static bool IsSRIncompatibleExe()
+{
+    wchar_t exePath[MAX_PATH] = {};
+    if (!GetModuleFileNameW(nullptr, exePath, MAX_PATH)) return false;
+    for (wchar_t* p = exePath; *p; ++p) *p = (wchar_t)towlower(*p);
+    static const wchar_t* const kBlacklist[] = {
+        L"tombraider.exe",   // TR2013 — see project_tr2013_sr_dead_end memory
+    };
+    for (auto entry : kBlacklist)
+        if (wcsstr(exePath, entry)) return true;
+    return false;
+}
+
+static void ReleaseSRPipeline()
+{
+    if (g_sr.sbsFbo && p_glDeleteFramebuffers)
+        p_glDeleteFramebuffers(1, &g_sr.sbsFbo);
+    if (g_sr.sbsTex && p_glDeleteTextures)
+        p_glDeleteTextures(1, &g_sr.sbsTex);
+    g_sr.sbsFbo = 0; g_sr.sbsTex = 0; g_sr.sbsW = 0; g_sr.sbsH = 0;
+
+    if (g_sr.weaverOpaque)
+    {
+        SR::IGLWeaver1* w = static_cast<SR::IGLWeaver1*>(g_sr.weaverOpaque);
+        w->destroy();
+        g_sr.weaverOpaque = nullptr;
+    }
+    if (g_sr.contextOpaque)
+    {
+        SR::SRContext* c = static_cast<SR::SRContext*>(g_sr.contextOpaque);
+        SR::SRContext::deleteSRContext(c);
+        g_sr.contextOpaque = nullptr;
+    }
+}
+
+static bool EnsureSRSBSTexture()
+{
+    if (!p_glGenTextures || !p_glBindTexture || !p_glTexImage2D ||
+        !p_glTexParameteri || !p_glGenFramebuffers ||
+        !p_glBindFramebuffer || !p_glFramebufferTexture2D ||
+        !p_glCheckFramebufferStatus)
+        return false;
+    if (g_fbos.width == 0 || g_fbos.height == 0) return false;
+
+    int wantW = g_fbos.width * 2;
+    int wantH = g_fbos.height;
+    if (g_sr.sbsTex && g_sr.sbsFbo && g_sr.sbsW == wantW && g_sr.sbsH == wantH)
+        return true;
+
+    if (g_sr.sbsFbo) { p_glDeleteFramebuffers(1, &g_sr.sbsFbo); g_sr.sbsFbo = 0; }
+    if (g_sr.sbsTex) { p_glDeleteTextures(1, &g_sr.sbsTex);    g_sr.sbsTex = 0; }
+
+    GLuint tex = 0;
+    p_glGenTextures(1, &tex);
+    if (!tex) return false;
+    p_glBindTexture(GL_TEXTURE_2D, tex);
+    p_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, wantW, wantH, 0,
+                   GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    p_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    p_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    p_glBindTexture(GL_TEXTURE_2D, 0);
+
+    GLuint fbo = 0;
+    p_glGenFramebuffers(1, &fbo);
+    if (!fbo) { p_glDeleteTextures(1, &tex); return false; }
+    p_glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    p_glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                             GL_TEXTURE_2D, tex, 0);
+    GLenum status = p_glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    p_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    if (status != GL_FRAMEBUFFER_COMPLETE)
+    {
+        p_glDeleteFramebuffers(1, &fbo);
+        p_glDeleteTextures(1, &tex);
+        NvDM_Log("  opengl32 EnsureSRSBSTexture: FBO incomplete (status=0x%X)\n",
+                 (unsigned)status);
+        return false;
+    }
+
+    g_sr.sbsTex = tex; g_sr.sbsFbo = fbo;
+    g_sr.sbsW = wantW;  g_sr.sbsH = wantH;
+    return true;
+}
+
+static bool EnsureSRWeaver()
+{
+    if (g_sr.blacklistedOrFailed) return false;
+    if (g_sr.weaverOpaque) return true;
+
+    static bool s_blacklistChecked = false;
+    static bool s_isBlacklisted    = false;
+    if (!s_blacklistChecked)
+    {
+        s_blacklistChecked = true;
+        s_isBlacklisted    = IsSRIncompatibleExe();
+        if (s_isBlacklisted)
+        {
+            if (NvDM_ForceSRWeave())
+            {
+                NvDM_Log("  opengl32 EnsureSRWeaver: exe is SR-blacklisted but ForceSRWeave=1 — attempting anyway (diagnostic)\n");
+                s_isBlacklisted = false;
+            }
+            else if (NvDM_VerboseEnabled())
+            {
+                NvDM_Log("  opengl32 EnsureSRWeaver: exe is SR-blacklisted; falling back to SBS (set ForceSRWeave=1 to override)\n");
+            }
+        }
+    }
+    if (s_isBlacklisted) { g_sr.blacklistedOrFailed = true; return false; }
+
+    bool dllMissing = false;
+    SR::SRContext* ctx = nullptr;
+    try { ctx = SafeSRContextCreate(&dllMissing); }
+    catch (...)
+    {
+        NvDM_Log("  opengl32 EnsureSRWeaver: SRContext::create threw exception (SR Service down or other failure)\n");
+        g_sr.blacklistedOrFailed = true;
+        return false;
+    }
+    if (dllMissing)
+    {
+        if (NvDM_VerboseEnabled())
+            NvDM_Log("  opengl32 EnsureSRWeaver: SR runtime DLLs not installed; downgrading SR weave -> SBS\n");
+        g_sr.blacklistedOrFailed = true;
+        return false;
+    }
+    if (!ctx) { g_sr.blacklistedOrFailed = true; return false; }
+
+    // HWND from the current GL context's HDC. Resolve wglGetCurrentDC via
+    // g_hRealOpenGL32 — our own DLL IS opengl32 from the game's POV, so we
+    // can't directly link against opengl32.lib's wglGetCurrentDC; calling
+    // our own exported thunk works but going to the real one is cleaner.
+    typedef HDC (WINAPI *PFN_wglGetCurrentDC)();
+    static PFN_wglGetCurrentDC s_pWglGetCurrentDC = nullptr;
+    if (!s_pWglGetCurrentDC && g_hRealOpenGL32)
+        s_pWglGetCurrentDC = (PFN_wglGetCurrentDC)
+            GetProcAddress(g_hRealOpenGL32, "wglGetCurrentDC");
+    HDC  hdc  = s_pWglGetCurrentDC ? s_pWglGetCurrentDC() : nullptr;
+    HWND hWnd = hdc ? WindowFromDC(hdc) : nullptr;
+
+    SR::IGLWeaver1* weaver = nullptr;
+    // NOTE: CreateGLWeaver takes SRContext by reference, NOT pointer
+    // (unlike the DX variants — caught the hard way by mirroring DX10).
+    WeaverErrorCode res = SR::CreateGLWeaver(*ctx, hWnd, &weaver);
+    if (res != WeaverSuccess || !weaver)
+    {
+        NvDM_Log("  opengl32 EnsureSRWeaver: CreateGLWeaver failed (err=%d hWnd=%p)\n",
+                 (int)res, (void*)hWnd);
+        SR::SRContext::deleteSRContext(ctx);
+        g_sr.blacklistedOrFailed = true;
+        return false;
+    }
+
+    ctx->initialize();
+
+    g_sr.contextOpaque = ctx;
+    g_sr.weaverOpaque  = weaver;
+    NvDM_Log("  opengl32 EnsureSRWeaver: ready (hWnd=%p ctx=%p weaver=%p)\n",
+             (void*)hWnd, (void*)ctx, (void*)weaver);
+    return true;
+}
+
+static bool RunSRWeave()
+{
+    if (!g_fbos.ready) return false;
+    if (!EnsureSRWeaver())     return false;
+    if (!EnsureSRSBSTexture()) return false;
+
+    NVDM_TRACE_FIRST_N(5, "  opengl32 RunSRWeave: entry sbsTex=%u sbsFbo=%u %dx%d\n",
+                       g_sr.sbsTex, g_sr.sbsFbo, g_sr.sbsW, g_sr.sbsH);
+
+    const int W = g_fbos.width;
+    const int H = g_fbos.height;
+    const bool swap = (NvDM_SwapEyes() != 0);
+    GLuint leftSlotFbo  = swap ? g_fbos.fboRight : g_fbos.fboLeft;
+    GLuint rightSlotFbo = swap ? g_fbos.fboLeft  : g_fbos.fboRight;
+
+    // Step A: blit each eye's color attachment into the corresponding half
+    // of the SBS FBO. Linear filter — eye dims match each half exactly so
+    // it's effectively a 1:1 copy.
+    p_glBindFramebuffer(GL_DRAW_FRAMEBUFFER, g_sr.sbsFbo);
+    p_glBindFramebuffer(GL_READ_FRAMEBUFFER, leftSlotFbo);
+    p_glBlitFramebuffer(0, 0, W, H,
+                        0, 0, W, H,
+                        GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    p_glBindFramebuffer(GL_READ_FRAMEBUFFER, rightSlotFbo);
+    p_glBlitFramebuffer(0, 0, W, H,
+                        W, 0, 2 * W, H,
+                        GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+    // Step B: bind default FB and let the SR weaver write into it.
+    p_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (p_glViewport) p_glViewport(0, 0, W, H);
+
+    SR::IGLWeaver1* weaver = static_cast<SR::IGLWeaver1*>(g_sr.weaverOpaque);
+    NVDM_TRACE_FIRST_N(5, "  opengl32 RunSRWeave: weave call - weaver=%p\n", (void*)weaver);
+    weaver->setInputViewTexture(g_sr.sbsTex, g_sr.sbsW, g_sr.sbsH, GL_RGBA8);
+    weaver->weave();
+    NVDM_TRACE_FIRST_N(5, "  opengl32 RunSRWeave: weave returned OK\n");
+
+    static volatile long s_weaveCount = 0;
+    long n = _InterlockedIncrement(&s_weaveCount);
+    if (n == 60 || n == 180 || n == 600 || n == 1800)
+        NvDM_Log("  opengl32 RunSRWeave: heartbeat #%ld (SR still alive)\n", n);
+
+    return true;
+}
+
+#else  // !SR_WEAVE_ENABLED — keep call sites compiling without the SDK headers
+static void ReleaseSRPipeline() {}
+static bool RunSRWeave()        { return false; }
+#endif
 
 void EyeFbosBindForActiveEye(GLenum target)
 {
@@ -654,6 +959,14 @@ void EyeFbosBlitToDefault()
     p_glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
     const int mode = NvDM_OutputMode();
+    if (mode == 8 && RunSRWeave())
+    {
+        // Weaver wrote to the now-bound default framebuffer. Re-bind our
+        // LEFT FBO so the next frame's game-side draws land in our eye
+        // texture (game rebinds 0 first thing, which our hook redirects).
+        p_glBindFramebuffer(GL_FRAMEBUFFER, g_fbos.fboLeft);
+        return;
+    }
     if (mode >= 4 && mode <= 7 && RunShaderComposite(mode))
     {
         // Re-bind our LEFT FBO for next frame (game rebinds 0 first thing
@@ -661,8 +974,8 @@ void EyeFbosBlitToDefault()
         p_glBindFramebuffer(GL_FRAMEBUFFER, g_fbos.fboLeft);
         return;
     }
-    // Modes 0-3 (and any fallback from the shader path) use the existing
-    // glBlitFramebuffer route — cheaper and well-tested.
+    // Modes 0-3 (and any fallback from the shader path or SR weave)
+    // use the existing glBlitFramebuffer route — cheaper and well-tested.
 
     const int W = g_fbos.width;
     const int H = g_fbos.height;
