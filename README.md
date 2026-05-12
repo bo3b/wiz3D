@@ -20,13 +20,13 @@ This project modernizes that source code, replaces kernel-level hooks with a pro
 ## Current Status
 
 * **AMD HD3D:** ✅ **Mostly Working!** HD3D games render stereo interally, so all that's needed is proxy to enable that rendering, capture the quad buffer output, and display it using modern stereo3D standards. The Proxy chain is successfully triggering stereo3D and capturing the quad buffer output. All that remains is getting that quad buffer output to display corrently in modern formats like Top-and-Bottom and Side-by-Side. Currently Half TAB and Half SBS is supported with about half the games, the other games still need work displaying the output correctly.
+* **Nvidia 3D Vision 'Direct Mode':** ✅ **Partially Working.** DirectX11 games currently working, DX9 and 10 games to com. Tomb Raider not wearing to SR currently.
+* **Nvidia 3D Vision 'Automatic Mode':** ✅ **Partially Working.** These are games that rlied on Nvidia's driver stereo injection. The ones listes speciffically have 3D Vision ingame settings, shader fixes and config settings. current aim for these is to inject stereo via iZ3D instead, and make the ingame settings and shaderfixes apply to iZ3D. Currently, enable/disable settings do work. But convergance and seperations liders aren't hooked up to iZ3D, and shader fixes arnt triggering yet.
 * **DirectX 9:** ✅ **Mostly Working!** `d3d9.dll` proxy loader works! Left 4 Dead 2 and many others run in full stereo3D, outputs in all originally supported formats, and the profile system loads shader fixes and stereo settings for all originally supported games.
 * **DirectX 8:** ✅ **Partially Worikng.** Wrapper to convert DX8 to use DX9's stereoization. One tested game working, needs further testing.
 * **DirectX 7:** ⚠️ **In Progress.** Wrapper to convert DX7 to use DX9's stereoization. DX7 to DX9 converstion is working. Here for testing.
 * **DirectX 10/11:** ⚠️ **Partial.** The DX10/11 wrapper was never completely finished by iZ3D Inc. Some games work, but implementation in wiz3D still has some way to go and hasn't got any games booting with stereo3D initialised yet.
-* **OpenGL:** ⚠️ **In Progress.** Basic build has been made, untested. 
-* **Nvidia 3D Vision 'Direct Mode':** ✅ **Partially Working.** DirectX11 games currently working, DX9 and 10 games to com. Tomb Raider not wearing to SR currently.
-* **Nvidia 3D Vision 'Automatic Mode':** ✅ **Partially Working.** These are games that rlied on Nvidia's driver stereo injection. The ones listes speciffically have 3D Vision ingame settings, shader fixes and config settings. current aim for these is to inject stereo via iZ3D instead, and make the ingame settings and shaderfixes apply to iZ3D. Currently, enable/disable settings do work. But convergance and seperations liders aren't hooked up to iZ3D, and shader fixes arnt triggering yet.
+* **OpenGL Quad-Buffer Stereo:** ⚠️ **In Progress.** Similar to HD3D and 3D Vision 'Direct Mode', OpenGL Quad-BufferStereo acts as a ssurface for games that supported OpenGL Quad -buffer to display their stereo 3D onto, and then convert it to display onto any screen. This tends to be legacy older titles such as _Quake_ and _American McGee's Alice_. This does not inject stereo into OpenGL games.
 
 ---
 
@@ -411,13 +411,6 @@ Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'D
 
 - **Excluded (Online Ban Risk):** *Age of Conan: Unchained*, *Champions Online*, *DC Universe Online*, *Entropia Universe*, *Final Fantasy 14*, *TERA Online*, *The Lord of the Rings Online*, *Warcraft III: Reign of Chaos*, *World of Tanks*.
 
-## OpenGL Games (Testing Release)
-
-| Game | API | Bits | iZ3D Profile | Testing | Notes |
-|------|-----|---------|--------|-------|-------|
-| American McGee's Alice (2011) | OpenGL | x86 | ✕ | ❌ Not Working | Game is in mono. |
-| Dyad | OpenGL | x86 | ✕ | ❌ Not Working | Game is in mono. |
-
 ### Nvidia 3D Vision "Automatic Mode" Games 
 Games that used 3D Vision "Automatic Mode" driver stereo injection, but communicate with 3D vision with a ingame settings, built-in shader fixes, or config options. For our release, these use wiz3D's stereo injector instead, with the aim of making any shaders fixes and seperationa nd convergance sliders compatible with our injector in the future. Enable/disable settings should work currently.
 
@@ -465,6 +458,33 @@ Games that used 3D Vision "Automatic Mode" driver stereo injection, but communic
 - **Excluded (Native AMD HD3D):** *Battlefield 3*, *DiRT 2*, *DiRT 3*, *DiRT Showdown*, *DiRT Rally*, *GRID 2*, *GRID Autosport*, *Tomb Raider (2013)*. 
 - **Excluded (Online Ban Risk):** *Aion: The Tower of Eternity*, *Diablo III*, *Hawken*, *Pirate101*, *Rusty Hearts*, *Wizard101*, *StarCraft II*.
 - **Excluded (Demo or Benchmark):** *Aliens vs. Triangles*, *Endless City*, *Stone Giant*, *Supersonic Sled*, *Passion Leads Army Benchmark*, *Unigine: Heaven Benchmark*.
+
+## OpenGL Quad-Buffer Stereo Games (Testing Release)
+
+| Game | API | Bits | Testing | Notes |
+|------|-----|---------|--------|-------|
+| American McGee's Alice (2011) | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=rec1TwuooyYEpOvAb) to enable the game's native stereo 3D. |
+| Darkest Dungeon | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=rec7BJH9upc90nvsi) to enable the game's native stereo 3D. |
+| DarkPlaces | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recVVJQxrjuGFbsxA) to enable the game's native stereo 3D. |
+| Final Fantasy IV (3D Remake) | OpenGL | x86 | Untested |  |
+| Final Fantasy IV: The After Years | OpenGL | x86 | Untested |  |
+| FlightGear | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recNbODkwtnnqlQqO) to enable the game's native stereo 3D. |
+| Goodbye Deponia | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recJuY1XRDu9lF9gB) to enable the game's native stereo 3D. |
+| GZDoom | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recp8rMIlwRlwDYzX) to enable the game's native stereo 3D. |
+| Heavy Metal: F.A.K.K.² | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recx8IhEW9qN2VC6t) to enable the game's native stereo 3D. |
+| Hotline Miami | DX8/OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recW9i65jXiVue5TQ) to enable the game's native stereo 3D. |
+| Prey (2006) | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=rech3exawnWvSNm31) to enable the game's native stereo 3D. |
+| Quake | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=reciOCmaXBxKj4N3D) to enable the game's native stereo 3D. |
+| Quake II | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recY4PQQVRFPDYUh7) to enable the game's native stereo 3D. |
+| Quake III Arena | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=rec1zJdFTfKoty2ZO) to enable the game's native stereo 3D. |
+| Return to Castle Wolfenstein | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recIgh2WvNLp0VdKe) to enable the game's native stereo 3D. |
+| Space Engine | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recg8wr1aqpc4BoFH) to enable the game's native stereo 3D. |
+| Star Wars: Jedi Knight - Jedi Academy | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=reclLl1NuWWFtyD73) to enable the game's native stereo 3D. |
+| Star Wars: Jedi Knight II: Jedi Outcast | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recg8qqxNUmWEcMHS) to enable the game's native stereo 3D. |
+| SuperTuxKart | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=rectLIRCA4uYSpMnk) to enable the game's native stereo 3D. |
+| The Binding of Isaac: Rebirth | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recYlJ9YTgmF7wMc5) to enable the game's native stereo 3D. |
+| World of Padman  | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=rec5wq4OBzfTqGSJq) to enable the game's native stereo 3D. |
+| Xonotic | OpenGL | x86 | Untested | Check [3D/VR Compatibility Database](https://airtable.com/appByPZJsOQSVGDID/shrAfMuGs1IOIEpRT?uMgeK=recYwwsghPx4vXGMh) to enable the game's native stereo 3D. |
 
 ---
 
