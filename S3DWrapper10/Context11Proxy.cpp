@@ -62,6 +62,40 @@ void Context11Proxy::ReplayFrameCommands(Eye eye)
     m_activeEye = saved;
 }
 
+// Stage 4b.4 (more state setters): record-and-replay for *SetShaderResources
+// across all 6 shader stages. Each stage's method body is identical except
+// for the method name, so a macro keeps the boilerplate tractable. SRVs are
+// not yet wrapped (Stage 3c) so capture-and-restore is straightforward —
+// just hold a ref through the lambda's lifetime so the SRV survives the
+// frame even if the game releases it. Same gate (m_presentHookActive) as
+// OMSet so games whose swap chain bypasses us stay safely in passthrough.
+#define RECORD_SRV_SET(STAGE_PREFIX)                                                        \
+void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetShaderResources(                    \
+    UINT StartSlot, UINT NumViews, ID3D11ShaderResourceView* const* ppShaderResourceViews)  \
+{                                                                                           \
+    m_real->STAGE_PREFIX##SetShaderResources(StartSlot, NumViews, ppShaderResourceViews);   \
+    if (!m_presentHookActive) return;                                                       \
+    std::vector<ComRefHolder> refs;                                                         \
+    refs.reserve(NumViews);                                                                 \
+    for (UINT i = 0; i < NumViews; ++i)                                                     \
+        refs.emplace_back(ppShaderResourceViews ? ppShaderResourceViews[i] : nullptr);      \
+    m_frameCommands.emplace_back(                                                           \
+        [this, StartSlot, NumViews, refs]() {                                               \
+            ID3D11ShaderResourceView* raw[kMaxUnwrapArray] = { 0 };                         \
+            UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;            \
+            for (UINT i = 0; i < cap; ++i)                                                  \
+                raw[i] = static_cast<ID3D11ShaderResourceView*>(refs[i].p);                 \
+            m_real->STAGE_PREFIX##SetShaderResources(StartSlot, NumViews, raw);             \
+        });                                                                                 \
+}
+RECORD_SRV_SET(VS)
+RECORD_SRV_SET(PS)
+RECORD_SRV_SET(GS)
+RECORD_SRV_SET(HS)
+RECORD_SRV_SET(DS)
+RECORD_SRV_SET(CS)
+#undef RECORD_SRV_SET
+
 void STDMETHODCALLTYPE Context11Proxy::Draw(UINT VertexCount, UINT StartVertexLocation)
 {
     // Stage 4b.1: pure passthrough. Recording wires in 4b.2 once we have a
