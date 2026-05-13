@@ -10,6 +10,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <d3d11.h>
+#include <functional>
+#include <vector>
 
 namespace wiz3d
 {
@@ -44,8 +46,8 @@ public:
     void STDMETHODCALLTYPE PSSetShader(ID3D11PixelShader* pPixelShader, ID3D11ClassInstance* const* ppClassInstances, UINT NumClassInstances) override                                             { m_real->PSSetShader(pPixelShader, ppClassInstances, NumClassInstances); }
     void STDMETHODCALLTYPE PSSetSamplers(UINT StartSlot, UINT NumSamplers, ID3D11SamplerState* const* ppSamplers) override                                                                         { m_real->PSSetSamplers(StartSlot, NumSamplers, ppSamplers); }
     void STDMETHODCALLTYPE VSSetShader(ID3D11VertexShader* pVertexShader, ID3D11ClassInstance* const* ppClassInstances, UINT NumClassInstances) override                                           { m_real->VSSetShader(pVertexShader, ppClassInstances, NumClassInstances); }
-    void STDMETHODCALLTYPE DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation) override                                                                                  { m_real->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation); }
-    void STDMETHODCALLTYPE Draw(UINT VertexCount, UINT StartVertexLocation) override                                                                                                               { m_real->Draw(VertexCount, StartVertexLocation); }
+    void    STDMETHODCALLTYPE DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation) override;
+    void    STDMETHODCALLTYPE Draw(UINT VertexCount, UINT StartVertexLocation) override;
     HRESULT STDMETHODCALLTYPE Map(ID3D11Resource* pResource, UINT Subresource, D3D11_MAP MapType, UINT MapFlags, D3D11_MAPPED_SUBRESOURCE* pMappedResource) override;
     void    STDMETHODCALLTYPE Unmap(ID3D11Resource* pResource, UINT Subresource) override;
     void STDMETHODCALLTYPE PSSetConstantBuffers(UINT StartSlot, UINT NumBuffers, ID3D11Buffer* const* ppConstantBuffers) override                                                                  { m_real->PSSetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers); }
@@ -168,12 +170,32 @@ public:
     void SetActiveEye(Eye e) { m_activeEye = e; }
     Eye  GetActiveEye() const { return m_activeEye; }
 
+    // Stage 4b.1: frame-recording INFRASTRUCTURE only — the storage vector,
+    // a clear hook, and a replay-with-eye method. No methods record yet
+    // because we still lack a frame-boundary trigger (Present hook lands in
+    // Stage 4d alongside SwapChain proxy). 4b.2 wires in the actual
+    // recording for state-setting + draw methods once we can safely flush
+    // the vector each frame.
+    //
+    // The design is iZ3D's StereoCommandBuffer pattern, ported to COM. Each
+    // recorded entry is a std::function that re-invokes the proxy-level
+    // call so the closure re-runs OUR intercept logic — which picks the
+    // eye-appropriate real handle based on m_activeEye at REPLAY time, not
+    // capture time. That's how setting m_activeEye=Right before
+    // ReplayFrameCommands lets the same recorded OMSet bind the right RTV.
+    void ClearFrameCommands();
+    void ReplayFrameCommands(Eye eye);
+
 private:
     ID3D11DeviceContext* m_real;
     Device11Proxy*       m_parent;
     LONG                 m_refs;
-    bool                 m_currentBBBound;   // last OMSet had BB-RTV at slot 0
-    Eye                  m_activeEye;        // Stage 4a: which eye OMSet binds
+    bool                 m_currentBBBound;       // last OMSet had BB-RTV at slot 0
+    Eye                  m_activeEye;            // Stage 4a: which eye OMSet binds
+
+    // Stage 4b.1: per-frame command record. Stage 4d flushes + replays
+    // before each Present.
+    std::vector<std::function<void()>> m_frameCommands;
 };
 
 } // namespace wiz3d

@@ -35,7 +35,44 @@ Context11Proxy::Context11Proxy(ID3D11DeviceContext* real, Device11Proxy* parent)
 {
 }
 
-Context11Proxy::~Context11Proxy() = default;
+Context11Proxy::~Context11Proxy()
+{
+    // Closures hold no AddRef'd state in 4b.1 (Draw/DrawIndexed capture only
+    // POD args), so a plain clear is safe. Later stages that record state-
+    // setting calls with captured COM pointers will release them in
+    // ClearFrameCommands; the dtor will route there.
+    ClearFrameCommands();
+}
+
+void Context11Proxy::ClearFrameCommands()
+{
+    m_frameCommands.clear();
+}
+
+void Context11Proxy::ReplayFrameCommands(Eye eye)
+{
+    // Snapshot + flip the active eye for the replay pass. Each recorded
+    // closure re-enters our proxy methods, so OMSet/etc. pick the
+    // eye-appropriate real handle via m_activeEye automatically.
+    Eye saved = m_activeEye;
+    m_activeEye = eye;
+    for (auto& fn : m_frameCommands)
+        fn();
+    m_activeEye = saved;
+}
+
+void STDMETHODCALLTYPE Context11Proxy::Draw(UINT VertexCount, UINT StartVertexLocation)
+{
+    // Stage 4b.1: pure passthrough. Recording wires in 4b.2 once we have a
+    // frame-boundary trigger (Present hook) to flush the recording at.
+    m_real->Draw(VertexCount, StartVertexLocation);
+}
+
+void STDMETHODCALLTYPE Context11Proxy::DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation)
+{
+    // Stage 4b.1: pure passthrough — see Draw comment.
+    m_real->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
+}
 
 HRESULT STDMETHODCALLTYPE Context11Proxy::QueryInterface(REFIID riid, void** ppvObj)
 {
