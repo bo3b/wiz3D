@@ -604,82 +604,28 @@ HRESULT STDMETHODCALLTYPE Context11Proxy::Map(
     ID3D11Resource* pResource, UINT Subresource, D3D11_MAP MapType, UINT MapFlags,
     D3D11_MAPPED_SUBRESOURCE* pMappedResource)
 {
+    // Stage 4d: pure passthrough. Recording disabled — see Unmap comment.
     Texture2D11Proxy* tex = TryUnwrapTexture2D(pResource);
     ID3D11Resource* realRes = tex ? tex->GetReal() : pResource;
-    HRESULT hr = m_real->Map(realRes, Subresource, MapType, MapFlags, pMappedResource);
-    if (FAILED(hr) || !pMappedResource) return hr;
-    if (!m_presentHookActive) return hr;
-
-    // Stage 4b.5: only record write maps — read maps can't be meaningfully
-    // replayed because the game's pointer becomes stale after our snapshot.
-    if (MapType != D3D11_MAP_WRITE &&
-        MapType != D3D11_MAP_WRITE_DISCARD &&
-        MapType != D3D11_MAP_WRITE_NO_OVERWRITE &&
-        MapType != D3D11_MAP_READ_WRITE)
-        return hr;
-
-    // Buffers only for 4b.5 — texture replay needs row/depth pitch and array-
-    // slice metadata which is a Stage 4b.6 concern. Constant-buffer Map() is
-    // the only mapping path our test corpus exercises in the per-eye loop, and
-    // CBs are all buffers, so this gets us full 4c coverage.
-    ID3D11Buffer* asBuffer = nullptr;
-    if (FAILED(pResource->QueryInterface(__uuidof(ID3D11Buffer),
-                                          reinterpret_cast<void**>(&asBuffer))) || !asBuffer)
-        return hr;
-    D3D11_BUFFER_DESC desc;
-    asBuffer->GetDesc(&desc);
-    asBuffer->Release();
-    if (desc.ByteWidth == 0) return hr;
-
-    ActiveMap am;
-    am.resource    = pResource;
-    am.subresource = Subresource;
-    am.mapType     = MapType;
-    am.mappedData  = pMappedResource->pData;
-    am.byteWidth   = desc.ByteWidth;
-    m_activeMaps.push_back(am);
-    return hr;
+    return m_real->Map(realRes, Subresource, MapType, MapFlags, pMappedResource);
 }
 
 void STDMETHODCALLTYPE Context11Proxy::Unmap(ID3D11Resource* pResource, UINT Subresource)
 {
+    // Stage 4d: do NOT record Map/Unmap. Until Stage 3c wraps ID3D11Buffer,
+    // there's exactly one constant buffer instance per slot — the game's
+    // Map/Unmap mutates THAT one buffer, and both the direct left-eye draw
+    // and the right-eye replay sample from the same CB so no replay is
+    // needed for correctness. Re-issuing Map+memcpy+Unmap at replay time
+    // was a latent crash source (the recorded resource pointer could
+    // dangle across ResizeBuffers / device state flux even with ComRefHolder
+    // because Map's invariants rely on the resource being in a usable state).
+    //
+    // Stage 4c will add eye-aware CB modification by wrapping ID3D11Buffer
+    // and re-introducing per-eye Map/Unmap with a different design (modify
+    // captured bytes per eye before re-issuing).
     Texture2D11Proxy* tex = TryUnwrapTexture2D(pResource);
     ID3D11Resource* realRes = tex ? tex->GetReal() : pResource;
-
-    // Stage 4b.5: if we recorded the Map, snapshot the bytes the game wrote
-    // BEFORE forwarding Unmap (which invalidates the mapped pointer), then
-    // push a closure that re-issues Map → memcpy → Unmap at replay time.
-    // Stage 4c will hook this closure to apply per-eye CB modifications
-    // between the memcpy and the Unmap.
-    for (auto it = m_activeMaps.begin(); it != m_activeMaps.end(); ++it)
-    {
-        if (it->resource != pResource || it->subresource != Subresource) continue;
-        if (m_presentHookActive && it->mappedData && it->byteWidth)
-        {
-            std::vector<unsigned char> bytes(it->byteWidth);
-            memcpy(bytes.data(), it->mappedData, it->byteWidth);
-            UINT subres = it->subresource;
-            D3D11_MAP mapType = it->mapType;
-            ComRefHolder resRef(pResource);
-            m_frameCommands.emplace_back(
-                [this, resRef, subres, bytes, mapType]()
-                {
-                    auto* gameRes = static_cast<ID3D11Resource*>(resRef.p);
-                    Texture2D11Proxy* texR = TryUnwrapTexture2D(gameRes);
-                    ID3D11Resource* real = texR ? texR->GetReal() : gameRes;
-                    D3D11_MAPPED_SUBRESOURCE mapped = {};
-                    if (SUCCEEDED(m_real->Map(real, subres, mapType, 0, &mapped))
-                        && mapped.pData)
-                    {
-                        memcpy(mapped.pData, bytes.data(), bytes.size());
-                        m_real->Unmap(real, subres);
-                    }
-                });
-        }
-        m_activeMaps.erase(it);
-        break;
-    }
-
     m_real->Unmap(realRes, Subresource);
 }
 
@@ -703,57 +649,22 @@ void STDMETHODCALLTYPE Context11Proxy::UpdateSubresource(
     ID3D11Resource* pDstResource, UINT DstSubresource, const D3D11_BOX* pDstBox,
     const void* pSrcData, UINT SrcRowPitch, UINT SrcDepthPitch)
 {
+    // Stage 4d: do NOT record this call. The recording attempted to snapshot
+    // pSrcData into a std::vector and replay UpdateSubresource for the right
+    // eye, but sizing it correctly requires knowing the texture height /
+    // array slice count / format bytes-per-block — none of which we have
+    // from the API surface. The naive SrcRowPitch-only sizing caused the
+    // driver to read past the captured buffer (Batman Arkham Origins
+    // crashed inside nvwgf2um.dll during the right-eye replay sweep).
+    //
+    // Skipping the right-eye duplicate is OK at 4d: UpdateSubresource on a
+    // stereo-doubled texture is rare in the per-frame loop (mostly used for
+    // mono textures at level load), and stereo RTs receive their per-eye
+    // content via the replayed Draw/Clear path, not via CPU uploads. Stage
+    // 4c will revisit with a proper size calculation if CB Update becomes
+    // load-bearing for the per-eye math.
     DoUpdateSubresource(pDstResource, DstSubresource, pDstBox,
                         pSrcData, SrcRowPitch, SrcDepthPitch);
-    if (!m_presentHookActive) return;
-
-    // Snapshot pSrcData — the caller owns it and can free after the call.
-    // For buffers we need ByteWidth; for textures we use SrcDepthPitch (or
-    // SrcRowPitch if depth pitch is zero, for 2D textures) as an upper bound.
-    UINT bytes = 0;
-    ID3D11Buffer* asBuffer = nullptr;
-    if (SUCCEEDED(pDstResource->QueryInterface(__uuidof(ID3D11Buffer),
-                                                reinterpret_cast<void**>(&asBuffer))) && asBuffer)
-    {
-        D3D11_BUFFER_DESC desc;
-        asBuffer->GetDesc(&desc);
-        bytes = pDstBox
-                ? (pDstBox->right - pDstBox->left)
-                : desc.ByteWidth;
-        asBuffer->Release();
-    }
-    else if (SrcDepthPitch)
-    {
-        bytes = SrcDepthPitch;
-    }
-    else if (SrcRowPitch)
-    {
-        // 2D texture row pitch × height — height we don't know without GetDesc.
-        // For 4b.6 scope, cap at SrcRowPitch alone if we can't query height;
-        // texture UpdateSubresource is rare in the per-eye loop.
-        bytes = SrcRowPitch;
-    }
-
-    std::vector<unsigned char> data;
-    if (bytes && pSrcData)
-    {
-        data.resize(bytes);
-        memcpy(data.data(), pSrcData, bytes);
-    }
-    bool hasBox = (pDstBox != nullptr);
-    D3D11_BOX box = {};
-    if (hasBox) box = *pDstBox;
-    ComRefHolder dstRef(pDstResource);
-    m_frameCommands.emplace_back(
-        [this, dstRef, DstSubresource, hasBox, box,
-         data, SrcRowPitch, SrcDepthPitch]()
-        {
-            DoUpdateSubresource(
-                static_cast<ID3D11Resource*>(dstRef.p),
-                DstSubresource, hasBox ? &box : nullptr,
-                data.empty() ? nullptr : data.data(),
-                SrcRowPitch, SrcDepthPitch);
-        });
 }
 
 void Context11Proxy::DoResolveSubresource(
