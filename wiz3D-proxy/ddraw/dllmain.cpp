@@ -445,22 +445,25 @@ static void LoadWrapper(void)
         Log("FAIL: InitializeExchangeServer not found in wrapper\n");
     }
 
-    // Diagnostic: log the BaseProfile.xml match result. DX7 (ddraw) wrapper
-    // has its own minimal local gInfo, so we query S3DWrapperD3D9 which has
-    // S3DAPI. See wiz3D-proxy/d3d8/dllmain.cpp for the same rationale.
+    // Diagnostic: log per-source profile match flags (base/community/user).
+    // DX7 (ddraw) wrapper has its own minimal local gInfo, so we query
+    // S3DWrapperD3D9 which has S3DAPI. See wiz3D-proxy/d3d8/dllmain.cpp
+    // for the same rationale.
     HMODULE hWrap9 = LoadLibraryW(L"S3DWrapperD3D9.dll");
     if (hWrap9)
     {
-        typedef void (__stdcall *pfnGetProfile)(char*, size_t, int*);
+        typedef void (__stdcall *pfnGetProfile)(char*, size_t, int*, int*, int*);
         pfnGetProfile pGetProfile =
             (pfnGetProfile)GetProcAddress(hWrap9, "wiz3D_GetActiveProfileInfo");
         if (pGetProfile)
         {
             char profileName[260] = {};
-            int matched = 0;
-            pGetProfile(profileName, sizeof(profileName), &matched);
-            Log("ProfileLoad: ProfileName='%s' matched=%d\n",
-                matched ? profileName : "", matched);
+            int matchedBase = 0, matchedCommunity = 0, matchedUser = 0;
+            pGetProfile(profileName, sizeof(profileName), &matchedBase, &matchedCommunity, &matchedUser);
+            int anyMatched = matchedBase || matchedCommunity || matchedUser;
+            Log("ProfileLoad: ProfileName='%s' base=%d community=%d user=%d\n",
+                anyMatched ? profileName : "",
+                matchedBase, matchedCommunity, matchedUser);
         }
         // No FreeLibrary — DDraw wrapper will pull it in via Direct3DCreate9.
     }

@@ -1360,16 +1360,21 @@ void D3DDeviceWrapper::ProcessCB()
 		if (s_processCBCount == 0)
 		{
 			// One-shot profile diagnostic: dump the profile S3DAPI matched.
-			// gInfo.bProfileMatched is true ONLY when ReadProfileRouterType
-			// matched our exe to a real <Profile> entry in BaseProfile.xml
-			// (or Community/User XML). When false, gInfo.ProfileName holds
-			// the exe-name fallback ("bioshock" from Bioshock.exe), which
-			// would be confusing if we logged it as a real match. So we
-			// log ProfileName='' in the not-matched case, and the matched
-			// name otherwise — distinguishing the two unambiguously.
-			DDILog("ProfileLoad: ProfileName='%ls' matched=%d AppName='%ls' AppFile='%ls'\n",
-				gInfo.bProfileMatched ? gInfo.ProfileName : L"",
-				(int)gInfo.bProfileMatched,
+			// Per-source flags distinguish where the match came from:
+			//   * base=1     → matched in BaseProfile.xml (iZ3D-shipped game list)
+			//   * community=1→ matched in CommunityProfile.xml (only checked
+			//                  if Base didn't match — community fixes go here)
+			//   * user=1     → matched in UserProfile.xml (always checked,
+			//                  user-local overrides; can layer on top of Base)
+			// When all three are 0, ProfileName holds the exe-name fallback
+			// (Bioshock.exe → "bioshock"), which would be confusing to log
+			// as a real match — so we show ProfileName='' in that case.
+			bool anyMatched = gInfo.bMatchedInBase || gInfo.bMatchedInCommunity || gInfo.bMatchedInUser;
+			DDILog("ProfileLoad: ProfileName='%ls' base=%d community=%d user=%d AppName='%ls' AppFile='%ls'\n",
+				anyMatched ? gInfo.ProfileName : L"",
+				(int)gInfo.bMatchedInBase,
+				(int)gInfo.bMatchedInCommunity,
+				(int)gInfo.bMatchedInUser,
 				gInfo.ApplicationName,
 				gInfo.ApplicationFileName);
 		}

@@ -33,11 +33,16 @@ void __stdcall RestoreCreatingStereoResourcesMode()
 // Diagnostic export: returns the active profile state to proxy callers.
 // Used by wiz3D-proxy/{d3d8, d3d9, ddraw} after wrapper init to log a
 // single ProfileLoad: line into wiz3D_proxy.log. ANSI out-buffer (proxy
-// log format is ANSI). outMatched is 1 only on a real XML profile match
-// (BaseProfile / Community / User XML), 0 if the exe-name fallback fired.
+// log format is ANSI). Per-source flags so the log can show whether the
+// match came from BaseProfile.xml, CommunityProfile.xml, UserProfile.xml,
+// or none (all three 0 means the exe-name fallback fired). User profile
+// flag can be true ALONGSIDE Base/Community — User overrides are layered
+// on top of any matched base profile.
 extern "C" __declspec(dllexport)
 void __stdcall wiz3D_GetActiveProfileInfo(char* outName, size_t outNameSize,
-                                          int* outMatched)
+                                          int* outBaseMatched,
+                                          int* outCommunityMatched,
+                                          int* outUserMatched)
 {
 	if (outName && outNameSize > 0)
 	{
@@ -47,8 +52,9 @@ void __stdcall wiz3D_GetActiveProfileInfo(char* outName, size_t outNameSize,
 			outName, (int)outNameSize, NULL, NULL);
 		outName[outNameSize - 1] = '\0';
 	}
-	if (outMatched)
-		*outMatched = gInfo.bProfileMatched ? 1 : 0;
+	if (outBaseMatched)      *outBaseMatched      = gInfo.bMatchedInBase      ? 1 : 0;
+	if (outCommunityMatched) *outCommunityMatched = gInfo.bMatchedInCommunity ? 1 : 0;
+	if (outUserMatched)      *outUserMatched      = gInfo.bMatchedInUser      ? 1 : 0;
 }
 
 BOOL IsVistaSP1()

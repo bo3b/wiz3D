@@ -249,14 +249,20 @@ public:
 	bool	 	SpanModeOn;
 	bool		WizardWasShown;
 	UINT64		EID;
-	// Diagnostic: true only if ReadProfileRouterType matched our exe to a
-	// real <Profile><File Name="..."/></Profile> entry in BaseProfile.xml /
-	// CommunityProfile.xml / UserProfile.xml. Stays false when ProfileName
-	// gets set via the exe-name fallback in ReadProfilesRouterType. Used by
-	// per-wrapper startup diagnostics so logs can show ProfileName='' when
-	// no profile was actually matched (distinguishing a real "Bioshock"
-	// profile load from the fallback "bioshock" derived from Bioshock.exe).
-	bool		bProfileMatched;
+	// Diagnostic: per-source flags for which profile XML(s) matched our
+	// exe to a real <Profile><File Name="..."/></Profile> entry. All three
+	// stay false when ProfileName gets set via the exe-name fallback in
+	// ReadProfilesRouterType. Used by per-wrapper startup diagnostics so
+	// logs can distinguish:
+	//   * Real BaseProfile.xml match (the iZ3D-shipped game list)
+	//   * Community profile match (user-contributed CommunityProfile.xml,
+	//     only attempted if Base didn't match)
+	//   * User profile match (UserProfile.xml in current-user appdata,
+	//     always attempted and can override Base/Community)
+	// "Matched" overall = bMatchedInBase || bMatchedInCommunity || bMatchedInUser.
+	bool		bMatchedInBase;
+	bool		bMatchedInCommunity;
+	bool		bMatchedInUser;
 
 	// API
 	DWORD		RenderTargetCreationMode;	// 0 - mono, 1 - stereo, 2 - auto
@@ -421,7 +427,9 @@ public:
 		LaserSightYCoordinate = 0.5f;
 		// Wizard variables
 		WizardWasShown	= false;
-		bProfileMatched = false;  // flipped true inside ReadProfileRouterType on real XML match
+		bMatchedInBase      = false;  // flipped true in ReadProfilesRouterType on real BaseProfile.xml match
+		bMatchedInCommunity = false;  // flipped true when CommunityProfile.xml match (only attempted if Base didn't)
+		bMatchedInUser      = false;  // flipped true when UserProfile.xml match (always attempted; can override Base)
 
 		_tcscpy_s<40>(Language, _T("English") );
 

@@ -270,7 +270,12 @@ bool ReadConfigRouterType()
 	return true;
 }
 
-void ReadProfileRouterType(TCHAR* szApplicationFileName, TCHAR* szProfilesFileName, TiXmlDocument* &doc, TiXmlNode* &profileNode, bool bCreate)
+// profileSource: 0=Base, 1=Community, 2=User. Used to set the right
+// gInfo.bMatchedIn* flag when a real <File> match is found, so per-wrapper
+// startup diagnostics can show which XML the active profile came from
+// (and so authors of community / user profile fixes can confirm their
+// XML is being picked up).
+void ReadProfileRouterType(TCHAR* szApplicationFileName, TCHAR* szProfilesFileName, TiXmlDocument* &doc, TiXmlNode* &profileNode, bool bCreate, int profileSource = 0)
 {
 	std::string CharProfilesFileName = common::utils::to_multibyte(szProfilesFileName);
 	doc = DNew TiXmlDocument( CharProfilesFileName.c_str() );
@@ -379,12 +384,15 @@ void ReadProfileRouterType(TCHAR* szApplicationFileName, TCHAR* szProfilesFileNa
 		}
 		if (FileFound)
 		{
-			// Real XML profile match (any of BaseProfile / Community /
-			// UserProfile). Distinguishes this case from the exe-name
-			// fallback at the bottom of ReadProfilesRouterType so
-			// startup diagnostics can report ProfileName='' when nothing
-			// was actually matched.
-			gInfo.bProfileMatched = true;
+			// Real XML profile match. Set per-source flag so diagnostics
+			// can distinguish Base / Community / User matches separately,
+			// not just "matched or not."
+			switch (profileSource)
+			{
+			case 1:  gInfo.bMatchedInCommunity = true; break;
+			case 2:  gInfo.bMatchedInUser      = true; break;
+			default: gInfo.bMatchedInBase      = true; break;
+			}
 			if (bChangeProfileName)
 			{
 				_tcscpy_s<MAX_PATH>(gInfo.ProfileName,
@@ -425,13 +433,13 @@ void ReadProfilesRouterType()
 	{
 		_stprintf_s<MAX_PATH>(szProfilesFileName, _T("%s\\BaseProfile.xml"), szPath);
 		DEBUG_MESSAGE(_T("Base profile:\n"));
-		ReadProfileRouterType(szApplicationFileName, szProfilesFileName, g_docSystemProfiles, g_nodeSystemProfile, false);
+		ReadProfileRouterType(szApplicationFileName, szProfilesFileName, g_docSystemProfiles, g_nodeSystemProfile, false, 0 /*Base*/);
 
 		if (g_nodeSystemProfile == NULL)
 		{
 			_stprintf_s<MAX_PATH>(szProfilesFileName, _T("%s\\CommunityProfile.xml"), szPath);
 			DEBUG_MESSAGE(_T("Community profile:\n"));
-			ReadProfileRouterType(szApplicationFileName, szProfilesFileName, g_docCommunityProfiles, g_nodeCommunityProfile, false);
+			ReadProfileRouterType(szApplicationFileName, szProfilesFileName, g_docCommunityProfiles, g_nodeCommunityProfile, false, 1 /*Community*/);
 		}
 	}
 
@@ -439,7 +447,7 @@ void ReadProfilesRouterType()
 	{
 		PathAppend(szPath, _T("UserProfile.xml") );
 		DEBUG_MESSAGE(_T("User profile:\n"));
-		ReadProfileRouterType(szApplicationFileName, szPath, g_docUserProfiles, g_nodeUserProfile, true);
+		ReadProfileRouterType(szApplicationFileName, szPath, g_docUserProfiles, g_nodeUserProfile, true, 2 /*User*/);
 	}
 
 	if (gInfo.ProfileName[0] == '\0')

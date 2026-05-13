@@ -393,30 +393,31 @@ static void LoadWrapper(void)
         Log("FAIL: InitializeExchangeServer not found in wrapper\n");
     }
 
-    // Diagnostic: log the BaseProfile.xml match result. DX8 wrapper has its
-    // own minimal local gInfo (no ProfileName), so we query S3DWrapperD3D9
-    // which DOES have S3DAPI/ProfileName. DX8 wrappers later call
-    // Direct3DCreate9 anyway so loading S3DWrapperD3D9.dll explicitly here
-    // only changes the timing — S3DAPI's profile read fires sooner. Used
-    // the DLL-search path the system already has (game folder first).
+    // Diagnostic: log per-source profile match flags (base/community/user).
+    // DX8 wrapper has its own minimal local gInfo (no ProfileName), so we
+    // query S3DWrapperD3D9 which has S3DAPI/ProfileName. DX8 wrappers later
+    // call Direct3DCreate9 anyway so loading S3DWrapperD3D9.dll explicitly
+    // here only changes the timing — S3DAPI's profile read fires sooner.
+    // Uses the DLL-search path the system already has (game folder first).
     HMODULE hWrap9 = LoadLibraryW(L"S3DWrapperD3D9.dll");
     if (hWrap9)
     {
-        typedef void (__stdcall *pfnGetProfile)(char*, size_t, int*);
+        typedef void (__stdcall *pfnGetProfile)(char*, size_t, int*, int*, int*);
         pfnGetProfile pGetProfile =
             (pfnGetProfile)GetProcAddress(hWrap9, "wiz3D_GetActiveProfileInfo");
         if (pGetProfile)
         {
             char profileName[260] = {};
-            int matched = 0;
-            pGetProfile(profileName, sizeof(profileName), &matched);
-            Log("ProfileLoad: ProfileName='%s' matched=%d\n",
-                matched ? profileName : "", matched);
+            int matchedBase = 0, matchedCommunity = 0, matchedUser = 0;
+            pGetProfile(profileName, sizeof(profileName), &matchedBase, &matchedCommunity, &matchedUser);
+            int anyMatched = matchedBase || matchedCommunity || matchedUser;
+            Log("ProfileLoad: ProfileName='%s' base=%d community=%d user=%d\n",
+                anyMatched ? profileName : "",
+                matchedBase, matchedCommunity, matchedUser);
         }
         // intentionally do NOT FreeLibrary — the DX8 wrapper will pull it in
         // again via Direct3DCreate9 shortly, and dropping it here would just
-        // waste a load/unload cycle (refcount drops to zero, dll unloads,
-        // wrapper LoadLibrary reloads it).
+        // waste a load/unload cycle.
     }
     else
     {
