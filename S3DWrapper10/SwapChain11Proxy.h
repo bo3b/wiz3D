@@ -91,10 +91,12 @@ public:
     Device11Proxy*  GetParent()  const { return m_parent; }
 
 private:
-    // Shared body for Present / Present1 — fires the frame-end callback on
-    // the parent's immediate Context11Proxy before the real Present runs.
-    // Returns true if the callback ran (for stats), false if no context.
-    void OnPresentBoundary();
+    // Stage 4b.8: Present / Present1 split into pre + post hooks. Pre runs
+    // the right-eye replay over frame N's recorded command stream so both
+    // eyes' textures are populated before the real Present flips the BB.
+    // Post clears the recording vector and re-arms the hook for frame N+1.
+    void OnPresentBoundaryPre();
+    void OnPresentBoundaryPost();
 
     IDXGISwapChain*  m_real;     // owned (released in dtor)
     IDXGISwapChain1* m_real1;    // optional, owned, nullable

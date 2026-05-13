@@ -77,36 +77,51 @@ HRESULT STDMETHODCALLTYPE SwapChain11Proxy::GetDevice(REFIID riid, void** ppDevi
     return m_real->GetDevice(riid, ppDevice);
 }
 
-void SwapChain11Proxy::OnPresentBoundary()
+void SwapChain11Proxy::OnPresentBoundaryPre()
 {
-    // Frame boundary trigger. Stage 4b.4: signal to the context that frame
-    // boundaries actually fire here, so its state-setting methods may
-    // safely record themselves (the recording vector will be flushed each
-    // frame). For games whose swap chain bypasses us (factory two-call
-    // path), this never fires and the context's recording stays disabled.
-    //
-    // Stage 4b.8 will add the actual left-then-right replay sweep before
-    // forwarding to real Present; 4d will composite the doubled BB-RTVs
-    // into the swap-chain BB. For now we just clear and signal active.
+    // Stage 4b.8: PRE-PRESENT sweep. The game has already issued frame N's
+    // state setters and draws — those ran for the left eye via the direct
+    // passthrough in each proxy method. Now re-issue the recorded command
+    // stream with m_activeEye=Right so OMSet/Clear/Update/Copy/Resolve
+    // helpers bind right-eye real handles. After this, the left-eye and
+    // right-eye textures both hold their per-eye images, ready for the
+    // 4d SBS composite to flatten into the swap-chain backbuffer.
     if (!m_parent) return;
     Context11Proxy* ctx = m_parent->GetContextProxy();
     if (!ctx) return;
-    ctx->SetPresentHookActive(true);
+    if (ctx->IsPresentHookActive())
+        ctx->ReplayFrameCommands(Context11Proxy::Eye::Right);
+}
+
+void SwapChain11Proxy::OnPresentBoundaryPost()
+{
+    // Stage 4b.8: POST-PRESENT housekeeping. Real Present has flipped the
+    // BB; clear the recording vector and arm it for frame N+1. We arm
+    // unconditionally (not just on the first call) so a context that's
+    // been ClearState()'d still gets recording.
+    if (!m_parent) return;
+    Context11Proxy* ctx = m_parent->GetContextProxy();
+    if (!ctx) return;
     ctx->ClearFrameCommands();
+    ctx->SetPresentHookActive(true);
 }
 
 HRESULT STDMETHODCALLTYPE SwapChain11Proxy::Present(UINT SyncInterval, UINT Flags)
 {
-    OnPresentBoundary();
-    return m_real->Present(SyncInterval, Flags);
+    OnPresentBoundaryPre();
+    HRESULT hr = m_real->Present(SyncInterval, Flags);
+    OnPresentBoundaryPost();
+    return hr;
 }
 
 HRESULT STDMETHODCALLTYPE SwapChain11Proxy::Present1(
     UINT SyncInterval, UINT PresentFlags, const DXGI_PRESENT_PARAMETERS* pPresentParameters)
 {
-    OnPresentBoundary();
-    return m_real1 ? m_real1->Present1(SyncInterval, PresentFlags, pPresentParameters)
-                   : E_NOINTERFACE;
+    OnPresentBoundaryPre();
+    HRESULT hr = m_real1 ? m_real1->Present1(SyncInterval, PresentFlags, pPresentParameters)
+                          : E_NOINTERFACE;
+    OnPresentBoundaryPost();
+    return hr;
 }
 
 } // namespace wiz3d
