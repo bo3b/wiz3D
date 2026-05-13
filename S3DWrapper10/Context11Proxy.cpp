@@ -188,17 +188,131 @@ RECORD_SHADER_SET(DS, ID3D11DomainShader)
 RECORD_SHADER_SET(CS, ID3D11ComputeShader)
 #undef RECORD_SHADER_SET
 
+// Stage 4b.7: record-and-replay for draw/dispatch. Pure POD captures for the
+// non-Indirect variants; Indirect/Dispatch-with-buffer use ComRefHolder to
+// keep the arg buffer alive across replay. The closure body is the same shape
+// as the original passthrough — no Do* helpers needed since draws don't
+// reference our wrapped resources directly (the bound RTV/VB/IB/CB are picked
+// up from the bound pipeline state, which the *Set* closures already replay
+// with eye selection).
+
 void STDMETHODCALLTYPE Context11Proxy::Draw(UINT VertexCount, UINT StartVertexLocation)
 {
-    // Stage 4b.1: pure passthrough. Recording wires in 4b.2 once we have a
-    // frame-boundary trigger (Present hook) to flush the recording at.
     m_real->Draw(VertexCount, StartVertexLocation);
+    if (!m_presentHookActive) return;
+    m_frameCommands.emplace_back(
+        [this, VertexCount, StartVertexLocation]()
+        {
+            m_real->Draw(VertexCount, StartVertexLocation);
+        });
 }
 
-void STDMETHODCALLTYPE Context11Proxy::DrawIndexed(UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation)
+void STDMETHODCALLTYPE Context11Proxy::DrawIndexed(
+    UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation)
 {
-    // Stage 4b.1: pure passthrough — see Draw comment.
     m_real->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
+    if (!m_presentHookActive) return;
+    m_frameCommands.emplace_back(
+        [this, IndexCount, StartIndexLocation, BaseVertexLocation]()
+        {
+            m_real->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::DrawInstanced(
+    UINT VertexCountPerInstance, UINT InstanceCount,
+    UINT StartVertexLocation, UINT StartInstanceLocation)
+{
+    m_real->DrawInstanced(VertexCountPerInstance, InstanceCount,
+                          StartVertexLocation, StartInstanceLocation);
+    if (!m_presentHookActive) return;
+    m_frameCommands.emplace_back(
+        [this, VertexCountPerInstance, InstanceCount,
+         StartVertexLocation, StartInstanceLocation]()
+        {
+            m_real->DrawInstanced(VertexCountPerInstance, InstanceCount,
+                                   StartVertexLocation, StartInstanceLocation);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::DrawIndexedInstanced(
+    UINT IndexCountPerInstance, UINT InstanceCount, UINT StartIndexLocation,
+    INT BaseVertexLocation, UINT StartInstanceLocation)
+{
+    m_real->DrawIndexedInstanced(IndexCountPerInstance, InstanceCount,
+                                  StartIndexLocation, BaseVertexLocation,
+                                  StartInstanceLocation);
+    if (!m_presentHookActive) return;
+    m_frameCommands.emplace_back(
+        [this, IndexCountPerInstance, InstanceCount, StartIndexLocation,
+         BaseVertexLocation, StartInstanceLocation]()
+        {
+            m_real->DrawIndexedInstanced(
+                IndexCountPerInstance, InstanceCount, StartIndexLocation,
+                BaseVertexLocation, StartInstanceLocation);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::DrawAuto()
+{
+    m_real->DrawAuto();
+    if (!m_presentHookActive) return;
+    m_frameCommands.emplace_back(
+        [this]() { m_real->DrawAuto(); });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::DrawInstancedIndirect(
+    ID3D11Buffer* pBufferForArgs, UINT AlignedByteOffsetForArgs)
+{
+    m_real->DrawInstancedIndirect(pBufferForArgs, AlignedByteOffsetForArgs);
+    if (!m_presentHookActive) return;
+    ComRefHolder bufRef(pBufferForArgs);
+    m_frameCommands.emplace_back(
+        [this, bufRef, AlignedByteOffsetForArgs]()
+        {
+            m_real->DrawInstancedIndirect(
+                static_cast<ID3D11Buffer*>(bufRef.p), AlignedByteOffsetForArgs);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::DrawIndexedInstancedIndirect(
+    ID3D11Buffer* pBufferForArgs, UINT AlignedByteOffsetForArgs)
+{
+    m_real->DrawIndexedInstancedIndirect(pBufferForArgs, AlignedByteOffsetForArgs);
+    if (!m_presentHookActive) return;
+    ComRefHolder bufRef(pBufferForArgs);
+    m_frameCommands.emplace_back(
+        [this, bufRef, AlignedByteOffsetForArgs]()
+        {
+            m_real->DrawIndexedInstancedIndirect(
+                static_cast<ID3D11Buffer*>(bufRef.p), AlignedByteOffsetForArgs);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::Dispatch(
+    UINT ThreadGroupCountX, UINT ThreadGroupCountY, UINT ThreadGroupCountZ)
+{
+    m_real->Dispatch(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
+    if (!m_presentHookActive) return;
+    m_frameCommands.emplace_back(
+        [this, ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ]()
+        {
+            m_real->Dispatch(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::DispatchIndirect(
+    ID3D11Buffer* pBufferForArgs, UINT AlignedByteOffsetForArgs)
+{
+    m_real->DispatchIndirect(pBufferForArgs, AlignedByteOffsetForArgs);
+    if (!m_presentHookActive) return;
+    ComRefHolder bufRef(pBufferForArgs);
+    m_frameCommands.emplace_back(
+        [this, bufRef, AlignedByteOffsetForArgs]()
+        {
+            m_real->DispatchIndirect(
+                static_cast<ID3D11Buffer*>(bufRef.p), AlignedByteOffsetForArgs);
+        });
 }
 
 HRESULT STDMETHODCALLTYPE Context11Proxy::QueryInterface(REFIID riid, void** ppvObj)
