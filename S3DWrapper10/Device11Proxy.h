@@ -85,7 +85,10 @@ public:
     UINT    STDMETHODCALLTYPE GetExceptionMode() override                                                                                                                                    { return m_real->GetExceptionMode(); }
 
     // Accessor for 1b-iii / 1b-iv to plumb through state mutators.
-    ID3D11Device* GetReal() const { return m_real; }
+    ID3D11Device*   GetReal()         const { return m_real;     }
+    // Stage 4b.2: SwapChain11Proxy::Present needs the immediate context to
+    // call its frame-boundary hook (ClearFrameCommands / future replay).
+    Context11Proxy* GetContextProxy() const { return m_ctxProxy; }
 
     // Logical (one-eye) backbuffer size, set by DXGI swap-chain creation /
     // ResizeBuffers. Used by 1b-iv's OMSetRenderTargets viewport routing.

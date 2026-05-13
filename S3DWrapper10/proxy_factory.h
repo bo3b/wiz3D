@@ -26,6 +26,7 @@ EXTERN_C const GUID IID_wiz3D_Device11Proxy;
 EXTERN_C const GUID IID_wiz3D_Texture2D11Proxy;
 EXTERN_C const GUID IID_wiz3D_RTV11Proxy;
 EXTERN_C const GUID IID_wiz3D_DSV11Proxy;
+EXTERN_C const GUID IID_wiz3D_SwapChain11Proxy;
 
 namespace wiz3d
 {
