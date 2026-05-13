@@ -321,6 +321,16 @@ public:
 	// hook is needed for stereo output; either move to vtable hot-patching
 	// or game-by-game enable.
 	bool		UseCOMWrapSwapChain;
+	// Option B (Stage 4b.8 gate): drives the per-eye Replay sweep in
+	// SwapChain11Proxy::Present(Pre). When false the Pre-hook is a no-op
+	// so the game runs as pure passthrough (Post-hook still clears the
+	// recording so the recorder doesn't accumulate). Off by default
+	// because the replay re-issues recorded handles that can dangle
+	// across ResizeBuffers / SetFullscreenState (Max Payne 3 fullscreen
+	// toggle crash) and can't help yet — there's no per-eye CB math
+	// (4c) and no SBS composite (4d) for the right-eye output to be
+	// seen. Flip true once 4c+4d are in place.
+	bool		UseCOMWrapReplay;
 	bool		CollectDebugInformation;
 	DWORD       ScreenshotType;	
 	bool		FixVistaSP1ResetBug;
@@ -430,6 +440,7 @@ public:
 		RenderTargetCreationMode = 2;
 		UseCOMWrap = true;	// Option B default — see field comment.
 		UseCOMWrapSwapChain = false;  // Stage 4b.3 default OFF until 4d; see field comment.
+		UseCOMWrapReplay = false;     // Stage 4b.8 default OFF until 4c+4d ready.
 		DrawType = 2;
 		DeviceMode = DEVICE_MODE_AUTO;
 		MultiWindowsMode = MULTI_WINDOWS_MODE_AUTO;
