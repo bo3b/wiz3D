@@ -129,10 +129,45 @@ DECLARE_FWD(OpenAdapter10);
 DECLARE_FWD(OpenAdapter10_2);
 
 // ---------------------------------------------------------------------------
-// Special: D3D11CreateDevice / D3D11CreateDeviceAndSwapChain — Stage 1 logs
-// + passes through. Stage 2 will route through S3DWrapperD3D10's exported
-// entry point so the returned device/swap chain can be wrapped for stereo.
+// Special: D3D11CreateDevice / D3D11CreateDeviceAndSwapChain — wraps the
+// returned device + immediate context in wiz3D's Option B Device11Proxy /
+// Context11Proxy via the S3DWrapperD3D10-exported entry point. The proxy
+// presents the same COM identity to the game but lives above the runtime,
+// avoiding the COM-lifecycle invariants that the DDI-hook approach can't
+// satisfy on Win11 D3D11.10. If the wrapper DLL isn't loadable or the
+// export is missing, we pass through unwrapped (mono fallback).
 // ---------------------------------------------------------------------------
+typedef void (*PFN_wiz3D_WrapD3D11DeviceAndContext)(void**, void**);
+static PFN_wiz3D_WrapD3D11DeviceAndContext g_pfn_wiz3D_WrapD3D11 = nullptr;
+static bool                                g_pfn_wiz3D_WrapD3D11_resolved = false;
+
+static void MaybeWrapDeviceAndContext(void** ppDevice, void** ppContext)
+{
+    if (!ppDevice || !*ppDevice) return;
+    if (!g_pfn_wiz3D_WrapD3D11_resolved)
+    {
+        g_pfn_wiz3D_WrapD3D11_resolved = true;
+        // Resolve from S3DWrapperD3D10.dll loaded in this process. It's loaded
+        // earlier in the proxy startup path (LoadLibrary in DllMain). If the
+        // wrapper isn't present, GetModuleHandle returns NULL — game proceeds
+        // unwrapped (mono).
+        HMODULE hWrap = GetModuleHandleW(L"S3DWrapperD3D10.dll");
+        if (hWrap)
+        {
+            g_pfn_wiz3D_WrapD3D11 = (PFN_wiz3D_WrapD3D11DeviceAndContext)
+                GetProcAddress(hWrap, "wiz3D_WrapD3D11DeviceAndContext");
+            Log("  wiz3D Option B: wiz3D_WrapD3D11DeviceAndContext=%p (hWrap=%p)\n",
+                (void*)g_pfn_wiz3D_WrapD3D11, (void*)hWrap);
+        }
+        else
+        {
+            Log("  wiz3D Option B: S3DWrapperD3D10.dll not loaded — passing through unwrapped\n");
+        }
+    }
+    if (g_pfn_wiz3D_WrapD3D11)
+        g_pfn_wiz3D_WrapD3D11(ppDevice, ppContext);
+}
+
 typedef HRESULT(WINAPI* PFN_D3D11CreateDevice)(
     void*, int, HMODULE, UINT, const void*, UINT, UINT,
     void**, void*, void**);
@@ -149,6 +184,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDevice(
                    FeatureLevels, SDKVersion, ppDevice, pFeatureLevel, ppImmediateContext);
     Log("  D3D11CreateDevice returned 0x%08lX, *ppDevice=%p\n",
         hr, ppDevice ? *ppDevice : nullptr);
+    if (SUCCEEDED(hr)) MaybeWrapDeviceAndContext(ppDevice, ppImmediateContext);
     return hr;
 }
 
@@ -171,6 +207,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
                    ppDevice, pFeatureLevel, ppImmediateContext);
     Log("  D3D11CreateDeviceAndSwapChain returned 0x%08lX, *ppSwapChain=%p, *ppDevice=%p\n",
         hr, ppSwapChain ? *ppSwapChain : nullptr, ppDevice ? *ppDevice : nullptr);
+    if (SUCCEEDED(hr)) MaybeWrapDeviceAndContext(ppDevice, ppImmediateContext);
     return hr;
 }
 

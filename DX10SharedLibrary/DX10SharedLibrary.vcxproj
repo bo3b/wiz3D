@@ -212,6 +212,10 @@
   <ItemGroup>
     <ClCompile Include="..\S3DWrapper10\AdapterFunctions.cpp" />
     <ClCompile Include="..\S3DWrapper10\DeviceWrapperRegistry.cpp" />
+    <ClCompile Include="..\S3DWrapper10\Device11Proxy.cpp" />
+    <ClCompile Include="..\S3DWrapper10\Context11Proxy.cpp" />
+    <ClCompile Include="..\S3DWrapper10\DXGIDeviceProxy.cpp" />
+    <ClCompile Include="..\S3DWrapper10\proxy_factory.cpp" />
     <ClCompile Include="..\S3DWrapper10\AutoFocus.cpp" />
     <ClCompile Include="..\S3DWrapper10\Commands\CreateResourceBase.cpp" />
     <ClCompile Include="..\S3DWrapper10\Commands\DrawBase.cpp" />
