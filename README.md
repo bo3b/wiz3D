@@ -342,7 +342,7 @@ Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'D
 | Two Worlds | DX9 | x86 | ✓ | Untested |  |
 | Unreal Tournament 3 | DX9 | x86 | ✓ | Untested |  |
 | Valkyria Chronicles | DX9 | x86/x64 | ✕ | ⚠️ Partial | Needs UI, reflections and shadow shader fix |
-| Vanquish | DX9 | x86 | ✕ | ❌ Not Working | Crashes on startup. |
+| Vanquish | DX9 | x86 | ✕ | ✅ Mostly Working | Needs crosshair shader fix. |
 | Virtua Tennis 2009 | DX9 | x86 | ✓ | Untested |  |
 | Virtua Tennis 4 | DX9 | x86 | ✕ | ✅ Working | Might need shader fix |
 | Wallace & Gromit's Grand Adventures | DX9 | x86 | ✓ | Untested | Episodes 1-4 |
