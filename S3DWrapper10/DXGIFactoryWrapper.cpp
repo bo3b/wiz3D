@@ -325,19 +325,33 @@ STDMETHODIMP CreateSwapChain( IDXGIFactory* This, IUnknown *pDevice, DXGI_SWAP_C
 	// Device11Proxy via the private IID and wrap the swap chain post-hoc.
 	// Same gates as the D3D11CreateDeviceAndSwapChain export path: the
 	// wiz3D_WrapSwapChain helper checks UseCOMWrapSwapChain internally.
+	//
+	// pDevice can be either our Device11Proxy or our DXGIDeviceProxy (the
+	// runtime usually hands the latter to factory->CreateSwapChain). QI for
+	// ID3D11Device first to normalise: DXGIDeviceProxy::QI routes that to
+	// the parent Device11Proxy, and Device11Proxy::QI returns itself. Then
+	// QI for the private IID to confirm it's actually ours (not a real
+	// ID3D11Device, which would mean Option B isn't active for this device).
 	if (SUCCEEDED(hResult) && ppSwapChain && *ppSwapChain && pDevice)
 	{
-		IUnknown* probe = NULL;
-		HRESULT qihr = pDevice->QueryInterface(IID_wiz3D_Device11Proxy,
-		                                        reinterpret_cast<void**>(&probe));
-		if (SUCCEEDED(qihr) && probe)
+		ID3D11Device* asD3D11 = NULL;
+		HRESULT qiHr = pDevice->QueryInterface(__uuidof(ID3D11Device),
+		                                        reinterpret_cast<void**>(&asD3D11));
+		if (SUCCEEDED(qiHr) && asD3D11)
 		{
-			probe->Release();  // drop QI ref — we only need identity
-			WrapperLog("  Option B: pDevice is wiz3D Device11Proxy=%p — invoking wiz3D_WrapSwapChain\n", probe);
-			void* scOut = static_cast<void*>(*ppSwapChain);
-			wiz3D_WrapSwapChain(&scOut, probe);
-			*ppSwapChain = static_cast<IDXGISwapChain*>(scOut);
-			WrapperLog("  Option B: wrapped *ppSwapChain=%p\n", *ppSwapChain);
+			IUnknown* probe = NULL;
+			HRESULT pHr = asD3D11->QueryInterface(IID_wiz3D_Device11Proxy,
+			                                       reinterpret_cast<void**>(&probe));
+			if (SUCCEEDED(pHr) && probe)
+			{
+				probe->Release();  // drop QI ref — we only need identity
+				WrapperLog("  Option B: pDevice routed to wiz3D Device11Proxy=%p — invoking wiz3D_WrapSwapChain\n", probe);
+				void* scOut = static_cast<void*>(*ppSwapChain);
+				wiz3D_WrapSwapChain(&scOut, probe);
+				*ppSwapChain = static_cast<IDXGISwapChain*>(scOut);
+				WrapperLog("  Option B: wrapped *ppSwapChain=%p\n", *ppSwapChain);
+			}
+			asD3D11->Release();
 		}
 	}
 

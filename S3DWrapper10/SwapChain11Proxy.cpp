@@ -193,6 +193,20 @@ HRESULT SwapChain11Proxy::EnsureStereoBackBuffer()
     // machinery (CreateRenderTargetView unwrap + DoOMSet eye routing) sees
     // it as a normal stereo-doubled texture. m_wrappedBB is a strong ref
     // we hold for the lifetime of the swap chain; GetBuffer just AddRefs.
+    //
+    // Texture2D11Proxy's ctor takes ownership of the refs passed in (its
+    // dtor calls Release on m_realLeft/m_realRight) — so before handing
+    // ours over we AddRef once more, so SwapChain still holds an
+    // independent ref via m_leftBB / m_rightBB. Without this AddRef both
+    // SwapChain and the proxy think they own the same single ref, and
+    // ReleaseStereoBackBuffer's wrappedBB->Release() + leftBB->Release()
+    // chain ends up double-releasing the texture (BioShock + DA2 crashed
+    // on the second GetBuffer call when EnsureStereoBackBuffer
+    // re-entered after a ResizeBuffers — the cached m_leftBB pointer
+    // pointed at freed memory and the d3d11 runtime crashed inside
+    // CreateShaderResourceView / OMSetRenderTargets).
+    m_leftBB->AddRef();
+    m_rightBB->AddRef();
     m_wrappedBB = new Texture2D11Proxy(m_leftBB, m_rightBB, m_parent);
 
     // RTV on the REAL swap-chain back buffer — used as the composite
@@ -473,8 +487,12 @@ HRESULT STDMETHODCALLTYPE SwapChain11Proxy::ResizeBuffers(
     // The wrapped Texture2D11Proxy from GetBuffer is dropped — game will
     // call GetBuffer again post-resize and we'll allocate new siblings
     // matching the new BB dims/format.
+    DDILog("SwapChain11Proxy::ResizeBuffers: count=%u %ux%u fmt=%d flags=0x%X\n",
+           BufferCount, Width, Height, (int)NewFormat, SwapChainFlags);
     ReleaseStereoBackBuffer();
-    return m_real->ResizeBuffers(BufferCount, Width, Height, NewFormat, SwapChainFlags);
+    HRESULT hr = m_real->ResizeBuffers(BufferCount, Width, Height, NewFormat, SwapChainFlags);
+    DDILog("SwapChain11Proxy::ResizeBuffers -> hr=0x%08lX\n", hr);
+    return hr;
 }
 
 HRESULT STDMETHODCALLTYPE SwapChain11Proxy::SetFullscreenState(BOOL Fullscreen, IDXGIOutput* pTarget)
@@ -482,12 +500,16 @@ HRESULT STDMETHODCALLTYPE SwapChain11Proxy::SetFullscreenState(BOOL Fullscreen, 
     // Stage 4b.8 fix: same logic as ResizeBuffers — fullscreen transitions
     // can implicitly resize the swap chain and invalidate BB-derived
     // handles. Clear the recording so replay can't re-issue stale state.
+    DDILog("SwapChain11Proxy::SetFullscreenState: fullscreen=%d target=%p\n",
+           (int)Fullscreen, pTarget);
     if (m_parent)
     {
         if (Context11Proxy* ctx = m_parent->GetContextProxy())
             ctx->ClearFrameCommands();
     }
-    return m_real->SetFullscreenState(Fullscreen, pTarget);
+    HRESULT hr = m_real->SetFullscreenState(Fullscreen, pTarget);
+    DDILog("SwapChain11Proxy::SetFullscreenState -> hr=0x%08lX\n", hr);
+    return hr;
 }
 
 HRESULT STDMETHODCALLTYPE SwapChain11Proxy::Present(UINT SyncInterval, UINT Flags)
