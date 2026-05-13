@@ -96,6 +96,98 @@ RECORD_SRV_SET(DS)
 RECORD_SRV_SET(CS)
 #undef RECORD_SRV_SET
 
+// *SetSamplers — same shape as *SetShaderResources but with ID3D11SamplerState.
+#define RECORD_SAMPLER_SET(STAGE_PREFIX)                                                    \
+void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetSamplers(                           \
+    UINT StartSlot, UINT NumSamplers, ID3D11SamplerState* const* ppSamplers)                \
+{                                                                                           \
+    m_real->STAGE_PREFIX##SetSamplers(StartSlot, NumSamplers, ppSamplers);                  \
+    if (!m_presentHookActive) return;                                                       \
+    std::vector<ComRefHolder> refs;                                                         \
+    refs.reserve(NumSamplers);                                                              \
+    for (UINT i = 0; i < NumSamplers; ++i)                                                  \
+        refs.emplace_back(ppSamplers ? ppSamplers[i] : nullptr);                            \
+    m_frameCommands.emplace_back(                                                           \
+        [this, StartSlot, NumSamplers, refs]() {                                            \
+            ID3D11SamplerState* raw[kMaxUnwrapArray] = { 0 };                               \
+            UINT cap = NumSamplers <= kMaxUnwrapArray ? NumSamplers : kMaxUnwrapArray;      \
+            for (UINT i = 0; i < cap; ++i)                                                  \
+                raw[i] = static_cast<ID3D11SamplerState*>(refs[i].p);                       \
+            m_real->STAGE_PREFIX##SetSamplers(StartSlot, NumSamplers, raw);                 \
+        });                                                                                 \
+}
+RECORD_SAMPLER_SET(VS)
+RECORD_SAMPLER_SET(PS)
+RECORD_SAMPLER_SET(GS)
+RECORD_SAMPLER_SET(HS)
+RECORD_SAMPLER_SET(DS)
+RECORD_SAMPLER_SET(CS)
+#undef RECORD_SAMPLER_SET
+
+// *SetConstantBuffers — same shape with ID3D11Buffer. Stage 4c will modify
+// the closure body to apply per-eye CB writes (left-right view projection
+// matrix), but for 4b.4 it's straight passthrough record-and-replay.
+#define RECORD_CB_SET(STAGE_PREFIX)                                                         \
+void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetConstantBuffers(                    \
+    UINT StartSlot, UINT NumBuffers, ID3D11Buffer* const* ppConstantBuffers)                \
+{                                                                                           \
+    m_real->STAGE_PREFIX##SetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);     \
+    if (!m_presentHookActive) return;                                                       \
+    std::vector<ComRefHolder> refs;                                                         \
+    refs.reserve(NumBuffers);                                                               \
+    for (UINT i = 0; i < NumBuffers; ++i)                                                   \
+        refs.emplace_back(ppConstantBuffers ? ppConstantBuffers[i] : nullptr);              \
+    m_frameCommands.emplace_back(                                                           \
+        [this, StartSlot, NumBuffers, refs]() {                                             \
+            ID3D11Buffer* raw[kMaxUnwrapArray] = { 0 };                                     \
+            UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;        \
+            for (UINT i = 0; i < cap; ++i)                                                  \
+                raw[i] = static_cast<ID3D11Buffer*>(refs[i].p);                             \
+            m_real->STAGE_PREFIX##SetConstantBuffers(StartSlot, NumBuffers, raw);           \
+        });                                                                                 \
+}
+RECORD_CB_SET(VS)
+RECORD_CB_SET(PS)
+RECORD_CB_SET(GS)
+RECORD_CB_SET(HS)
+RECORD_CB_SET(DS)
+RECORD_CB_SET(CS)
+#undef RECORD_CB_SET
+
+// *SetShader — takes the stage-specific shader interface plus the
+// class-instance array. Class instances are rarely non-null (used for
+// dynamic shader linking) but the array is captured for fidelity.
+#define RECORD_SHADER_SET(STAGE_PREFIX, SHADER_TYPE)                                        \
+void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetShader(                             \
+    SHADER_TYPE* pShader, ID3D11ClassInstance* const* ppClassInstances, UINT NumClassInstances) \
+{                                                                                           \
+    m_real->STAGE_PREFIX##SetShader(pShader, ppClassInstances, NumClassInstances);          \
+    if (!m_presentHookActive) return;                                                       \
+    ComRefHolder shaderRef(pShader);                                                        \
+    std::vector<ComRefHolder> ciRefs;                                                       \
+    ciRefs.reserve(NumClassInstances);                                                      \
+    for (UINT i = 0; i < NumClassInstances; ++i)                                            \
+        ciRefs.emplace_back(ppClassInstances ? ppClassInstances[i] : nullptr);              \
+    m_frameCommands.emplace_back(                                                           \
+        [this, shaderRef, ciRefs, NumClassInstances]() {                                    \
+            ID3D11ClassInstance* raw[kMaxUnwrapArray] = { 0 };                              \
+            UINT cap = NumClassInstances <= kMaxUnwrapArray ? NumClassInstances : kMaxUnwrapArray; \
+            for (UINT i = 0; i < cap; ++i)                                                  \
+                raw[i] = static_cast<ID3D11ClassInstance*>(ciRefs[i].p);                    \
+            m_real->STAGE_PREFIX##SetShader(                                                \
+                static_cast<SHADER_TYPE*>(shaderRef.p),                                     \
+                ciRefs.empty() ? nullptr : raw,                                             \
+                NumClassInstances);                                                         \
+        });                                                                                 \
+}
+RECORD_SHADER_SET(VS, ID3D11VertexShader)
+RECORD_SHADER_SET(PS, ID3D11PixelShader)
+RECORD_SHADER_SET(GS, ID3D11GeometryShader)
+RECORD_SHADER_SET(HS, ID3D11HullShader)
+RECORD_SHADER_SET(DS, ID3D11DomainShader)
+RECORD_SHADER_SET(CS, ID3D11ComputeShader)
+#undef RECORD_SHADER_SET
+
 void STDMETHODCALLTYPE Context11Proxy::Draw(UINT VertexCount, UINT StartVertexLocation)
 {
     // Stage 4b.1: pure passthrough. Recording wires in 4b.2 once we have a
@@ -375,6 +467,203 @@ void STDMETHODCALLTYPE Context11Proxy::ClearDepthStencilView(
 {
     DSV11Proxy* dsv = TryUnwrapDSV(pDepthStencilView);
     m_real->ClearDepthStencilView(dsv ? dsv->GetReal() : pDepthStencilView, ClearFlags, Depth, Stencil);
+}
+
+// Stage 4b.4 Group C: remaining state setters. Same record-and-replay pattern
+// as the macro-generated groups above, but each has a slightly different
+// argument shape so they're written out individually. All gated on
+// m_presentHookActive so recording is bounded.
+
+void STDMETHODCALLTYPE Context11Proxy::IASetInputLayout(ID3D11InputLayout* pInputLayout)
+{
+    m_real->IASetInputLayout(pInputLayout);
+    if (!m_presentHookActive) return;
+    ComRefHolder layoutRef(pInputLayout);
+    m_frameCommands.emplace_back(
+        [this, layoutRef]()
+        {
+            m_real->IASetInputLayout(static_cast<ID3D11InputLayout*>(layoutRef.p));
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::IASetVertexBuffers(
+    UINT StartSlot, UINT NumBuffers, ID3D11Buffer* const* ppVertexBuffers,
+    const UINT* pStrides, const UINT* pOffsets)
+{
+    m_real->IASetVertexBuffers(StartSlot, NumBuffers, ppVertexBuffers, pStrides, pOffsets);
+    if (!m_presentHookActive) return;
+    std::vector<ComRefHolder> bufRefs;
+    bufRefs.reserve(NumBuffers);
+    for (UINT i = 0; i < NumBuffers; ++i)
+        bufRefs.emplace_back(ppVertexBuffers ? ppVertexBuffers[i] : nullptr);
+    std::vector<UINT> strides;
+    if (pStrides) strides.assign(pStrides, pStrides + NumBuffers);
+    std::vector<UINT> offsets;
+    if (pOffsets) offsets.assign(pOffsets, pOffsets + NumBuffers);
+    m_frameCommands.emplace_back(
+        [this, StartSlot, NumBuffers, bufRefs, strides, offsets]()
+        {
+            ID3D11Buffer* raw[kMaxUnwrapArray] = { 0 };
+            UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            for (UINT i = 0; i < cap; ++i)
+                raw[i] = static_cast<ID3D11Buffer*>(bufRefs[i].p);
+            m_real->IASetVertexBuffers(
+                StartSlot, NumBuffers, raw,
+                strides.empty() ? nullptr : strides.data(),
+                offsets.empty() ? nullptr : offsets.data());
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::IASetIndexBuffer(
+    ID3D11Buffer* pIndexBuffer, DXGI_FORMAT Format, UINT Offset)
+{
+    m_real->IASetIndexBuffer(pIndexBuffer, Format, Offset);
+    if (!m_presentHookActive) return;
+    ComRefHolder bufRef(pIndexBuffer);
+    m_frameCommands.emplace_back(
+        [this, bufRef, Format, Offset]()
+        {
+            m_real->IASetIndexBuffer(
+                static_cast<ID3D11Buffer*>(bufRef.p), Format, Offset);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology)
+{
+    m_real->IASetPrimitiveTopology(Topology);
+    if (!m_presentHookActive) return;
+    m_frameCommands.emplace_back(
+        [this, Topology]()
+        {
+            m_real->IASetPrimitiveTopology(Topology);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::RSSetState(ID3D11RasterizerState* pRasterizerState)
+{
+    m_real->RSSetState(pRasterizerState);
+    if (!m_presentHookActive) return;
+    ComRefHolder stateRef(pRasterizerState);
+    m_frameCommands.emplace_back(
+        [this, stateRef]()
+        {
+            m_real->RSSetState(static_cast<ID3D11RasterizerState*>(stateRef.p));
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::RSSetScissorRects(UINT NumRects, const D3D11_RECT* pRects)
+{
+    m_real->RSSetScissorRects(NumRects, pRects);
+    if (!m_presentHookActive) return;
+    std::vector<D3D11_RECT> rects;
+    if (pRects) rects.assign(pRects, pRects + NumRects);
+    m_frameCommands.emplace_back(
+        [this, NumRects, rects]()
+        {
+            m_real->RSSetScissorRects(
+                NumRects, rects.empty() ? nullptr : rects.data());
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::OMSetBlendState(
+    ID3D11BlendState* pBlendState, const FLOAT BlendFactor[4], UINT SampleMask)
+{
+    m_real->OMSetBlendState(pBlendState, BlendFactor, SampleMask);
+    if (!m_presentHookActive) return;
+    ComRefHolder stateRef(pBlendState);
+    FLOAT factor[4] = { 0, 0, 0, 0 };
+    bool hasFactor = (BlendFactor != nullptr);
+    if (hasFactor)
+    {
+        factor[0] = BlendFactor[0]; factor[1] = BlendFactor[1];
+        factor[2] = BlendFactor[2]; factor[3] = BlendFactor[3];
+    }
+    m_frameCommands.emplace_back(
+        [this, stateRef, factor, hasFactor, SampleMask]()
+        {
+            m_real->OMSetBlendState(
+                static_cast<ID3D11BlendState*>(stateRef.p),
+                hasFactor ? factor : nullptr, SampleMask);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::OMSetDepthStencilState(
+    ID3D11DepthStencilState* pDepthStencilState, UINT StencilRef)
+{
+    m_real->OMSetDepthStencilState(pDepthStencilState, StencilRef);
+    if (!m_presentHookActive) return;
+    ComRefHolder stateRef(pDepthStencilState);
+    m_frameCommands.emplace_back(
+        [this, stateRef, StencilRef]()
+        {
+            m_real->OMSetDepthStencilState(
+                static_cast<ID3D11DepthStencilState*>(stateRef.p), StencilRef);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::SOSetTargets(
+    UINT NumBuffers, ID3D11Buffer* const* ppSOTargets, const UINT* pOffsets)
+{
+    m_real->SOSetTargets(NumBuffers, ppSOTargets, pOffsets);
+    if (!m_presentHookActive) return;
+    std::vector<ComRefHolder> bufRefs;
+    bufRefs.reserve(NumBuffers);
+    for (UINT i = 0; i < NumBuffers; ++i)
+        bufRefs.emplace_back(ppSOTargets ? ppSOTargets[i] : nullptr);
+    std::vector<UINT> offsets;
+    if (pOffsets) offsets.assign(pOffsets, pOffsets + NumBuffers);
+    m_frameCommands.emplace_back(
+        [this, NumBuffers, bufRefs, offsets]()
+        {
+            ID3D11Buffer* raw[kMaxUnwrapArray] = { 0 };
+            UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            for (UINT i = 0; i < cap; ++i)
+                raw[i] = static_cast<ID3D11Buffer*>(bufRefs[i].p);
+            m_real->SOSetTargets(
+                NumBuffers, raw,
+                offsets.empty() ? nullptr : offsets.data());
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::SetPredication(
+    ID3D11Predicate* pPredicate, BOOL PredicateValue)
+{
+    m_real->SetPredication(pPredicate, PredicateValue);
+    if (!m_presentHookActive) return;
+    ComRefHolder predRef(pPredicate);
+    m_frameCommands.emplace_back(
+        [this, predRef, PredicateValue]()
+        {
+            m_real->SetPredication(
+                static_cast<ID3D11Predicate*>(predRef.p), PredicateValue);
+        });
+}
+
+void STDMETHODCALLTYPE Context11Proxy::CSSetUnorderedAccessViews(
+    UINT StartSlot, UINT NumUAVs,
+    ID3D11UnorderedAccessView* const* ppUnorderedAccessViews,
+    const UINT* pUAVInitialCounts)
+{
+    m_real->CSSetUnorderedAccessViews(StartSlot, NumUAVs, ppUnorderedAccessViews, pUAVInitialCounts);
+    if (!m_presentHookActive) return;
+    std::vector<ComRefHolder> uavRefs;
+    uavRefs.reserve(NumUAVs);
+    for (UINT i = 0; i < NumUAVs; ++i)
+        uavRefs.emplace_back(ppUnorderedAccessViews ? ppUnorderedAccessViews[i] : nullptr);
+    std::vector<UINT> initialCounts;
+    if (pUAVInitialCounts)
+        initialCounts.assign(pUAVInitialCounts, pUAVInitialCounts + NumUAVs);
+    m_frameCommands.emplace_back(
+        [this, StartSlot, NumUAVs, uavRefs, initialCounts]()
+        {
+            ID3D11UnorderedAccessView* raw[kMaxUnwrapArray] = { 0 };
+            UINT cap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+            for (UINT i = 0; i < cap; ++i)
+                raw[i] = static_cast<ID3D11UnorderedAccessView*>(uavRefs[i].p);
+            m_real->CSSetUnorderedAccessViews(
+                StartSlot, NumUAVs, raw,
+                initialCounts.empty() ? nullptr : initialCounts.data());
+        });
 }
 
 void STDMETHODCALLTYPE Context11Proxy::GetDevice(ID3D11Device** ppDevice)
