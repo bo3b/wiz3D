@@ -3,6 +3,10 @@
 #include "S3DWrapper10/D3DSwapChain.h"
 #include "S3DWrapper10/Commands/SetRenderTargets.h"
 #include "S3DWrapper10/Commands/SetViewports.h"
+#include "S3DWrapper10/Commands/IaSetVertexBuffers.h"
+#include "S3DWrapper10/Commands/xxSetConstantBuffers.h"
+#include "S3DWrapper10/Commands/xxSetSamplers.h"
+#include "S3DWrapper10/Commands/xxSetShaderResources.h"
 
 using namespace DX10Output;
 
@@ -283,7 +287,8 @@ void PostprocessedOutput::Output( D3DSwapChain* pSwapChain )
 	//////////////////////////////////////////////////////////////////////////
 	GET_ORIG.pfnDraw(hDevice, 3, 0);
 
-	// unbind used resources
+	// unbind the SBS shader resources first so a later re-bind of the same
+	// slots can't fail on slot-already-bound diagnostics.
 	D3D10DDI_HSHADERRESOURCEVIEW hResourcesNull[] = { NULL, NULL };
 	GET_ORIG.pfnPsSetShaderResources( hDevice, 0, _countof(hResourcesNull), hResourcesNull );
 	if (pD3DDevice->m_bTwoWindows)
@@ -296,6 +301,47 @@ void PostprocessedOutput::Output( D3DSwapChain* pSwapChain )
 		else
 			GET_ORIG11.pfnSetRenderTargets( hDevice, hRenderTargetsNull, _countof(hRenderTargetsNull), nClearRTs, hDepthStencilViewNull,
 				NULL, NULL, _countof(hRenderTargetsNull), 0, _countof(hRenderTargetsNull), 0 );
+	}
+
+	// Restore device state from wiz3D's tracked m_DeviceState. The SBS composite
+	// above clobbered VS/PS/GS shaders, IA layout/buffers/topology, RT, viewport,
+	// raster/DS/blend states via direct GET_ORIG.pfn* calls (bypassing wrapper
+	// tracking). On Win11 D3D11.10 runtime, the desync makes games fail their
+	// next frame — confirmed in BioShock/FC2/JC2 logs (all crash/stall right
+	// after the first Output EXIT). Re-issuing tracked commands here puts the
+	// device back into the state the game expects, without going through our
+	// AddCommand path (which would re-queue rather than reach the driver).
+	{
+		D3DDeviceState& s = pD3DDevice->m_DeviceState;
+
+		// Rasterizer pipeline
+		if (s.m_RSState)             s.m_RSState->Execute(pD3DDevice);
+		if (s.m_RSViewports)         s.m_RSViewports->Execute(pD3DDevice);
+		if (s.m_RSScissorRects)      s.m_RSScissorRects->Execute(pD3DDevice);
+
+		// Output merger (RTs last so they pick up restored DS/blend state)
+		if (s.m_OMBlendState)        s.m_OMBlendState->Execute(pD3DDevice);
+		if (s.m_OMDepthStencilState) s.m_OMDepthStencilState->Execute(pD3DDevice);
+		if (s.m_OMRenderTargets)     s.m_OMRenderTargets->Execute(pD3DDevice);
+
+		// Input assembler
+		if (s.m_IaTopology)          s.m_IaTopology->Execute(pD3DDevice);
+		if (s.m_IaInputLayout)       s.m_IaInputLayout->Execute(pD3DDevice);
+		if (s.m_IaVertexBuffers)     s.m_IaVertexBuffers->Execute(pD3DDevice);
+		if (s.m_IaIndexBuffer)       s.m_IaIndexBuffer->Execute(pD3DDevice);
+
+		// Per-stage shaders + bound resources + samplers + constant buffers.
+		// GetShaderPipeline returns NULL for stages that don't apply at the
+		// current D3D version (e.g. HS/DS/CS on D3D10), so the loop skips them.
+		for (int i = 0; i < SP_COUNT; ++i)
+		{
+			ShaderPipelineStates* pl = s.GetShaderPipeline(SHADER_PIPELINE(i));
+			if (!pl) continue;
+			if (pl->m_Shader)          pl->m_Shader->Execute(pD3DDevice);
+			if (pl->m_ShaderResources) pl->m_ShaderResources->Execute(pD3DDevice);
+			if (pl->m_Samplers)        pl->m_Samplers->Execute(pD3DDevice);
+			if (pl->m_ConstantBuffers) pl->m_ConstantBuffers->Execute(pD3DDevice);
+		}
 	}
 }
 

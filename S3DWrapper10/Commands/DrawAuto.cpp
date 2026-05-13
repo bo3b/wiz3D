@@ -2,6 +2,7 @@
 #include "DrawAuto.h"
 #include "..\Streamer\CodeGenerator.h"
 #include "D3DDeviceWrapper.h"
+#include "..\AdapterFunctions.h"  // LOG_DRAW_TRAMPOLINE_ENTRY
 
 BOOL bWaitingForQueryData = FALSE;
 
@@ -82,6 +83,7 @@ namespace Commands
 
 VOID ( APIENTRY DrawAuto )( D3D10DDI_HDEVICE hDevice )
 {
+	LOG_DRAW_TRAMPOLINE_ENTRY("DrawAuto", hDevice);
 #ifndef EXECUTE_IMMEDIATELY_G1
 	Commands::DrawAuto* command = new Commands::DrawAuto();
 	D3D10_GET_WRAPPER()->AddCommand( command );

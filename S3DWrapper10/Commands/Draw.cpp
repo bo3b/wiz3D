@@ -2,6 +2,7 @@
 #include "Draw.h"
 #include "..\Streamer\CodeGenerator.h"
 #include "D3DDeviceWrapper.h"
+#include "..\AdapterFunctions.h"  // LOG_DRAW_TRAMPOLINE_ENTRY
 
 namespace Commands
 {
@@ -47,6 +48,7 @@ namespace Commands
 
 VOID ( APIENTRY Draw )( D3D10DDI_HDEVICE  hDevice, UINT  VertexCount, UINT  StartVertexLocation )
 {
+	LOG_DRAW_TRAMPOLINE_ENTRY("Draw", hDevice);
 #ifndef EXECUTE_IMMEDIATELY_G1
 	Commands::Draw* command = new Commands::Draw( VertexCount, StartVertexLocation );
 	D3D10_GET_WRAPPER()->AddCommand( command );

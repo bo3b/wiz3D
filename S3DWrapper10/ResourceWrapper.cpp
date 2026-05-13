@@ -173,19 +173,52 @@ ResourceWrapper::ResourceWrapper( D3DDeviceWrapper* pWrapper, CONST D3D10DDIARG_
 #endif//FINAL_RELEASE
 }
 
+// Diagnostic helper: rate-limited per-RT/DS heuristic log so we can tell
+// which knob rejected each render target. Captures the first 20 calls
+// of each variant + an aggregate counter; ResourceWrapper has no logging
+// of its own and the symptom we're chasing ("Bioshock sees zero stereo RTs")
+// is impossible to diagnose without seeing why each rejection happened.
+static void LogHeuristic( const char* tag, UINT Width, UINT Height, int Format,
+                          CONST SIZE* pBBSize, bool result, const char* reason )
+{
+	static int s_logged = 0;
+	static int s_stereo = 0;
+	static int s_mono   = 0;
+	if (result) ++s_stereo; else ++s_mono;
+	if (s_logged < 80 || (s_logged % 500) == 0)
+	{
+		int bbW = pBBSize ? (int)pBBSize->cx : -1;
+		int bbH = pBBSize ? (int)pBBSize->cy : -1;
+		DDILog("RTHeuristic %s W=%u H=%u fmt=%d bb=%dx%d  => %s (%s)  [tally stereo=%d mono=%d]\n",
+			tag, Width, Height, Format, bbW, bbH,
+			result ? "STEREO" : "mono",
+			reason,
+			s_stereo, s_mono);
+	}
+	++s_logged;
+}
+
 bool ResourceWrapper::IsStereoRenderTargetSurface( UINT Width, UINT Height, CONST SIZE* pBBSize )
 {
 	switch(gInfo.RenderTargetCreationMode)
 	{
 	case 0:
+		LogHeuristic("rt_surf", Width, Height, -1, pBBSize, false, "Mode=0");
 		return false;
 	case 1:
+		LogHeuristic("rt_surf", Width, Height, -1, pBBSize, true, "Mode=1");
 		return true;
 	default:
-		return !gInfo.MonoRenderTargetSurfaces
-			&& !(Width == 1 || Height == 1)
-			&& !(gInfo.CreateSquareRTInMono && IsSquareSize(Width, Height, gInfo.CreateBigSquareRTInStereo, pBBSize))
-			&& !(gInfo.CreateRTThatLessThanBBInMono && IsLessThanBB(Width, Height, pBBSize));
+		{
+			const char* reason = "ok";
+			bool ok = true;
+			if (gInfo.MonoRenderTargetSurfaces)                                                                       { ok = false; reason = "MonoRenderTargetSurfaces=1"; }
+			else if (Width == 1 || Height == 1)                                                                        { ok = false; reason = "1xN dim"; }
+			else if (gInfo.CreateSquareRTInMono && IsSquareSize(Width, Height, gInfo.CreateBigSquareRTInStereo, pBBSize)) { ok = false; reason = "SquareRTInMono"; }
+			else if (gInfo.CreateRTThatLessThanBBInMono && IsLessThanBB(Width, Height, pBBSize))                       { ok = false; reason = "RTLessThanBBInMono"; }
+			LogHeuristic("rt_surf", Width, Height, -1, pBBSize, ok, reason);
+			return ok;
+		}
 	}
 }
 
@@ -194,13 +227,21 @@ bool ResourceWrapper::IsStereoDepthStencilSurface( UINT Width, UINT Height, CONS
 	switch(gInfo.RenderTargetCreationMode)
 	{
 	case 0:
+		LogHeuristic("ds_surf", Width, Height, -1, pBBSize, false, "Mode=0");
 		return false;
 	case 1:
+		LogHeuristic("ds_surf", Width, Height, -1, pBBSize, true, "Mode=1");
 		return true;
 	default:
-		return !gInfo.MonoDepthStencilSurfaces
-			&& !(gInfo.CreateSquareDSInMono && IsSquareSize(Width, Height, gInfo.CreateBigSquareDSInStereo, pBBSize))
-			&& !(gInfo.CreateDSThatLessThanBBInMono && IsLessThanBB(Width, Height, pBBSize));
+		{
+			const char* reason = "ok";
+			bool ok = true;
+			if (gInfo.MonoDepthStencilSurfaces)                                                                       { ok = false; reason = "MonoDepthStencilSurfaces=1"; }
+			else if (gInfo.CreateSquareDSInMono && IsSquareSize(Width, Height, gInfo.CreateBigSquareDSInStereo, pBBSize)) { ok = false; reason = "SquareDSInMono"; }
+			else if (gInfo.CreateDSThatLessThanBBInMono && IsLessThanBB(Width, Height, pBBSize))                       { ok = false; reason = "DSLessThanBBInMono"; }
+			LogHeuristic("ds_surf", Width, Height, -1, pBBSize, ok, reason);
+			return ok;
+		}
 	}
 }
 
@@ -209,18 +250,23 @@ bool ResourceWrapper::IsStereoRenderTargetTexture( DXGI_FORMAT Format, UINT Widt
 	switch(gInfo.RenderTargetCreationMode)
 	{
 	case 0:
+		LogHeuristic("rt_tex", Width, Height, (int)Format, pBBSize, false, "Mode=0");
 		return false;
 	case 1:
+		LogHeuristic("rt_tex", Width, Height, (int)Format, pBBSize, true, "Mode=1");
 		return true;
 	default:
-		bool CreateInStereo = !ShadowFormat(Format) && !gInfo.MonoRenderTargetTextures;
-		if (gInfo.CreateSquareRTInMono && IsSquareSize(Width, Height, gInfo.CreateBigSquareRTInStereo, pBBSize))
-			CreateInStereo = false;
-		else if (gInfo.CreateRTThatLessThanBBInMono && IsLessThanBB(Width, Height, pBBSize))
-			CreateInStereo = false;
-		if (Width == 1 || Height == 1) 
-			CreateInStereo = false;
-		return CreateInStereo;
+		{
+			const char* reason = "ok";
+			bool CreateInStereo = true;
+			if (ShadowFormat(Format))                                                                                  { CreateInStereo = false; reason = "ShadowFormat"; }
+			else if (gInfo.MonoRenderTargetTextures)                                                                   { CreateInStereo = false; reason = "MonoRenderTargetTextures=1"; }
+			else if (gInfo.CreateSquareRTInMono && IsSquareSize(Width, Height, gInfo.CreateBigSquareRTInStereo, pBBSize)) { CreateInStereo = false; reason = "SquareRTInMono"; }
+			else if (gInfo.CreateRTThatLessThanBBInMono && IsLessThanBB(Width, Height, pBBSize))                       { CreateInStereo = false; reason = "RTLessThanBBInMono"; }
+			else if (Width == 1 || Height == 1)                                                                        { CreateInStereo = false; reason = "1xN dim"; }
+			LogHeuristic("rt_tex", Width, Height, (int)Format, pBBSize, CreateInStereo, reason);
+			return CreateInStereo;
+		}
 	}
 }
 
@@ -229,18 +275,22 @@ bool ResourceWrapper::IsStereoDepthStencilTexture( UINT Width, UINT Height, CONS
 	switch(gInfo.RenderTargetCreationMode)
 	{
 	case 0:
+		LogHeuristic("ds_tex", Width, Height, -1, pBBSize, false, "Mode=0");
 		return false;
 	case 1:
+		LogHeuristic("ds_tex", Width, Height, -1, pBBSize, true, "Mode=1");
 		return true;
 	default:
-		bool CreateInStereo = !gInfo.MonoDepthStencilTextures;
-		if (gInfo.CreateSquareDSInMono && IsSquareSize(Width, Height, gInfo.CreateBigSquareDSInStereo, pBBSize))
-			CreateInStereo = false;
-		else if (gInfo.CreateDSThatLessThanBBInMono && IsLessThanBB(Width, Height, pBBSize))
-			CreateInStereo = false;
-		if (Width == 1 || Height == 1) 
-			CreateInStereo = false;	
-		return CreateInStereo;
+		{
+			const char* reason = "ok";
+			bool CreateInStereo = true;
+			if (gInfo.MonoDepthStencilTextures)                                                                       { CreateInStereo = false; reason = "MonoDepthStencilTextures=1"; }
+			else if (gInfo.CreateSquareDSInMono && IsSquareSize(Width, Height, gInfo.CreateBigSquareDSInStereo, pBBSize)) { CreateInStereo = false; reason = "SquareDSInMono"; }
+			else if (gInfo.CreateDSThatLessThanBBInMono && IsLessThanBB(Width, Height, pBBSize))                       { CreateInStereo = false; reason = "DSLessThanBBInMono"; }
+			else if (Width == 1 || Height == 1)                                                                        { CreateInStereo = false; reason = "1xN dim"; }
+			LogHeuristic("ds_tex", Width, Height, -1, pBBSize, CreateInStereo, reason);
+			return CreateInStereo;
+		}
 	}
 }
 

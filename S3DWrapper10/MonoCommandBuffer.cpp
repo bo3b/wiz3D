@@ -2,6 +2,7 @@
 #include "D3DDeviceWrapper.h"
 #include "D3DSwapChain.h"
 #include "MonoCommandBuffer.h"
+#include "AdapterFunctions.h"  // DDILog
 
 #include "Commands\CommandSet.h"
 
@@ -139,11 +140,47 @@ void MonoCommandBuffer::AddCommandThatMayUseStereoResources( Commands::Command* 
 void MonoCommandBuffer::AddDrawCommand( Commands::DrawBase* pCmd_ )
 {
 	AddMonoCommand( pCmd_ );
-	
+
 	Commands::TCmdPtr pSetRTs = m_pWrapper->m_DeviceState.m_OMRenderTargets->Clone();
 	AddMonoCommand( new Commands::SetDestResourceType(pSetRTs.get(), TT_MONO) );
 
 	m_bHaveDrawCommand = true;
+
+	// Diagnostic: are draws landing in the mono buffer while a stereo RT/DS
+	// is bound? If yes, the per-AddCommand routing in D3DDeviceWrapper picks
+	// up the wrong buffer because ProcessCB hasn't switched yet — that's a
+	// different bug from "no stereo RT exists" or "shader analyzer broken".
+	// Rate-limited (first 10 + every 5000th) and only logs when stereo state
+	// is set so a quiet log only means draws never collide with stereo RTs.
+	{
+		static int s_monoDrawCount         = 0;
+		static int s_monoDrawWithStereoRT  = 0;
+		static int s_loggedMonoWithStereo  = 0;
+		bool stereoBound = m_pWrapper->m_DeviceState.m_IsRTStereo
+		                || m_pWrapper->m_DeviceState.m_IsDSStereo
+		                || m_pWrapper->m_DeviceState.m_IsUAVStereo;
+		++s_monoDrawCount;
+		if (stereoBound)
+		{
+			++s_monoDrawWithStereoRT;
+			if (s_loggedMonoWithStereo < 10 || (s_loggedMonoWithStereo % 1000) == 0)
+			{
+				DDILog("MonoCB::AddDraw[%d]: ROUTED TO MONO WHILE STEREO BOUND  IsRTStereo=%d IsDSStereo=%d IsUAVStereo=%d  totalMonoDrawsWithStereoBound=%d\n",
+					s_monoDrawCount,
+					(int)m_pWrapper->m_DeviceState.m_IsRTStereo,
+					(int)m_pWrapper->m_DeviceState.m_IsDSStereo,
+					(int)m_pWrapper->m_DeviceState.m_IsUAVStereo,
+					s_monoDrawWithStereoRT);
+			}
+			++s_loggedMonoWithStereo;
+		}
+		if (s_monoDrawCount < 10 || (s_monoDrawCount % 10000) == 0)
+		{
+			DDILog("MonoCB::AddDraw[%d]: totalMonoDraws=%d  ofWhichStereoBound=%d  (this draw stereoBound=%d)\n",
+				s_monoDrawCount, s_monoDrawCount, s_monoDrawWithStereoRT, (int)stereoBound);
+		}
+	}
+
 #ifndef FINAL_RELEASE
 	++m_pWrapper->m_DrawCount;
 	pCmd_->m_bStereoDraw = false;

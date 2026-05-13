@@ -2,6 +2,7 @@
 #include "DrawIndexedInstanced.h"
 #include "..\Streamer\CodeGenerator.h"
 #include "D3DDeviceWrapper.h"
+#include "..\AdapterFunctions.h"  // LOG_DRAW_TRAMPOLINE_ENTRY
 
 namespace Commands
 {
@@ -55,11 +56,12 @@ namespace Commands
 
 }
 
-VOID ( APIENTRY DrawIndexedInstanced )( D3D10DDI_HDEVICE hDevice, UINT IndexCountPerInstance, UINT InstanceCount, 
+VOID ( APIENTRY DrawIndexedInstanced )( D3D10DDI_HDEVICE hDevice, UINT IndexCountPerInstance, UINT InstanceCount,
 									   UINT StartIndexLocation, INT BaseVertexLocation, UINT StartInstanceLocation )
 {
+	LOG_DRAW_TRAMPOLINE_ENTRY("DrawIndexedInstanced", hDevice);
 #ifndef EXECUTE_IMMEDIATELY_G1
-	Commands::DrawIndexedInstanced* command = new Commands::DrawIndexedInstanced( IndexCountPerInstance, InstanceCount, StartIndexLocation, 
+	Commands::DrawIndexedInstanced* command = new Commands::DrawIndexedInstanced( IndexCountPerInstance, InstanceCount, StartIndexLocation,
 		BaseVertexLocation, StartInstanceLocation );
 	D3D10_GET_WRAPPER()->AddCommand( command );
 #else

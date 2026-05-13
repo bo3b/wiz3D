@@ -3,6 +3,7 @@
 #include "..\Streamer\CodeGenerator.h"
 #include "D3DDeviceWrapper.h"
 #include "ShaderWrapper.h"
+#include "..\AdapterFunctions.h"  // LOG_DRAW_TRAMPOLINE_ENTRY
 
 namespace Commands
 {
@@ -48,6 +49,7 @@ namespace Commands
 
 VOID ( APIENTRY VsSetShader )( D3D10DDI_HDEVICE  hDevice, D3D10DDI_HSHADER  hShader )
 {
+	LOG_DRAW_TRAMPOLINE_ENTRY("VsSetShader", hDevice);
 #ifndef EXECUTE_IMMEDIATELY_G1
 	Commands::VsSetShader* command = new Commands::VsSetShader(hShader);
 	D3D10_GET_WRAPPER()->AddCommand(command);

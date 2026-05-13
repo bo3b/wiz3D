@@ -2,6 +2,7 @@
 #include "DrawInstancedIndirect11_0.h"
 #include "..\Streamer\CodeGenerator.h"
 #include "D3DDeviceWrapper.h"
+#include "..\AdapterFunctions.h"  // LOG_DRAW_TRAMPOLINE_ENTRY
 
 namespace Commands
 {
@@ -37,9 +38,10 @@ namespace Commands
 	}
 }
 
-VOID ( APIENTRY DrawInstancedIndirect11_0 )( D3D10DDI_HDEVICE hDevice,  
+VOID ( APIENTRY DrawInstancedIndirect11_0 )( D3D10DDI_HDEVICE hDevice,
 	D3D10DDI_HRESOURCE	hBufferForArgs, UINT AlignedByteOffsetForArgs )
 {
+	LOG_DRAW_TRAMPOLINE_ENTRY("DrawInstancedIndirect", hDevice);
 	_ASSERT(D3D10_GET_WRAPPER()->GetD3DVersion() >= TD3DVersion_11_0);
 #ifndef EXECUTE_IMMEDIATELY_G1
 	Commands::DrawInstancedIndirect11_0* command = new Commands::DrawInstancedIndirect11_0( hBufferForArgs, AlignedByteOffsetForArgs );

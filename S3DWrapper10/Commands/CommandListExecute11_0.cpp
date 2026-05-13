@@ -2,6 +2,7 @@
 #include "CommandListExecute11_0.h"
 #include "..\Streamer\CodeGenerator.h"
 #include "D3DDeviceWrapper.h"
+#include "..\AdapterFunctions.h"  // LOG_DRAW_TRAMPOLINE_ENTRY
 
 namespace Commands
 {
@@ -34,6 +35,7 @@ namespace Commands
 
 VOID ( APIENTRY CommandListExecute11_0 )( D3D10DDI_HDEVICE  hDevice, D3D11DDI_HCOMMANDLIST  hCommandList )
 {
+	LOG_DRAW_TRAMPOLINE_ENTRY("CommandListExecute", hDevice);
 	_ASSERT(D3D10_GET_WRAPPER()->GetD3DVersion() >= TD3DVersion_11_0);
 #ifndef EXECUTE_IMMEDIATELY_G2
 	Commands::CommandListExecute11_0* command = new Commands::CommandListExecute11_0( hCommandList );

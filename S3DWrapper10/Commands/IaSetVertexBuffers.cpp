@@ -2,6 +2,7 @@
 #include "IaSetVertexBuffers.h"
 #include "..\Streamer\CodeGenerator.h"
 #include "D3DDeviceWrapper.h"
+#include "..\AdapterFunctions.h"  // LOG_DRAW_TRAMPOLINE_ENTRY
 
 namespace 
 {
@@ -209,9 +210,10 @@ namespace Commands
 
 }
 
-VOID ( APIENTRY IaSetVertexBuffers )( D3D10DDI_HDEVICE  hDevice, UINT  StartBuffer, UINT  NumBuffers, 
+VOID ( APIENTRY IaSetVertexBuffers )( D3D10DDI_HDEVICE  hDevice, UINT  StartBuffer, UINT  NumBuffers,
 									 CONST D3D10DDI_HRESOURCE*  phBuffers, CONST UINT*  pStrides, CONST UINT*  pOffsets )
-{	
+{
+	LOG_DRAW_TRAMPOLINE_ENTRY("IaSetVertexBuffers", hDevice);
 #ifndef EXECUTE_IMMEDIATELY_G1
 	Commands::IaSetVertexBuffers* command = new Commands::IaSetVertexBuffers(StartBuffer, NumBuffers, phBuffers, pStrides, pOffsets);
 	D3D10_GET_WRAPPER()->AddCommand(command);

@@ -2,6 +2,7 @@
 #include "DrawIndexed.h"
 #include "..\Streamer\CodeGenerator.h"
 #include "D3DDeviceWrapper.h"
+#include "..\AdapterFunctions.h"  // LOG_DRAW_TRAMPOLINE_ENTRY
 
 #include "VsSetShaderResources.h"
 #include "PsSetShaderResources.h"
@@ -56,6 +57,7 @@ namespace Commands
 
 VOID ( APIENTRY DrawIndexed )( D3D10DDI_HDEVICE hDevice, UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation )
 {
+	LOG_DRAW_TRAMPOLINE_ENTRY("DrawIndexed", hDevice);
 #ifndef EXECUTE_IMMEDIATELY_G1
 	Commands::DrawIndexed* command = new Commands::DrawIndexed( IndexCount, StartIndexLocation, BaseVertexLocation );
 	D3D10_GET_WRAPPER()->AddCommand( command );

@@ -310,6 +310,29 @@ void StereoCommandBuffer::AddCommandThatMayUseStereoResources( Commands::Command
 
 void StereoCommandBuffer::AddDrawCommand(Commands::DrawBase* pCmd_, int drawType)
 {
+	// Diagnostic: confirm draws actually reach the stereo buffer, and whether
+	// any shader pipeline is currently flagged as stereo. If this fires with
+	// anyStereoShader=0 we know the analyzer didn't tag the active VS, which
+	// makes bStereoDraw fall through to mono-in-stereo-buffer. If this never
+	// fires at all the bug is upstream (mono buffer keeps draws, not us).
+	{
+		static int s_stereoDrawCount       = 0;
+		static int s_stereoDrawWithShader  = 0;
+		bool anyStereoShader = false;
+		for (int j = 0; j<SP_COUNT; ++j) {
+			ShaderPipelineStates* pj = m_pWrapper->m_DeviceState.GetShaderPipeline(SHADER_PIPELINE(j));
+			if (pj && pj->m_IsStereoShader) { anyStereoShader = true; break; }
+		}
+		++s_stereoDrawCount;
+		if (anyStereoShader) ++s_stereoDrawWithShader;
+		if (s_stereoDrawCount < 10 || (s_stereoDrawCount % 5000) == 0)
+		{
+			DDILog("StereoCB::AddDraw[%d]: anyStereoShader=%d  totalStereoDraws=%d  ofWhichHaveStereoShader=%d\n",
+				s_stereoDrawCount, (int)anyStereoShader,
+				s_stereoDrawCount, s_stereoDrawWithShader);
+		}
+	}
+
 	// generate pre draw command sequence
 	Commands::TChangeShaderMatrixViewCmdPtr ShaderMatrixView;
 	for (int i = 0; i<SP_COUNT; ++i)

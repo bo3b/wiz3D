@@ -6,6 +6,21 @@
 // CreateOutput, etc.).
 void DDILog(const char* fmt, ...);
 
+// Per-trampoline entry counter for the Draw* DDI hooks. The macro-local
+// static gives one counter per call site, so each Draw variant tallies on
+// its own. Rate-limited to first 5 + every 10000th so it survives an
+// 8-hour gameplay session. Used to prove whether the runtime is actually
+// dispatching Draw* calls to our installed function pointers, or whether
+// a DDI 11.10 slot mismatch is silently re-routing them.
+#define LOG_DRAW_TRAMPOLINE_ENTRY(name, hDeviceArg)                                       \
+    do {                                                                                  \
+        static int s_count = 0;                                                           \
+        ++s_count;                                                                        \
+        if (s_count < 5 || (s_count % 10000) == 0)                                        \
+            DDILog("DrawEntry[%s][%d]: hDevice.pDrvPrivate=%p\n",                         \
+                   (name), s_count, (hDeviceArg).pDrvPrivate);                            \
+    } while (0)
+
 // Utility to detect extra device-funcs beyond compiled struct size.
 // Implemented inline so consumers in different projects can call it
 // without requiring cross-project linking.
