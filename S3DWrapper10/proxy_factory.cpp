@@ -126,6 +126,21 @@ wiz3D_WrapSwapChain(void** ppSwapChainInOut, void* pWrappedDevice)
     if (!ppSwapChainInOut || !*ppSwapChainInOut) return;
     if (!pWrappedDevice) return;
 
+    // Stage 4b.3 safety gate: BioShock (UE2.5-era engine) crashes inside the
+    // first method call on our SwapChain11Proxy because its rendering code
+    // walks swap-chain struct internals past the COM vtable — same TR2013 /
+    // Lost Planet / Hitman class of bug iZ3D ran into pre-NvDirectMode. Our
+    // proxy's member layout doesn't match the real DXGI swap chain, so the
+    // game reads garbage and crashes on ECX=1. Until Stage 4d revisits with
+    // either vtable hot-patching or a game-by-game enable, default this off
+    // so games that don't need the Present hook (i.e. all of them in
+    // Stages 1-3 + 4b) keep working unmodified.
+    if (!gInfo.UseCOMWrapSwapChain)
+    {
+        DDILog("wiz3D_WrapSwapChain: UseCOMWrapSwapChain=0 -- passing through unwrapped (game keeps real SC)\n");
+        return;
+    }
+
     // Cast pWrappedDevice back to Device11Proxy. The caller (d3d11.dll
     // proxy's D3D11CreateDeviceAndSwapChain) passes the wrapped device
     // returned from wiz3D_WrapD3D11DeviceAndContext, so this is safe — the

@@ -312,6 +312,15 @@ public:
 	// Default true for the Option B migration; flip to false to roll
 	// back to the legacy DDI hook path.
 	bool		UseCOMWrap;
+	// Option B (Stage 4b.3 gate): controls whether the d3d11.dll proxy's
+	// D3D11CreateDeviceAndSwapChain path wraps the returned IDXGISwapChain
+	// in our SwapChain11Proxy. Off by default because BioShock (and similar
+	// engines that walk swap-chain struct internals past the COM vtable)
+	// crash on the wrapped pointer — same TR2013 / Lost Planet class of
+	// bug iZ3D's wrappers ran into. Stage 4d will revisit when the Present
+	// hook is needed for stereo output; either move to vtable hot-patching
+	// or game-by-game enable.
+	bool		UseCOMWrapSwapChain;
 	bool		CollectDebugInformation;
 	DWORD       ScreenshotType;	
 	bool		FixVistaSP1ResetBug;
@@ -420,6 +429,7 @@ public:
 		Input = DataInput();
 		RenderTargetCreationMode = 2;
 		UseCOMWrap = true;	// Option B default — see field comment.
+		UseCOMWrapSwapChain = false;  // Stage 4b.3 default OFF until 4d; see field comment.
 		DrawType = 2;
 		DeviceMode = DEVICE_MODE_AUTO;
 		MultiWindowsMode = MULTI_WINDOWS_MODE_AUTO;

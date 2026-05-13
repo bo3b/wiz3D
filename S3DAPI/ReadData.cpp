@@ -231,6 +231,7 @@ bool ReadConfigRouterType()
 			DECLARE_BVALUE(DrawMonoImageOnSecondMonitor),
 			DECLARE_BVALUE(UseMonoDeviceWrapper),
 			DECLARE_BVALUE(UseCOMWrap),
+			DECLARE_BVALUE(UseCOMWrapSwapChain),
 			DECLARE_BVALUE(CollectDebugInformation),
 			DECLARE_IVALUE(ScreenshotType),
 			DECLARE_BVALUE(FixVistaSP1ResetBug),
