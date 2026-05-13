@@ -158,11 +158,22 @@ public:
     void SetCurrentBBBound(bool b) { m_currentBBBound = b; }
     bool GetCurrentBBBound() const { return m_currentBBBound; }
 
+    // Stage 4a: active-eye state. Default is left. Stage 4d (SBS composite
+    // at swap-chain Present) flips this to right between L/R passes so that
+    // OMSetRenderTargets picks the right-eye real RTV/DSV when binding a
+    // stereo-doubled view. Left and right textures were allocated as a pair
+    // by Texture2D11Proxy's constructor (Stage 3b); 4a just decides which
+    // one gets bound at draw time.
+    enum class Eye { Left = 0, Right = 1 };
+    void SetActiveEye(Eye e) { m_activeEye = e; }
+    Eye  GetActiveEye() const { return m_activeEye; }
+
 private:
     ID3D11DeviceContext* m_real;
     Device11Proxy*       m_parent;
     LONG                 m_refs;
     bool                 m_currentBBBound;   // last OMSet had BB-RTV at slot 0
+    Eye                  m_activeEye;        // Stage 4a: which eye OMSet binds
 };
 
 } // namespace wiz3d

@@ -31,6 +31,7 @@ Context11Proxy::Context11Proxy(ID3D11DeviceContext* real, Device11Proxy* parent)
     , m_parent(parent)
     , m_refs(1)
     , m_currentBBBound(false)
+    , m_activeEye(Eye::Left)
 {
 }
 
@@ -56,9 +57,13 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargets(
     UINT NumViews, ID3D11RenderTargetView* const* ppRenderTargetViews,
     ID3D11DepthStencilView* pDepthStencilView)
 {
-    // Stage 3b: unwrap RTV array + DSV to the real (left-eye) views before
-    // forwarding. Per-eye dispatch lives in Stage 4 — for now everything
-    // binds left-only so the game renders mono via our COM proxies.
+    // Stage 4a: pick the left- or right-eye real handle for each wrapped
+    // RTV/DSV based on m_activeEye. When the proxy isn't stereo, both
+    // GetReal() and GetRealRight() resolve to the same left-eye handle (the
+    // latter is null, so we fall back to left). Stage 4d flips m_activeEye
+    // between L/R passes; until 4d ships m_activeEye stays Left and this
+    // method behaves identically to Stage 3b.
+    bool pickRight = (m_activeEye == Eye::Right);
     ID3D11RenderTargetView* realRTVs[kMaxUnwrapArray] = { 0 };
     ID3D11RenderTargetView* const* rtvsToUse = ppRenderTargetViews;
     if (NumViews > 0 && ppRenderTargetViews)
@@ -67,12 +72,22 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargets(
         for (UINT i = 0; i < cap; ++i)
         {
             RTV11Proxy* p = TryUnwrapRTV(ppRenderTargetViews[i]);
-            realRTVs[i] = p ? p->GetReal() : ppRenderTargetViews[i];
+            if (!p)
+            {
+                realRTVs[i] = ppRenderTargetViews[i];
+                continue;
+            }
+            ID3D11RenderTargetView* right = p->GetRealRight();
+            realRTVs[i] = (pickRight && right) ? right : p->GetReal();
         }
         rtvsToUse = realRTVs;
     }
     ID3D11DepthStencilView* realDSV = pDepthStencilView;
-    if (DSV11Proxy* d = TryUnwrapDSV(pDepthStencilView)) realDSV = d->GetReal();
+    if (DSV11Proxy* d = TryUnwrapDSV(pDepthStencilView))
+    {
+        ID3D11DepthStencilView* right = d->GetRealRight();
+        realDSV = (pickRight && right) ? right : d->GetReal();
+    }
     m_real->OMSetRenderTargets(NumViews, rtvsToUse, realDSV);
 }
 
@@ -83,6 +98,7 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews
     ID3D11UnorderedAccessView* const* ppUnorderedAccessViews,
     const UINT* pUAVInitialCounts)
 {
+    bool pickRight = (m_activeEye == Eye::Right);
     ID3D11RenderTargetView* realRTVs[kMaxUnwrapArray] = { 0 };
     ID3D11RenderTargetView* const* rtvsToUse = ppRenderTargetViews;
     if (NumRTVs != D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL &&
@@ -92,14 +108,24 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews
         for (UINT i = 0; i < cap; ++i)
         {
             RTV11Proxy* p = TryUnwrapRTV(ppRenderTargetViews[i]);
-            realRTVs[i] = p ? p->GetReal() : ppRenderTargetViews[i];
+            if (!p)
+            {
+                realRTVs[i] = ppRenderTargetViews[i];
+                continue;
+            }
+            ID3D11RenderTargetView* right = p->GetRealRight();
+            realRTVs[i] = (pickRight && right) ? right : p->GetReal();
         }
         rtvsToUse = realRTVs;
     }
     ID3D11DepthStencilView* realDSV = pDepthStencilView;
     if (NumRTVs != D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL)
     {
-        if (DSV11Proxy* d = TryUnwrapDSV(pDepthStencilView)) realDSV = d->GetReal();
+        if (DSV11Proxy* d = TryUnwrapDSV(pDepthStencilView))
+        {
+            ID3D11DepthStencilView* right = d->GetRealRight();
+            realDSV = (pickRight && right) ? right : d->GetReal();
+        }
     }
     // UAVs not yet wrapped (Stage 3c). Pass through unchanged.
     m_real->OMSetRenderTargetsAndUnorderedAccessViews(
