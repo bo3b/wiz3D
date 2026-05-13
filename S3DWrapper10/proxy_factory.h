@@ -74,3 +74,12 @@ namespace wiz3d
 // decorate to _name@N on x86 and break the bare-name def-file entry.
 extern "C" __declspec(dllexport) void
 wiz3D_WrapD3D11DeviceAndContext(void** ppDeviceInOut, void** ppContextInOut);
+
+// Stage 4b.3: companion export for D3D11CreateDeviceAndSwapChain's swap
+// chain output. Called AFTER wiz3D_WrapD3D11DeviceAndContext has run, so
+// *ppDeviceInOut is already our Device11Proxy. Wraps the real swap chain
+// in SwapChain11Proxy and substitutes it in-place. No-op when either
+// pointer is null. Pure passthrough for the eventual frame-boundary
+// callback (4b.4 onward): present-time frame-end hook + 4d's SBS composite.
+extern "C" __declspec(dllexport) void
+wiz3D_WrapSwapChain(void** ppSwapChainInOut, void* pWrappedDevice);

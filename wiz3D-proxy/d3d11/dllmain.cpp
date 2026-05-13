@@ -138,7 +138,9 @@ DECLARE_FWD(OpenAdapter10_2);
 // export is missing, we pass through unwrapped (mono fallback).
 // ---------------------------------------------------------------------------
 typedef void (*PFN_wiz3D_WrapD3D11DeviceAndContext)(void**, void**);
-static PFN_wiz3D_WrapD3D11DeviceAndContext g_pfn_wiz3D_WrapD3D11 = nullptr;
+typedef void (*PFN_wiz3D_WrapSwapChain)(void**, void*);
+static PFN_wiz3D_WrapD3D11DeviceAndContext g_pfn_wiz3D_WrapD3D11    = nullptr;
+static PFN_wiz3D_WrapSwapChain             g_pfn_wiz3D_WrapSwapChain = nullptr;
 static bool                                g_pfn_wiz3D_WrapD3D11_resolved = false;
 
 static void MaybeWrapDeviceAndContext(void** ppDevice, void** ppContext)
@@ -156,8 +158,10 @@ static void MaybeWrapDeviceAndContext(void** ppDevice, void** ppContext)
         {
             g_pfn_wiz3D_WrapD3D11 = (PFN_wiz3D_WrapD3D11DeviceAndContext)
                 GetProcAddress(hWrap, "wiz3D_WrapD3D11DeviceAndContext");
-            Log("  wiz3D Option B: wiz3D_WrapD3D11DeviceAndContext=%p (hWrap=%p)\n",
-                (void*)g_pfn_wiz3D_WrapD3D11, (void*)hWrap);
+            g_pfn_wiz3D_WrapSwapChain = (PFN_wiz3D_WrapSwapChain)
+                GetProcAddress(hWrap, "wiz3D_WrapSwapChain");
+            Log("  wiz3D Option B: wiz3D_WrapD3D11DeviceAndContext=%p wiz3D_WrapSwapChain=%p (hWrap=%p)\n",
+                (void*)g_pfn_wiz3D_WrapD3D11, (void*)g_pfn_wiz3D_WrapSwapChain, (void*)hWrap);
         }
         else
         {
@@ -166,6 +170,17 @@ static void MaybeWrapDeviceAndContext(void** ppDevice, void** ppContext)
     }
     if (g_pfn_wiz3D_WrapD3D11)
         g_pfn_wiz3D_WrapD3D11(ppDevice, ppContext);
+}
+
+// Stage 4b.3: companion wrap for the swap chain returned by
+// D3D11CreateDeviceAndSwapChain. Must be called AFTER MaybeWrapDeviceAndContext
+// so *ppDevice is already the Device11Proxy we hand to wiz3D_WrapSwapChain as
+// the parent device. No-op when the wrapper DLL isn't loaded.
+static void MaybeWrapSwapChain(void** ppSwapChain, void* pWrappedDevice)
+{
+    if (!ppSwapChain || !*ppSwapChain || !pWrappedDevice) return;
+    if (g_pfn_wiz3D_WrapSwapChain)
+        g_pfn_wiz3D_WrapSwapChain(ppSwapChain, pWrappedDevice);
 }
 
 typedef HRESULT(WINAPI* PFN_D3D11CreateDevice)(
@@ -207,7 +222,16 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
                    ppDevice, pFeatureLevel, ppImmediateContext);
     Log("  D3D11CreateDeviceAndSwapChain returned 0x%08lX, *ppSwapChain=%p, *ppDevice=%p\n",
         hr, ppSwapChain ? *ppSwapChain : nullptr, ppDevice ? *ppDevice : nullptr);
-    if (SUCCEEDED(hr)) MaybeWrapDeviceAndContext(ppDevice, ppImmediateContext);
+    if (SUCCEEDED(hr))
+    {
+        MaybeWrapDeviceAndContext(ppDevice, ppImmediateContext);
+        // Wrap the swap chain only for this entry path. Games using the
+        // two-call sequence (D3D11CreateDevice + factory->CreateSwapChain)
+        // bypass us for the SC creation — Stage 4b.3-follow-up (factory
+        // hook) is needed for that and will land alongside the recording
+        // infrastructure that depends on it.
+        if (ppDevice && *ppDevice) MaybeWrapSwapChain(ppSwapChain, *ppDevice);
+    }
     return hr;
 }
 

@@ -14,6 +14,7 @@
 #include "Texture2D11Proxy.h"
 #include "RTV11Proxy.h"
 #include "DSV11Proxy.h"
+#include "SwapChain11Proxy.h"
 #include "AdapterFunctions.h"  // DDILog
 
 #define WIN32_LEAN_AND_MEAN
@@ -117,4 +118,29 @@ extern "C" __declspec(dllexport) void
 wiz3D_WrapD3D11DeviceAndContext(void** ppDeviceInOut, void** ppContextInOut)
 {
     wiz3d::WrapD3D11DeviceAndContext(ppDeviceInOut, ppContextInOut);
+}
+
+extern "C" __declspec(dllexport) void
+wiz3D_WrapSwapChain(void** ppSwapChainInOut, void* pWrappedDevice)
+{
+    if (!ppSwapChainInOut || !*ppSwapChainInOut) return;
+    if (!pWrappedDevice) return;
+
+    // Cast pWrappedDevice back to Device11Proxy. The caller (d3d11.dll
+    // proxy's D3D11CreateDeviceAndSwapChain) passes the wrapped device
+    // returned from wiz3D_WrapD3D11DeviceAndContext, so this is safe — the
+    // pointer IS our proxy.
+    auto* deviceProxy = reinterpret_cast<wiz3d::Device11Proxy*>(pWrappedDevice);
+    auto* realSC      = static_cast<IDXGISwapChain*>(*ppSwapChainInOut);
+
+    // Try to also get an IDXGISwapChain1 (Win8+ platform). Failure is fine,
+    // SwapChain11Proxy is tolerant — it returns E_NOINTERFACE for the 1+
+    // methods when the QI didn't succeed.
+    IDXGISwapChain1* realSC1 = nullptr;
+    realSC->QueryInterface(__uuidof(IDXGISwapChain1), reinterpret_cast<void**>(&realSC1));
+
+    auto* scProxy = new wiz3d::SwapChain11Proxy(realSC, realSC1, deviceProxy);
+    DDILog("wiz3D_WrapSwapChain: realSC=%p realSC1=%p -> SwapChain11Proxy=%p (device=%p)\n",
+           realSC, realSC1, scProxy, deviceProxy);
+    *ppSwapChainInOut = static_cast<IDXGISwapChain*>(scProxy);
 }

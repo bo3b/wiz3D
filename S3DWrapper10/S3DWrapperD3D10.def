@@ -7,3 +7,4 @@ EXPORTS
     CreateDXGIFactory=Hooked_CreateDXGIFactory		@6 PRIVATE
     CreateDXGIFactory1=Hooked_CreateDXGIFactory1	@7 PRIVATE
     wiz3D_WrapD3D11DeviceAndContext					@8 PRIVATE
+    wiz3D_WrapSwapChain								@9 PRIVATE
