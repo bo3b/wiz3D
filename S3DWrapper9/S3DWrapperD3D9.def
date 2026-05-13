@@ -19,3 +19,10 @@ EXPORTS
     
     DisableCreatingStereoResources							@17	PRIVATE
     RestoreCreatingStereoResourcesMode						@18	PRIVATE
+
+    ; Diagnostic: returns the current S3DAPI profile state (the wrapper has
+    ; gInfo, so this is a thin shim). Out params: profile name (ANSI), and
+    ; an int flag (1 if a real BaseProfile/Community/User XML entry matched,
+    ; 0 if the exe-name fallback fired). Called by wiz3D-proxy/d3d8, d3d9,
+    ; ddraw from their startup paths to log the result to wiz3D_proxy.log.
+    wiz3D_GetActiveProfileInfo								@19	PRIVATE

@@ -30,6 +30,27 @@ void __stdcall RestoreCreatingStereoResourcesMode()
 	gInfo.RenderTargetCreationMode = 2;
 }
 
+// Diagnostic export: returns the active profile state to proxy callers.
+// Used by wiz3D-proxy/{d3d8, d3d9, ddraw} after wrapper init to log a
+// single ProfileLoad: line into wiz3D_proxy.log. ANSI out-buffer (proxy
+// log format is ANSI). outMatched is 1 only on a real XML profile match
+// (BaseProfile / Community / User XML), 0 if the exe-name fallback fired.
+extern "C" __declspec(dllexport)
+void __stdcall wiz3D_GetActiveProfileInfo(char* outName, size_t outNameSize,
+                                          int* outMatched)
+{
+	if (outName && outNameSize > 0)
+	{
+		// gInfo.ProfileName is TCHAR (wide on this build). Convert to ANSI
+		// for the proxy log. WideCharToMultiByte handles truncation safely.
+		WideCharToMultiByte(CP_ACP, 0, gInfo.ProfileName, -1,
+			outName, (int)outNameSize, NULL, NULL);
+		outName[outNameSize - 1] = '\0';
+	}
+	if (outMatched)
+		*outMatched = gInfo.bProfileMatched ? 1 : 0;
+}
+
 BOOL IsVistaSP1()
 {
 	OSVERSIONINFOEX info = { sizeof(OSVERSIONINFOEX) };

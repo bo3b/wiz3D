@@ -1357,6 +1357,22 @@ void D3DDeviceWrapper::ProcessCB()
 		static int s_processCBCount = 0;
 		bool wantStereo = UseStereoCommandBuffer();
 		bool isStereoBuffer = (cb == (CommandBuffer*)m_StereoBuffer.get());
+		if (s_processCBCount == 0)
+		{
+			// One-shot profile diagnostic: dump the profile S3DAPI matched.
+			// gInfo.bProfileMatched is true ONLY when ReadProfileRouterType
+			// matched our exe to a real <Profile> entry in BaseProfile.xml
+			// (or Community/User XML). When false, gInfo.ProfileName holds
+			// the exe-name fallback ("bioshock" from Bioshock.exe), which
+			// would be confusing if we logged it as a real match. So we
+			// log ProfileName='' in the not-matched case, and the matched
+			// name otherwise — distinguishing the two unambiguously.
+			DDILog("ProfileLoad: ProfileName='%ls' matched=%d AppName='%ls' AppFile='%ls'\n",
+				gInfo.bProfileMatched ? gInfo.ProfileName : L"",
+				(int)gInfo.bProfileMatched,
+				gInfo.ApplicationName,
+				gInfo.ApplicationFileName);
+		}
 		if (s_processCBCount < 10 || (s_processCBCount % 200) == 0)
 		{
 			DDILog("ProcessCB[%d]: flush=%s wouldFinalizeAs=%s IsStereoActive=%d IsRTStereo=%d IsDSStereo=%d IsUAVStereo=%d\n",

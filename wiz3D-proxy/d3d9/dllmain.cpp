@@ -594,6 +594,25 @@ static void LoadWrapper(void)
         Log("FAIL: InitializeExchangeServer not found in wrapper\n");
     }
 
+    // Diagnostic: log what BaseProfile.xml matched (or "" if no match).
+    // Exported by S3DWrapperD3D9 as a thin shim over gInfo.ProfileName +
+    // gInfo.bProfileMatched. matched=0 means the loader fell back to deriving
+    // the name from the exe (so a log line of "ProfileName='' matched=0" for
+    // a game that HAS an entry in BaseProfile.xml is a real signal that the
+    // loader didn't find/match it — common cause: BaseProfile.xml not next
+    // to the wrapper DLL, or exe-name mismatch in the <File Name=".."/> tag).
+    typedef void (__stdcall *pfnGetProfile)(char*, size_t, int*);
+    pfnGetProfile pGetProfile =
+        (pfnGetProfile)GetProcAddress(g_hWrapper, "wiz3D_GetActiveProfileInfo");
+    if (pGetProfile)
+    {
+        char profileName[260] = {};
+        int matched = 0;
+        pGetProfile(profileName, sizeof(profileName), &matched);
+        Log("ProfileLoad: ProfileName='%s' matched=%d\n",
+            matched ? profileName : "", matched);
+    }
+
     if (!g_pfnWrapCreate9)
     {
         Log("WARN: No wrapper Direct3DCreate9 — falling through to real DLL\n");

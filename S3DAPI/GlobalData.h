@@ -249,6 +249,14 @@ public:
 	bool	 	SpanModeOn;
 	bool		WizardWasShown;
 	UINT64		EID;
+	// Diagnostic: true only if ReadProfileRouterType matched our exe to a
+	// real <Profile><File Name="..."/></Profile> entry in BaseProfile.xml /
+	// CommunityProfile.xml / UserProfile.xml. Stays false when ProfileName
+	// gets set via the exe-name fallback in ReadProfilesRouterType. Used by
+	// per-wrapper startup diagnostics so logs can show ProfileName='' when
+	// no profile was actually matched (distinguishing a real "Bioshock"
+	// profile load from the fallback "bioshock" derived from Bioshock.exe).
+	bool		bProfileMatched;
 
 	// API
 	DWORD		RenderTargetCreationMode;	// 0 - mono, 1 - stereo, 2 - auto
@@ -413,6 +421,7 @@ public:
 		LaserSightYCoordinate = 0.5f;
 		// Wizard variables
 		WizardWasShown	= false;
+		bProfileMatched = false;  // flipped true inside ReadProfileRouterType on real XML match
 
 		_tcscpy_s<40>(Language, _T("English") );
 

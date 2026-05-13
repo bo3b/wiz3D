@@ -4,6 +4,7 @@
 #include "ResourceWrapper.h"
 #include "StereoCommandBuffer.h"
 #include "Commands\CommandSet.h"
+#include "AdapterFunctions.h"  // DDILog
 #include <numeric>
 
 namespace {
@@ -41,6 +42,27 @@ void StereoCommandBuffer::Execute()
 	m_pWrapper->m_CBSubIndexCount = 0;
 	DumpMessage(m_pWrapper, "######################## [%d] StereoCommandBuffer::Execute ########################", m_pWrapper->m_CBCount);
 #endif
+
+	// Diagnostic: per-stereo-CB buffer sizes. Tells us whether the right
+	// eye actually gets work queued (the symptom we're chasing is "stereo
+	// CB fires but only left buffer has draws"). Rate-limited same as
+	// ProcessCB log: first 10, then every 200th, so a long session doesn't
+	// bloat the log. haveDraw flag included so we can distinguish init-only
+	// CBs (Begin push-backs of state) from CBs that actually draw something.
+	{
+		static int s_stereoExecCount = 0;
+		if (s_stereoExecCount < 10 || (s_stereoExecCount % 200) == 0)
+		{
+			DDILog("StereoCB::Execute[%d]: L=%zu R=%zu prologue=%zu rest=%zu haveDraw=%d\n",
+				s_stereoExecCount,
+				m_LeftBuffer.size(),
+				m_RightBuffer.size(),
+				m_PrologueBuffer.size(),
+				m_RestBuffer.size(),
+				(int)m_bHaveDrawCommand);
+		}
+		++s_stereoExecCount;
+	}
 
 	for (auto it = m_ResourcesToRestoreType.begin(); it != m_ResourcesToRestoreType.end(); ++it) {
 		static_cast<ResourceWrapper*>(it->pDrvPrivate)->StoreType();

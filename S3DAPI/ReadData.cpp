@@ -379,6 +379,12 @@ void ReadProfileRouterType(TCHAR* szApplicationFileName, TCHAR* szProfilesFileNa
 		}
 		if (FileFound)
 		{
+			// Real XML profile match (any of BaseProfile / Community /
+			// UserProfile). Distinguishes this case from the exe-name
+			// fallback at the bottom of ReadProfilesRouterType so
+			// startup diagnostics can report ProfileName='' when nothing
+			// was actually matched.
+			gInfo.bProfileMatched = true;
 			if (bChangeProfileName)
 			{
 				_tcscpy_s<MAX_PATH>(gInfo.ProfileName,

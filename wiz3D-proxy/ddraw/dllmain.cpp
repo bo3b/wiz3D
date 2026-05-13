@@ -445,6 +445,30 @@ static void LoadWrapper(void)
         Log("FAIL: InitializeExchangeServer not found in wrapper\n");
     }
 
+    // Diagnostic: log the BaseProfile.xml match result. DX7 (ddraw) wrapper
+    // has its own minimal local gInfo, so we query S3DWrapperD3D9 which has
+    // S3DAPI. See wiz3D-proxy/d3d8/dllmain.cpp for the same rationale.
+    HMODULE hWrap9 = LoadLibraryW(L"S3DWrapperD3D9.dll");
+    if (hWrap9)
+    {
+        typedef void (__stdcall *pfnGetProfile)(char*, size_t, int*);
+        pfnGetProfile pGetProfile =
+            (pfnGetProfile)GetProcAddress(hWrap9, "wiz3D_GetActiveProfileInfo");
+        if (pGetProfile)
+        {
+            char profileName[260] = {};
+            int matched = 0;
+            pGetProfile(profileName, sizeof(profileName), &matched);
+            Log("ProfileLoad: ProfileName='%s' matched=%d\n",
+                matched ? profileName : "", matched);
+        }
+        // No FreeLibrary — DDraw wrapper will pull it in via Direct3DCreate9.
+    }
+    else
+    {
+        Log("ProfileLoad: S3DWrapperD3D9.dll not loadable — DX7 profile state unknown\n");
+    }
+
     if (!g_pfnWrapCreate && !g_pfnWrapCreateEx)
     {
         Log("WARN: No wrapper DDraw functions — falling through to real DLL\n");
