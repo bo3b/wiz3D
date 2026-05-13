@@ -304,6 +304,14 @@ public:
 	bool		ExtractDepthBuffer;
 	bool		DrawMonoImageOnSecondMonitor;
 	bool		UseMonoDeviceWrapper;
+	// Option B (Stage 2): when true, S3DWrapperD3D10.dll's DDI hooks
+	// (OpenAdapter10/_2 -> Hook_CreateDevice -> HookDeviceFuncs) are
+	// SKIPPED, leaving the game's call chain to flow through the
+	// d3d11.dll-proxy COM-vtable wrappers only. Side-steps the Win11
+	// D3D11.10 DDI incompatibility that broke the legacy iZ3D hook path.
+	// Default true for the Option B migration; flip to false to roll
+	// back to the legacy DDI hook path.
+	bool		UseCOMWrap;
 	bool		CollectDebugInformation;
 	DWORD       ScreenshotType;	
 	bool		FixVistaSP1ResetBug;
@@ -411,6 +419,7 @@ public:
 #endif
 		Input = DataInput();
 		RenderTargetCreationMode = 2;
+		UseCOMWrap = true;	// Option B default — see field comment.
 		DrawType = 2;
 		DeviceMode = DEVICE_MODE_AUTO;
 		MultiWindowsMode = MULTI_WINDOWS_MODE_AUTO;

@@ -619,11 +619,22 @@ S3DWRAPPER10_API HRESULT WINAPI OpenAdapter10(D3D10DDIARG_OPENADAPTER* pOpenData
 	if (SUCCEEDED(hResult))
 	{
 		memcpy(&OriginalAdapterFuncs, pOpenData->pAdapterFuncs, sizeof D3D10DDI_ADAPTERFUNCS);
+		if (gInfo.UseCOMWrap)
+		{
+			// Option B (Stage 2): leave the adapter-funcs table unmodified.
+			// Game's call chain runs through the d3d11.dll-proxy COM wrappers
+			// instead, avoiding the Win11 D3D11.10 DDI mismatch that broke
+			// the legacy hook path. See GlobalData.h::UseCOMWrap.
+			DDILog("OpenAdapter10: UseCOMWrap=1 -- SKIPPING DDI hook install\n");
+		}
+		else
+		{
 #define SET_FUNC(x) pOpenData->pAdapterFuncs->pfn##x = ##x;
-		SET_FUNC(CalcPrivateDeviceSize);
-		SET_FUNC(CreateDevice);
-		SET_FUNC(CloseAdapter);
+			SET_FUNC(CalcPrivateDeviceSize);
+			SET_FUNC(CreateDevice);
+			SET_FUNC(CloseAdapter);
 #undef SET_FUNC
+		}
 	}
 	DEBUG_TRACE1(_T("OpenAdapter10(pOpenData) result=0x%X\n"), hResult );
 	return hResult;
@@ -655,13 +666,21 @@ S3DWRAPPER10_API HRESULT WINAPI OpenAdapter10_2(D3D10DDIARG_OPENADAPTER* pOpenDa
 	if (SUCCEEDED(hResult))
 	{
 		memcpy(&OriginalAdapterFuncs2, pOpenData->pAdapterFuncs_2, sizeof D3D10_2DDI_ADAPTERFUNCS);
+		if (gInfo.UseCOMWrap)
+		{
+			// Option B (Stage 2): see OpenAdapter10's matching guard.
+			DDILog("OpenAdapter10_2: UseCOMWrap=1 -- SKIPPING DDI hook install\n");
+		}
+		else
+		{
 #define SET_FUNC(x) pOpenData->pAdapterFuncs_2->pfn##x = ##x;
-		SET_FUNC(CalcPrivateDeviceSize);
-		SET_FUNC(CreateDevice);
-		SET_FUNC(CloseAdapter);
-		SET_FUNC(GetSupportedVersions);
-		SET_FUNC(GetCaps);
+			SET_FUNC(CalcPrivateDeviceSize);
+			SET_FUNC(CreateDevice);
+			SET_FUNC(CloseAdapter);
+			SET_FUNC(GetSupportedVersions);
+			SET_FUNC(GetCaps);
 #undef SET_FUNC
+		}
         // Diagnostics: dump first several p11DeviceFuncs pointers if present (not commented out rogionally, temp fix to get DX10 working)
 		//if (pOpenData->p11DeviceFuncs)
 		//{

@@ -230,6 +230,7 @@ bool ReadConfigRouterType()
 			DECLARE_BVALUE(ExtractDepthBuffer),
 			DECLARE_BVALUE(DrawMonoImageOnSecondMonitor),
 			DECLARE_BVALUE(UseMonoDeviceWrapper),
+			DECLARE_BVALUE(UseCOMWrap),
 			DECLARE_BVALUE(CollectDebugInformation),
 			DECLARE_IVALUE(ScreenshotType),
 			DECLARE_BVALUE(FixVistaSP1ResetBug),

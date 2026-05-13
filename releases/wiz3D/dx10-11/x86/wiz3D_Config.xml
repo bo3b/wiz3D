@@ -89,6 +89,12 @@
 		<DrawMonoImageOnSecondMonitor Value="0"/>
 		<!-- Use mono device wrapper (disables stereo, keeps hooks): 0=off 1=on -->
 		<UseMonoDeviceWrapper Value="0"/>
+		<!-- Option B (Stage 2): COM-vtable wrapper for ID3D11Device + ID3D11DeviceContext.
+		     When 1, the legacy DDI hooks (OpenAdapter10/_2 -> HookDeviceFuncs) are SKIPPED
+		     and the d3d11.dll proxy wraps the device at the COM layer instead. Bypasses the
+		     Win11 D3D11.10 DDI mismatch that broke the original iZ3D hook path. Set to 0
+		     to roll back to the legacy DDI hook path for comparison. -->
+		<UseCOMWrap Value="1"/>
 		<!-- Write debug info to log files: 0=off 1=on -->
 		<CollectDebugInformation Value="0"/>
 		<!-- Screenshot format: 0=BMP, 1=JPG, 2=PNG -->
