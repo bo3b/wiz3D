@@ -244,6 +244,27 @@ private:
         ID3D11UnorderedAccessView* const* ppUnorderedAccessViews,
         const UINT* pUAVInitialCounts);
 
+    // Stage 4b.6: eye-aware Copy/Update/Resolve/Clear helpers. Same shape as
+    // DoOMSetRenderTargets — pick the left- or right-eye real handle per
+    // wrapped resource/view depending on m_activeEye. Recording closures
+    // invoke these directly so replay re-runs the eye selection with the
+    // active eye set by ReplayFrameCommands.
+    void DoCopyResource(ID3D11Resource* pDstResource, ID3D11Resource* pSrcResource);
+    void DoCopySubresourceRegion(
+        ID3D11Resource* pDstResource, UINT DstSubresource, UINT DstX, UINT DstY,
+        UINT DstZ, ID3D11Resource* pSrcResource, UINT SrcSubresource,
+        const D3D11_BOX* pSrcBox);
+    void DoUpdateSubresource(
+        ID3D11Resource* pDstResource, UINT DstSubresource, const D3D11_BOX* pDstBox,
+        const void* pSrcData, UINT SrcRowPitch, UINT SrcDepthPitch);
+    void DoResolveSubresource(
+        ID3D11Resource* pDstResource, UINT DstSubresource,
+        ID3D11Resource* pSrcResource, UINT SrcSubresource, DXGI_FORMAT Format);
+    void DoClearRenderTargetView(
+        ID3D11RenderTargetView* pRenderTargetView, const FLOAT ColorRGBA[4]);
+    void DoClearDepthStencilView(
+        ID3D11DepthStencilView* pDepthStencilView, UINT ClearFlags, FLOAT Depth, UINT8 Stencil);
+
     ID3D11DeviceContext* m_real;
     Device11Proxy*       m_parent;
     LONG                 m_refs;
@@ -254,6 +275,23 @@ private:
     // Stage 4b.1: per-frame command record. Stage 4b.8 + 4d flush + replay
     // before each Present. Only populated when m_presentHookActive is true.
     std::vector<std::function<void()>> m_frameCommands;
+
+    // Stage 4b.5: active-map tracking. D3D11's Map() returns a pointer the
+    // game writes into; only at Unmap() is the data committed to GPU. We can
+    // only capture the bytes once the writes are done — i.e. at Unmap, BEFORE
+    // we forward Unmap to the real context. So Map stashes the mapped pointer
+    // plus the resource's byte size, and Unmap memcpy's that many bytes into
+    // a snapshot which the replay closure re-issues. Buffer-only for now;
+    // texture map replay would need pitch/slice metadata (deferred to 4b.6+).
+    struct ActiveMap
+    {
+        ID3D11Resource* resource;       // game's pointer (Map keeps it pinned)
+        UINT            subresource;
+        D3D11_MAP       mapType;
+        void*           mappedData;
+        UINT            byteWidth;
+    };
+    std::vector<ActiveMap> m_activeMaps;
 };
 
 } // namespace wiz3d

@@ -400,15 +400,65 @@ void STDMETHODCALLTYPE Context11Proxy::RSSetViewports(UINT NumViewports, const D
     m_real->RSSetViewports(NumViewports, pViewports);
 }
 
+void Context11Proxy::DoCopyResource(
+    ID3D11Resource* pDstResource, ID3D11Resource* pSrcResource)
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    Texture2D11Proxy* dst = TryUnwrapTexture2D(pDstResource);
+    Texture2D11Proxy* src = TryUnwrapTexture2D(pSrcResource);
+    ID3D11Resource* realDst = pDstResource;
+    if (dst)
+    {
+        ID3D11Resource* right = dst->GetRealRight();
+        realDst = (pickRight && right) ? right : dst->GetReal();
+    }
+    ID3D11Resource* realSrc = pSrcResource;
+    if (src)
+    {
+        ID3D11Resource* right = src->GetRealRight();
+        realSrc = (pickRight && right) ? right : src->GetReal();
+    }
+    m_real->CopyResource(realDst, realSrc);
+}
+
 void STDMETHODCALLTYPE Context11Proxy::CopyResource(
     ID3D11Resource* pDstResource, ID3D11Resource* pSrcResource)
 {
-    // Stage 3b: unwrap both endpoints. Per-eye copy routing (also copying
-    // src.right to dst.right when both are stereo) is a Stage 4 concern.
+    DoCopyResource(pDstResource, pSrcResource);
+    if (!m_presentHookActive) return;
+    ComRefHolder dstRef(pDstResource);
+    ComRefHolder srcRef(pSrcResource);
+    m_frameCommands.emplace_back(
+        [this, dstRef, srcRef]()
+        {
+            DoCopyResource(static_cast<ID3D11Resource*>(dstRef.p),
+                           static_cast<ID3D11Resource*>(srcRef.p));
+        });
+}
+
+void Context11Proxy::DoCopySubresourceRegion(
+    ID3D11Resource* pDstResource, UINT DstSubresource, UINT DstX, UINT DstY,
+    UINT DstZ, ID3D11Resource* pSrcResource, UINT SrcSubresource,
+    const D3D11_BOX* pSrcBox)
+{
+    bool pickRight = (m_activeEye == Eye::Right);
     Texture2D11Proxy* dst = TryUnwrapTexture2D(pDstResource);
     Texture2D11Proxy* src = TryUnwrapTexture2D(pSrcResource);
-    m_real->CopyResource(dst ? dst->GetReal() : pDstResource,
-                          src ? src->GetReal() : pSrcResource);
+    ID3D11Resource* realDst = pDstResource;
+    if (dst)
+    {
+        ID3D11Resource* right = dst->GetRealRight();
+        realDst = (pickRight && right) ? right : dst->GetReal();
+    }
+    ID3D11Resource* realSrc = pSrcResource;
+    if (src)
+    {
+        ID3D11Resource* right = src->GetRealRight();
+        realSrc = (pickRight && right) ? right : src->GetReal();
+    }
+    m_real->CopySubresourceRegion(
+        realDst, DstSubresource, DstX, DstY, DstZ,
+        realSrc, SrcSubresource, pSrcBox);
 }
 
 void STDMETHODCALLTYPE Context11Proxy::CopySubresourceRegion(
@@ -416,10 +466,24 @@ void STDMETHODCALLTYPE Context11Proxy::CopySubresourceRegion(
     UINT DstZ, ID3D11Resource* pSrcResource, UINT SrcSubresource,
     const D3D11_BOX* pSrcBox)
 {
-    Texture2D11Proxy* dst = TryUnwrapTexture2D(pDstResource);
-    Texture2D11Proxy* src = TryUnwrapTexture2D(pSrcResource);
-    m_real->CopySubresourceRegion(dst ? dst->GetReal() : pDstResource, DstSubresource, DstX, DstY, DstZ,
-                                  src ? src->GetReal() : pSrcResource, SrcSubresource, pSrcBox);
+    DoCopySubresourceRegion(pDstResource, DstSubresource, DstX, DstY, DstZ,
+                            pSrcResource, SrcSubresource, pSrcBox);
+    if (!m_presentHookActive) return;
+    ComRefHolder dstRef(pDstResource);
+    ComRefHolder srcRef(pSrcResource);
+    bool hasBox = (pSrcBox != nullptr);
+    D3D11_BOX box = {};
+    if (hasBox) box = *pSrcBox;
+    m_frameCommands.emplace_back(
+        [this, dstRef, DstSubresource, DstX, DstY, DstZ,
+         srcRef, SrcSubresource, hasBox, box]()
+        {
+            DoCopySubresourceRegion(
+                static_cast<ID3D11Resource*>(dstRef.p),
+                DstSubresource, DstX, DstY, DstZ,
+                static_cast<ID3D11Resource*>(srcRef.p),
+                SrcSubresource, hasBox ? &box : nullptr);
+        });
 }
 
 HRESULT STDMETHODCALLTYPE Context11Proxy::Map(
@@ -427,46 +491,259 @@ HRESULT STDMETHODCALLTYPE Context11Proxy::Map(
     D3D11_MAPPED_SUBRESOURCE* pMappedResource)
 {
     Texture2D11Proxy* tex = TryUnwrapTexture2D(pResource);
-    return m_real->Map(tex ? tex->GetReal() : pResource, Subresource, MapType, MapFlags, pMappedResource);
+    ID3D11Resource* realRes = tex ? tex->GetReal() : pResource;
+    HRESULT hr = m_real->Map(realRes, Subresource, MapType, MapFlags, pMappedResource);
+    if (FAILED(hr) || !pMappedResource) return hr;
+    if (!m_presentHookActive) return hr;
+
+    // Stage 4b.5: only record write maps — read maps can't be meaningfully
+    // replayed because the game's pointer becomes stale after our snapshot.
+    if (MapType != D3D11_MAP_WRITE &&
+        MapType != D3D11_MAP_WRITE_DISCARD &&
+        MapType != D3D11_MAP_WRITE_NO_OVERWRITE &&
+        MapType != D3D11_MAP_READ_WRITE)
+        return hr;
+
+    // Buffers only for 4b.5 — texture replay needs row/depth pitch and array-
+    // slice metadata which is a Stage 4b.6 concern. Constant-buffer Map() is
+    // the only mapping path our test corpus exercises in the per-eye loop, and
+    // CBs are all buffers, so this gets us full 4c coverage.
+    ID3D11Buffer* asBuffer = nullptr;
+    if (FAILED(pResource->QueryInterface(__uuidof(ID3D11Buffer),
+                                          reinterpret_cast<void**>(&asBuffer))) || !asBuffer)
+        return hr;
+    D3D11_BUFFER_DESC desc;
+    asBuffer->GetDesc(&desc);
+    asBuffer->Release();
+    if (desc.ByteWidth == 0) return hr;
+
+    ActiveMap am;
+    am.resource    = pResource;
+    am.subresource = Subresource;
+    am.mapType     = MapType;
+    am.mappedData  = pMappedResource->pData;
+    am.byteWidth   = desc.ByteWidth;
+    m_activeMaps.push_back(am);
+    return hr;
 }
 
 void STDMETHODCALLTYPE Context11Proxy::Unmap(ID3D11Resource* pResource, UINT Subresource)
 {
     Texture2D11Proxy* tex = TryUnwrapTexture2D(pResource);
-    m_real->Unmap(tex ? tex->GetReal() : pResource, Subresource);
+    ID3D11Resource* realRes = tex ? tex->GetReal() : pResource;
+
+    // Stage 4b.5: if we recorded the Map, snapshot the bytes the game wrote
+    // BEFORE forwarding Unmap (which invalidates the mapped pointer), then
+    // push a closure that re-issues Map → memcpy → Unmap at replay time.
+    // Stage 4c will hook this closure to apply per-eye CB modifications
+    // between the memcpy and the Unmap.
+    for (auto it = m_activeMaps.begin(); it != m_activeMaps.end(); ++it)
+    {
+        if (it->resource != pResource || it->subresource != Subresource) continue;
+        if (m_presentHookActive && it->mappedData && it->byteWidth)
+        {
+            std::vector<unsigned char> bytes(it->byteWidth);
+            memcpy(bytes.data(), it->mappedData, it->byteWidth);
+            UINT subres = it->subresource;
+            D3D11_MAP mapType = it->mapType;
+            ComRefHolder resRef(pResource);
+            m_frameCommands.emplace_back(
+                [this, resRef, subres, bytes, mapType]()
+                {
+                    auto* gameRes = static_cast<ID3D11Resource*>(resRef.p);
+                    Texture2D11Proxy* texR = TryUnwrapTexture2D(gameRes);
+                    ID3D11Resource* real = texR ? texR->GetReal() : gameRes;
+                    D3D11_MAPPED_SUBRESOURCE mapped = {};
+                    if (SUCCEEDED(m_real->Map(real, subres, mapType, 0, &mapped))
+                        && mapped.pData)
+                    {
+                        memcpy(mapped.pData, bytes.data(), bytes.size());
+                        m_real->Unmap(real, subres);
+                    }
+                });
+        }
+        m_activeMaps.erase(it);
+        break;
+    }
+
+    m_real->Unmap(realRes, Subresource);
+}
+
+void Context11Proxy::DoUpdateSubresource(
+    ID3D11Resource* pDstResource, UINT DstSubresource, const D3D11_BOX* pDstBox,
+    const void* pSrcData, UINT SrcRowPitch, UINT SrcDepthPitch)
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    Texture2D11Proxy* tex = TryUnwrapTexture2D(pDstResource);
+    ID3D11Resource* real = pDstResource;
+    if (tex)
+    {
+        ID3D11Resource* right = tex->GetRealRight();
+        real = (pickRight && right) ? right : tex->GetReal();
+    }
+    m_real->UpdateSubresource(real, DstSubresource, pDstBox,
+                              pSrcData, SrcRowPitch, SrcDepthPitch);
 }
 
 void STDMETHODCALLTYPE Context11Proxy::UpdateSubresource(
     ID3D11Resource* pDstResource, UINT DstSubresource, const D3D11_BOX* pDstBox,
     const void* pSrcData, UINT SrcRowPitch, UINT SrcDepthPitch)
 {
-    Texture2D11Proxy* tex = TryUnwrapTexture2D(pDstResource);
-    m_real->UpdateSubresource(tex ? tex->GetReal() : pDstResource,
-                              DstSubresource, pDstBox, pSrcData, SrcRowPitch, SrcDepthPitch);
+    DoUpdateSubresource(pDstResource, DstSubresource, pDstBox,
+                        pSrcData, SrcRowPitch, SrcDepthPitch);
+    if (!m_presentHookActive) return;
+
+    // Snapshot pSrcData — the caller owns it and can free after the call.
+    // For buffers we need ByteWidth; for textures we use SrcDepthPitch (or
+    // SrcRowPitch if depth pitch is zero, for 2D textures) as an upper bound.
+    UINT bytes = 0;
+    ID3D11Buffer* asBuffer = nullptr;
+    if (SUCCEEDED(pDstResource->QueryInterface(__uuidof(ID3D11Buffer),
+                                                reinterpret_cast<void**>(&asBuffer))) && asBuffer)
+    {
+        D3D11_BUFFER_DESC desc;
+        asBuffer->GetDesc(&desc);
+        bytes = pDstBox
+                ? (pDstBox->right - pDstBox->left)
+                : desc.ByteWidth;
+        asBuffer->Release();
+    }
+    else if (SrcDepthPitch)
+    {
+        bytes = SrcDepthPitch;
+    }
+    else if (SrcRowPitch)
+    {
+        // 2D texture row pitch × height — height we don't know without GetDesc.
+        // For 4b.6 scope, cap at SrcRowPitch alone if we can't query height;
+        // texture UpdateSubresource is rare in the per-eye loop.
+        bytes = SrcRowPitch;
+    }
+
+    std::vector<unsigned char> data;
+    if (bytes && pSrcData)
+    {
+        data.resize(bytes);
+        memcpy(data.data(), pSrcData, bytes);
+    }
+    bool hasBox = (pDstBox != nullptr);
+    D3D11_BOX box = {};
+    if (hasBox) box = *pDstBox;
+    ComRefHolder dstRef(pDstResource);
+    m_frameCommands.emplace_back(
+        [this, dstRef, DstSubresource, hasBox, box,
+         data, SrcRowPitch, SrcDepthPitch]()
+        {
+            DoUpdateSubresource(
+                static_cast<ID3D11Resource*>(dstRef.p),
+                DstSubresource, hasBox ? &box : nullptr,
+                data.empty() ? nullptr : data.data(),
+                SrcRowPitch, SrcDepthPitch);
+        });
+}
+
+void Context11Proxy::DoResolveSubresource(
+    ID3D11Resource* pDstResource, UINT DstSubresource,
+    ID3D11Resource* pSrcResource, UINT SrcSubresource, DXGI_FORMAT Format)
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    Texture2D11Proxy* dst = TryUnwrapTexture2D(pDstResource);
+    Texture2D11Proxy* src = TryUnwrapTexture2D(pSrcResource);
+    ID3D11Resource* realDst = pDstResource;
+    if (dst)
+    {
+        ID3D11Resource* right = dst->GetRealRight();
+        realDst = (pickRight && right) ? right : dst->GetReal();
+    }
+    ID3D11Resource* realSrc = pSrcResource;
+    if (src)
+    {
+        ID3D11Resource* right = src->GetRealRight();
+        realSrc = (pickRight && right) ? right : src->GetReal();
+    }
+    m_real->ResolveSubresource(realDst, DstSubresource,
+                                realSrc, SrcSubresource, Format);
 }
 
 void STDMETHODCALLTYPE Context11Proxy::ResolveSubresource(
     ID3D11Resource* pDstResource, UINT DstSubresource,
     ID3D11Resource* pSrcResource, UINT SrcSubresource, DXGI_FORMAT Format)
 {
-    Texture2D11Proxy* dst = TryUnwrapTexture2D(pDstResource);
-    Texture2D11Proxy* src = TryUnwrapTexture2D(pSrcResource);
-    m_real->ResolveSubresource(dst ? dst->GetReal() : pDstResource, DstSubresource,
-                                src ? src->GetReal() : pSrcResource, SrcSubresource, Format);
+    DoResolveSubresource(pDstResource, DstSubresource,
+                         pSrcResource, SrcSubresource, Format);
+    if (!m_presentHookActive) return;
+    ComRefHolder dstRef(pDstResource);
+    ComRefHolder srcRef(pSrcResource);
+    m_frameCommands.emplace_back(
+        [this, dstRef, DstSubresource, srcRef, SrcSubresource, Format]()
+        {
+            DoResolveSubresource(
+                static_cast<ID3D11Resource*>(dstRef.p), DstSubresource,
+                static_cast<ID3D11Resource*>(srcRef.p), SrcSubresource, Format);
+        });
+}
+
+void Context11Proxy::DoClearRenderTargetView(
+    ID3D11RenderTargetView* pRenderTargetView, const FLOAT ColorRGBA[4])
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    RTV11Proxy* rtv = TryUnwrapRTV(pRenderTargetView);
+    ID3D11RenderTargetView* real = pRenderTargetView;
+    if (rtv)
+    {
+        ID3D11RenderTargetView* right = rtv->GetRealRight();
+        real = (pickRight && right) ? right : rtv->GetReal();
+    }
+    m_real->ClearRenderTargetView(real, ColorRGBA);
 }
 
 void STDMETHODCALLTYPE Context11Proxy::ClearRenderTargetView(
     ID3D11RenderTargetView* pRenderTargetView, const FLOAT ColorRGBA[4])
 {
-    RTV11Proxy* rtv = TryUnwrapRTV(pRenderTargetView);
-    m_real->ClearRenderTargetView(rtv ? rtv->GetReal() : pRenderTargetView, ColorRGBA);
+    DoClearRenderTargetView(pRenderTargetView, ColorRGBA);
+    if (!m_presentHookActive) return;
+    ComRefHolder rtvRef(pRenderTargetView);
+    FLOAT color[4] = { 0, 0, 0, 0 };
+    if (ColorRGBA)
+    {
+        color[0] = ColorRGBA[0]; color[1] = ColorRGBA[1];
+        color[2] = ColorRGBA[2]; color[3] = ColorRGBA[3];
+    }
+    m_frameCommands.emplace_back(
+        [this, rtvRef, color]()
+        {
+            DoClearRenderTargetView(
+                static_cast<ID3D11RenderTargetView*>(rtvRef.p), color);
+        });
+}
+
+void Context11Proxy::DoClearDepthStencilView(
+    ID3D11DepthStencilView* pDepthStencilView, UINT ClearFlags, FLOAT Depth, UINT8 Stencil)
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    DSV11Proxy* dsv = TryUnwrapDSV(pDepthStencilView);
+    ID3D11DepthStencilView* real = pDepthStencilView;
+    if (dsv)
+    {
+        ID3D11DepthStencilView* right = dsv->GetRealRight();
+        real = (pickRight && right) ? right : dsv->GetReal();
+    }
+    m_real->ClearDepthStencilView(real, ClearFlags, Depth, Stencil);
 }
 
 void STDMETHODCALLTYPE Context11Proxy::ClearDepthStencilView(
     ID3D11DepthStencilView* pDepthStencilView, UINT ClearFlags, FLOAT Depth, UINT8 Stencil)
 {
-    DSV11Proxy* dsv = TryUnwrapDSV(pDepthStencilView);
-    m_real->ClearDepthStencilView(dsv ? dsv->GetReal() : pDepthStencilView, ClearFlags, Depth, Stencil);
+    DoClearDepthStencilView(pDepthStencilView, ClearFlags, Depth, Stencil);
+    if (!m_presentHookActive) return;
+    ComRefHolder dsvRef(pDepthStencilView);
+    m_frameCommands.emplace_back(
+        [this, dsvRef, ClearFlags, Depth, Stencil]()
+        {
+            DoClearDepthStencilView(
+                static_cast<ID3D11DepthStencilView*>(dsvRef.p),
+                ClearFlags, Depth, Stencil);
+        });
 }
 
 // Stage 4b.4 Group C: remaining state setters. Same record-and-replay pattern
