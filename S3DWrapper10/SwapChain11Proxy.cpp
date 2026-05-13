@@ -79,15 +79,19 @@ HRESULT STDMETHODCALLTYPE SwapChain11Proxy::GetDevice(REFIID riid, void** ppDevi
 
 void SwapChain11Proxy::OnPresentBoundary()
 {
-    // Frame boundary trigger. Stage 4b.2 only flushes the recording vector;
-    // 4b.6 will add the actual left-then-right replay sweep here, and 4d
-    // will add the SBS composite into the BB before forwarding to the real
-    // Present. For now we just clear so future recording (4b.3+) doesn't
-    // grow unbounded — the wiring is end-to-end testable without any of the
-    // stereo logic that depends on it.
+    // Frame boundary trigger. Stage 4b.4: signal to the context that frame
+    // boundaries actually fire here, so its state-setting methods may
+    // safely record themselves (the recording vector will be flushed each
+    // frame). For games whose swap chain bypasses us (factory two-call
+    // path), this never fires and the context's recording stays disabled.
+    //
+    // Stage 4b.8 will add the actual left-then-right replay sweep before
+    // forwarding to real Present; 4d will composite the doubled BB-RTVs
+    // into the swap-chain BB. For now we just clear and signal active.
     if (!m_parent) return;
     Context11Proxy* ctx = m_parent->GetContextProxy();
     if (!ctx) return;
+    ctx->SetPresentHookActive(true);
     ctx->ClearFrameCommands();
 }
 

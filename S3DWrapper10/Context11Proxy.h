@@ -16,6 +16,43 @@
 namespace wiz3d
 {
 
+// Stage 4b.4: RAII wrapper for COM pointers captured inside frame-recording
+// lambdas. The lambda needs to keep the pointer alive across the frame even
+// if the game releases its own ref, AND std::function requires the captured
+// state to be copy-constructible (so we Release-on-destruct rather than
+// move-only). Copy-ctor AddRefs, dtor Releases, so a std::vector<ComRefHolder>
+// can be captured by value into a lambda and the ref count stays balanced.
+struct ComRefHolder
+{
+    IUnknown* p;
+
+    ComRefHolder() : p(nullptr) {}
+    explicit ComRefHolder(IUnknown* x) : p(x) { if (p) p->AddRef(); }
+    ComRefHolder(const ComRefHolder& o) : p(o.p) { if (p) p->AddRef(); }
+    ComRefHolder(ComRefHolder&& o) noexcept : p(o.p) { o.p = nullptr; }
+    ComRefHolder& operator=(const ComRefHolder& o)
+    {
+        if (this != &o)
+        {
+            if (p) p->Release();
+            p = o.p;
+            if (p) p->AddRef();
+        }
+        return *this;
+    }
+    ComRefHolder& operator=(ComRefHolder&& o) noexcept
+    {
+        if (this != &o)
+        {
+            if (p) p->Release();
+            p = o.p;
+            o.p = nullptr;
+        }
+        return *this;
+    }
+    ~ComRefHolder() { if (p) p->Release(); }
+};
+
 class Device11Proxy;
 
 class Context11Proxy : public ID3D11DeviceContext
@@ -170,31 +207,52 @@ public:
     void SetActiveEye(Eye e) { m_activeEye = e; }
     Eye  GetActiveEye() const { return m_activeEye; }
 
-    // Stage 4b.1: frame-recording INFRASTRUCTURE only — the storage vector,
-    // a clear hook, and a replay-with-eye method. No methods record yet
-    // because we still lack a frame-boundary trigger (Present hook lands in
-    // Stage 4d alongside SwapChain proxy). 4b.2 wires in the actual
-    // recording for state-setting + draw methods once we can safely flush
-    // the vector each frame.
-    //
-    // The design is iZ3D's StereoCommandBuffer pattern, ported to COM. Each
-    // recorded entry is a std::function that re-invokes the proxy-level
-    // call so the closure re-runs OUR intercept logic — which picks the
-    // eye-appropriate real handle based on m_activeEye at REPLAY time, not
-    // capture time. That's how setting m_activeEye=Right before
-    // ReplayFrameCommands lets the same recorded OMSet bind the right RTV.
+    // Stage 4b.1: frame-recording INFRASTRUCTURE — the storage vector,
+    // a clear hook, and a replay-with-eye method. iZ3D's StereoCommandBuffer
+    // pattern ported to COM: each recorded entry is a std::function that
+    // re-invokes the proxy-level call so the closure re-runs OUR intercept
+    // logic — which picks the eye-appropriate real handle based on
+    // m_activeEye at REPLAY time, not capture time. That's how setting
+    // m_activeEye=Right before ReplayFrameCommands lets the same recorded
+    // OMSet bind the right RTV.
     void ClearFrameCommands();
     void ReplayFrameCommands(Eye eye);
 
+    // Stage 4b.4: gate for whether OMSet/state-setters actually push into
+    // m_frameCommands. Set true the first time SwapChain11Proxy's Present
+    // hook fires on our parent's swap chain (so we know the vector will be
+    // flushed each frame). Stays false for games whose swap chain bypasses
+    // us (e.g. D3D11CreateDevice + factory->CreateSwapChain), so we never
+    // accumulate an unbounded recording. The 4b.8 factory hook will close
+    // that gap; until then it's safer to skip recording than to leak.
+    void SetPresentHookActive(bool active) { m_presentHookActive = active; }
+    bool IsPresentHookActive() const { return m_presentHookActive; }
+
 private:
+    // Stage 4b.4: private "Do" versions of state-setting methods that the
+    // public ID3D11DeviceContext overrides delegate to. The recorded
+    // lambdas also call these Do* helpers directly, so replay re-runs the
+    // eye-aware unwrap logic with whatever m_activeEye is set to at replay
+    // time without triggering another record (no infinite recursion).
+    void DoOMSetRenderTargets(UINT NumViews,
+                              ID3D11RenderTargetView* const* ppRenderTargetViews,
+                              ID3D11DepthStencilView* pDepthStencilView);
+    void DoOMSetRenderTargetsAndUnorderedAccessViews(
+        UINT NumRTVs, ID3D11RenderTargetView* const* ppRenderTargetViews,
+        ID3D11DepthStencilView* pDepthStencilView,
+        UINT UAVStartSlot, UINT NumUAVs,
+        ID3D11UnorderedAccessView* const* ppUnorderedAccessViews,
+        const UINT* pUAVInitialCounts);
+
     ID3D11DeviceContext* m_real;
     Device11Proxy*       m_parent;
     LONG                 m_refs;
     bool                 m_currentBBBound;       // last OMSet had BB-RTV at slot 0
     Eye                  m_activeEye;            // Stage 4a: which eye OMSet binds
+    bool                 m_presentHookActive;    // Stage 4b.4 safety gate
 
-    // Stage 4b.1: per-frame command record. Stage 4d flushes + replays
-    // before each Present.
+    // Stage 4b.1: per-frame command record. Stage 4b.8 + 4d flush + replay
+    // before each Present. Only populated when m_presentHookActive is true.
     std::vector<std::function<void()>> m_frameCommands;
 };
 

@@ -32,6 +32,7 @@ Context11Proxy::Context11Proxy(ID3D11DeviceContext* real, Device11Proxy* parent)
     , m_refs(1)
     , m_currentBBBound(false)
     , m_activeEye(Eye::Left)
+    , m_presentHookActive(false)
 {
 }
 
@@ -90,16 +91,15 @@ HRESULT STDMETHODCALLTYPE Context11Proxy::QueryInterface(REFIID riid, void** ppv
     return E_NOINTERFACE;
 }
 
-void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargets(
+void Context11Proxy::DoOMSetRenderTargets(
     UINT NumViews, ID3D11RenderTargetView* const* ppRenderTargetViews,
     ID3D11DepthStencilView* pDepthStencilView)
 {
     // Stage 4a: pick the left- or right-eye real handle for each wrapped
     // RTV/DSV based on m_activeEye. When the proxy isn't stereo, both
     // GetReal() and GetRealRight() resolve to the same left-eye handle (the
-    // latter is null, so we fall back to left). Stage 4d flips m_activeEye
-    // between L/R passes; until 4d ships m_activeEye stays Left and this
-    // method behaves identically to Stage 3b.
+    // latter is null, so we fall back to left). Stage 4b.8 will flip
+    // m_activeEye between L/R passes during the per-frame replay.
     bool pickRight = (m_activeEye == Eye::Right);
     ID3D11RenderTargetView* realRTVs[kMaxUnwrapArray] = { 0 };
     ID3D11RenderTargetView* const* rtvsToUse = ppRenderTargetViews;
@@ -128,7 +128,40 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargets(
     m_real->OMSetRenderTargets(NumViews, rtvsToUse, realDSV);
 }
 
-void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews(
+void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargets(
+    UINT NumViews, ID3D11RenderTargetView* const* ppRenderTargetViews,
+    ID3D11DepthStencilView* pDepthStencilView)
+{
+    DoOMSetRenderTargets(NumViews, ppRenderTargetViews, pDepthStencilView);
+
+    // Stage 4b.4: record-for-replay, but only when the Present hook is
+    // active. Without a flush-each-frame trigger the vector would grow
+    // unbounded, so games whose swap chain bypasses us stay safely in pure
+    // passthrough mode. Capture the wrapped pointers by value (ComRefHolder
+    // copy ctor AddRefs) so the lambda holds its own refs for the frame
+    // even if the game releases. At replay time the closure re-calls
+    // DoOMSetRenderTargets, which re-runs eye-aware unwrap with whatever
+    // m_activeEye is set to at that point.
+    if (!m_presentHookActive) return;
+    std::vector<ComRefHolder> rtvRefs;
+    rtvRefs.reserve(NumViews);
+    for (UINT i = 0; i < NumViews; ++i)
+        rtvRefs.emplace_back(ppRenderTargetViews ? ppRenderTargetViews[i] : nullptr);
+    ComRefHolder dsvRef(pDepthStencilView);
+    m_frameCommands.emplace_back(
+        [this, NumViews, rtvRefs, dsvRef]()
+        {
+            // Rebuild raw-pointer array from the captured holders.
+            ID3D11RenderTargetView* raw[kMaxUnwrapArray] = { 0 };
+            UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;
+            for (UINT i = 0; i < cap; ++i)
+                raw[i] = static_cast<ID3D11RenderTargetView*>(rtvRefs[i].p);
+            DoOMSetRenderTargets(NumViews, raw,
+                static_cast<ID3D11DepthStencilView*>(dsvRef.p));
+        });
+}
+
+void Context11Proxy::DoOMSetRenderTargetsAndUnorderedAccessViews(
     UINT NumRTVs, ID3D11RenderTargetView* const* ppRenderTargetViews,
     ID3D11DepthStencilView* pDepthStencilView,
     UINT UAVStartSlot, UINT NumUAVs,
@@ -168,6 +201,72 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews
     m_real->OMSetRenderTargetsAndUnorderedAccessViews(
         NumRTVs, rtvsToUse, realDSV,
         UAVStartSlot, NumUAVs, ppUnorderedAccessViews, pUAVInitialCounts);
+}
+
+void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews(
+    UINT NumRTVs, ID3D11RenderTargetView* const* ppRenderTargetViews,
+    ID3D11DepthStencilView* pDepthStencilView,
+    UINT UAVStartSlot, UINT NumUAVs,
+    ID3D11UnorderedAccessView* const* ppUnorderedAccessViews,
+    const UINT* pUAVInitialCounts)
+{
+    DoOMSetRenderTargetsAndUnorderedAccessViews(
+        NumRTVs, ppRenderTargetViews, pDepthStencilView,
+        UAVStartSlot, NumUAVs, ppUnorderedAccessViews, pUAVInitialCounts);
+
+    if (!m_presentHookActive) return;
+    // Stage 4b.4: record. Both RTV and UAV arrays need capture.
+    std::vector<ComRefHolder> rtvRefs;
+    if (NumRTVs != D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL && ppRenderTargetViews)
+    {
+        rtvRefs.reserve(NumRTVs);
+        for (UINT i = 0; i < NumRTVs; ++i)
+            rtvRefs.emplace_back(ppRenderTargetViews[i]);
+    }
+    ComRefHolder dsvRef(pDepthStencilView);
+
+    std::vector<ComRefHolder> uavRefs;
+    if (ppUnorderedAccessViews)
+    {
+        uavRefs.reserve(NumUAVs);
+        for (UINT i = 0; i < NumUAVs; ++i)
+            uavRefs.emplace_back(ppUnorderedAccessViews[i]);
+    }
+    std::vector<UINT> initialCounts;
+    if (pUAVInitialCounts)
+        initialCounts.assign(pUAVInitialCounts, pUAVInitialCounts + NumUAVs);
+
+    m_frameCommands.emplace_back(
+        [this, NumRTVs, rtvRefs, dsvRef,
+         UAVStartSlot, NumUAVs, uavRefs, initialCounts]()
+        {
+            ID3D11RenderTargetView* rawRTVs[kMaxUnwrapArray] = { 0 };
+            ID3D11RenderTargetView* const* rtvArg = nullptr;
+            if (NumRTVs != D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL && !rtvRefs.empty())
+            {
+                UINT cap = NumRTVs <= kMaxUnwrapArray ? NumRTVs : kMaxUnwrapArray;
+                for (UINT i = 0; i < cap; ++i)
+                    rawRTVs[i] = static_cast<ID3D11RenderTargetView*>(rtvRefs[i].p);
+                rtvArg = rawRTVs;
+            }
+            // UAVs reconstructed similarly (capped to a separate stack array
+            // since the D3D11 UAV slot count goes beyond kMaxUnwrapArray;
+            // we use the same cap value defensively).
+            ID3D11UnorderedAccessView* rawUAVs[kMaxUnwrapArray] = { 0 };
+            ID3D11UnorderedAccessView* const* uavArg = nullptr;
+            if (!uavRefs.empty())
+            {
+                UINT cap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+                for (UINT i = 0; i < cap; ++i)
+                    rawUAVs[i] = static_cast<ID3D11UnorderedAccessView*>(uavRefs[i].p);
+                uavArg = rawUAVs;
+            }
+            const UINT* countsArg = initialCounts.empty() ? nullptr : initialCounts.data();
+            DoOMSetRenderTargetsAndUnorderedAccessViews(
+                NumRTVs, rtvArg,
+                static_cast<ID3D11DepthStencilView*>(dsvRef.p),
+                UAVStartSlot, NumUAVs, uavArg, countsArg);
+        });
 }
 
 void STDMETHODCALLTYPE Context11Proxy::RSSetViewports(UINT NumViewports, const D3D11_VIEWPORT* pViewports)
