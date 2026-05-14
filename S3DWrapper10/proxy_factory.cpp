@@ -15,6 +15,7 @@
 #include "RTV11Proxy.h"
 #include "DSV11Proxy.h"
 #include "Buffer11Proxy.h"
+#include "Device10Proxy.h"
 #include "SwapChain11Proxy.h"
 #include "AdapterFunctions.h"  // DDILog
 
@@ -48,6 +49,9 @@ EXTERN_C const GUID IID_wiz3D_SwapChain11Proxy =
 // {0C138E56-7F91-8D6E-DF50-BEAFC07F819F}
 EXTERN_C const GUID IID_wiz3D_Buffer11Proxy =
     { 0x0C138E56, 0x7F91, 0x8D6E, { 0xDF, 0x50, 0xBE, 0xAF, 0xC0, 0x7F, 0x81, 0x9F } };
+// {1D249F67-80A2-9E7F-E061-CFB0D1809020} — DX10 Option B Device proxy
+EXTERN_C const GUID IID_wiz3D_Device10Proxy =
+    { 0x1D249F67, 0x80A2, 0x9E7F, { 0xE0, 0x61, 0xCF, 0xB0, 0xD1, 0x80, 0x90, 0x20 } };
 
 namespace wiz3d
 {
@@ -133,6 +137,22 @@ extern "C" __declspec(dllexport) void
 wiz3D_WrapD3D11DeviceAndContext(void** ppDeviceInOut, void** ppContextInOut)
 {
     wiz3d::WrapD3D11DeviceAndContext(ppDeviceInOut, ppContextInOut);
+}
+
+extern "C" __declspec(dllexport) void
+wiz3D_WrapD3D10Device(void** ppDeviceInOut)
+{
+    // DX10 Option B Stage 1: pure-passthrough wrap. Same gate as DX11 —
+    // we always wrap when called so the legacy DDI path stays disabled
+    // (the d3d10 dllmain only calls this when UseCOMWrap is on). The
+    // wrapped device returns itself for ID3D10Device QI and the private
+    // IID_wiz3D_Device10Proxy for cross-DLL identity probes.
+    if (!ppDeviceInOut || !*ppDeviceInOut) return;
+    auto* realDevice  = static_cast<ID3D10Device*>(*ppDeviceInOut);
+    auto* deviceProxy = new wiz3d::Device10Proxy(realDevice);
+    DDILog("WrapD3D10Device: realDevice=%p -> wiz3d::Device10Proxy=%p\n",
+           realDevice, deviceProxy);
+    *ppDeviceInOut = static_cast<ID3D10Device*>(deviceProxy);
 }
 
 extern "C" __declspec(dllexport) void

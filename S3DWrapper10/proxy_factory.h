@@ -16,6 +16,12 @@
 // const GUID with the same value and matches on memcmp.
 EXTERN_C const GUID IID_wiz3D_Device11Proxy;
 
+// DX10 Option B: same identity pattern as Device11Proxy but for ID3D10Device.
+// The DXGIFactoryWrapper's CreateSwapChain hook QIs incoming pDevice for this
+// IID so a DX10 game taking the factory two-call path also gets its swap
+// chain wrapped post-Original_CreateSwapChain.
+EXTERN_C const GUID IID_wiz3D_Device10Proxy;
+
 // Stage 3b: same pattern for the resource/view proxies. Methods that take an
 // `ID3D11Resource*` / `ID3D11RenderTargetView*` / `ID3D11DepthStencilView*`
 // at the COM boundary check for these IIDs to detect a wiz3D proxy at their
@@ -90,3 +96,9 @@ wiz3D_WrapD3D11DeviceAndContext(void** ppDeviceInOut, void** ppContextInOut);
 // callback (4b.4 onward): present-time frame-end hook + 4d's SBS composite.
 extern "C" __declspec(dllexport) void
 wiz3D_WrapSwapChain(void** ppSwapChainInOut, void* pWrappedDevice);
+
+// DX10 Option B: wraps the ID3D10Device returned from D3D10CreateDevice /
+// D3D10CreateDeviceAndSwapChain in our Device10Proxy. Pure passthrough at
+// Stage 1 of the DX10 port; later stages add per-eye routing + composite.
+extern "C" __declspec(dllexport) void
+wiz3D_WrapD3D10Device(void** ppDeviceInOut);

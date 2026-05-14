@@ -125,10 +125,38 @@ DECLARE_FWD(D3D10StateBlockMaskIntersect);
 DECLARE_FWD(D3D10StateBlockMaskUnion);
 
 // ---------------------------------------------------------------------------
-// Special: D3D10CreateDevice — Stage 1 logs + passes through.
-// Stage 2 will route through S3DWrapperD3D10's exported entry point so the
-// returned device/swap chain can be wrapped for stereo.
+// Special: D3D10CreateDevice — routes the returned ID3D10Device through
+// S3DWrapperD3D10's wiz3D_WrapD3D10Device export so games on the Option B
+// COM-wrap path (UseCOMWrap=1) get our Device10Proxy instead of the raw
+// real device. Symmetric with the D3D11 dllmain's MaybeWrapDeviceAndContext.
 // ---------------------------------------------------------------------------
+typedef void (*PFN_wiz3D_WrapD3D10Device)(void**);
+static PFN_wiz3D_WrapD3D10Device g_pfn_wiz3D_WrapD3D10 = nullptr;
+static bool                       g_pfn_wiz3D_WrapD3D10_resolved = false;
+
+static void MaybeWrapD3D10Device(void** ppDevice)
+{
+    if (!ppDevice || !*ppDevice) return;
+    if (!g_pfn_wiz3D_WrapD3D10_resolved)
+    {
+        g_pfn_wiz3D_WrapD3D10_resolved = true;
+        HMODULE hWrap = GetModuleHandleW(L"S3DWrapperD3D10.dll");
+        if (hWrap)
+        {
+            g_pfn_wiz3D_WrapD3D10 = (PFN_wiz3D_WrapD3D10Device)
+                GetProcAddress(hWrap, "wiz3D_WrapD3D10Device");
+            Log("  wiz3D Option B: wiz3D_WrapD3D10Device=%p (hWrap=%p)\n",
+                (void*)g_pfn_wiz3D_WrapD3D10, (void*)hWrap);
+        }
+        else
+        {
+            Log("  wiz3D Option B: S3DWrapperD3D10.dll not loaded -- passing through unwrapped\n");
+        }
+    }
+    if (g_pfn_wiz3D_WrapD3D10)
+        g_pfn_wiz3D_WrapD3D10(ppDevice);
+}
+
 typedef HRESULT(WINAPI* PFN_D3D10CreateDevice)(void*, int, HMODULE, UINT, UINT, void**);
 extern "C" __declspec(dllexport) HRESULT WINAPI D3D10CreateDevice(
     void* pAdapter, int DriverType, HMODULE Software, UINT Flags,
@@ -141,6 +169,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D10CreateDevice(
     HRESULT hr = p(pAdapter, DriverType, Software, Flags, SDKVersion, ppDevice);
     Log("  D3D10CreateDevice returned 0x%08lX, *ppDevice=%p\n",
         hr, ppDevice ? *ppDevice : nullptr);
+    if (SUCCEEDED(hr)) MaybeWrapD3D10Device(ppDevice);
     return hr;
 }
 
@@ -159,6 +188,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D10CreateDeviceAndSwapChain(
                    pSwapChainDesc, ppSwapChain, ppDevice);
     Log("  D3D10CreateDeviceAndSwapChain returned 0x%08lX, *ppSwapChain=%p, *ppDevice=%p\n",
         hr, ppSwapChain ? *ppSwapChain : nullptr, ppDevice ? *ppDevice : nullptr);
+    if (SUCCEEDED(hr)) MaybeWrapD3D10Device(ppDevice);
     return hr;
 }
 
