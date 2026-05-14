@@ -11,6 +11,7 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <functional>
+#include <unordered_set>
 #include <vector>
 
 namespace wiz3d
@@ -292,6 +293,19 @@ private:
         UINT            byteWidth;
     };
     std::vector<ActiveMap> m_activeMaps;
+
+    // Stage 4c.1: identity-set of CBs ever bound via VS / GS / HS / DS
+    // *SetConstantBuffers. The 4c eye-shift heuristic is only applied to
+    // CBs in this set — CBs that only ever flow through PS or CS (lighting,
+    // shadow-cascade, post-process matrices) wouldn't benefit from a
+    // projection-style shift, and false-positive shifts there caused
+    // visible UI / shadow glitching in MP3.
+    //
+    // Stored by raw pointer for identity; no AddRef because we never
+    // dereference the entry. A freed-and-reallocated address worst case
+    // re-tags a new CB as VS-bound, which only enables the existing 4c
+    // heuristic on it — no worse than 4c without this filter.
+    std::unordered_set<ID3D11Buffer*> m_vsBoundCBs;
 };
 
 } // namespace wiz3d

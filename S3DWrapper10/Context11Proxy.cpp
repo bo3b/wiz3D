@@ -127,11 +127,22 @@ RECORD_SAMPLER_SET(CS)
 // *SetConstantBuffers — same shape with ID3D11Buffer. Stage 4c will modify
 // the closure body to apply per-eye CB writes (left-right view projection
 // matrix), but for 4b.4 it's straight passthrough record-and-replay.
-#define RECORD_CB_SET(STAGE_PREFIX)                                                         \
+#define RECORD_CB_SET(STAGE_PREFIX, IS_VS_PIPELINE)                                         \
 void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetConstantBuffers(                    \
     UINT StartSlot, UINT NumBuffers, ID3D11Buffer* const* ppConstantBuffers)                \
 {                                                                                           \
     m_real->STAGE_PREFIX##SetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);     \
+    /* Stage 4c.1: tag the bound CBs as VS-pipeline if this is a vertex-shading stage. */   \
+    /* Sticky: once a CB has carried a VS/GS/HS/DS binding, it's eligible for the 4c */     \
+    /* eye-shift even when later only PS-bound. PS/CS-only CBs stay out of the set and */   \
+    /* skip the heuristic. Set is unbounded but the population converges quickly (~game */  \
+    /* CB count) so memory cost is trivial. */                                              \
+    if (IS_VS_PIPELINE)                                                                     \
+    {                                                                                       \
+        for (UINT i = 0; i < NumBuffers; ++i)                                               \
+            if (ppConstantBuffers && ppConstantBuffers[i])                                  \
+                m_vsBoundCBs.insert(ppConstantBuffers[i]);                                  \
+    }                                                                                       \
     if (!m_presentHookActive) return;                                                       \
     std::vector<ComRefHolder> refs;                                                         \
     refs.reserve(NumBuffers);                                                               \
@@ -146,12 +157,12 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetConstantBuffers(        
             m_real->STAGE_PREFIX##SetConstantBuffers(StartSlot, NumBuffers, raw);           \
         });                                                                                 \
 }
-RECORD_CB_SET(VS)
-RECORD_CB_SET(PS)
-RECORD_CB_SET(GS)
-RECORD_CB_SET(HS)
-RECORD_CB_SET(DS)
-RECORD_CB_SET(CS)
+RECORD_CB_SET(VS, 1)
+RECORD_CB_SET(PS, 0)
+RECORD_CB_SET(GS, 1)
+RECORD_CB_SET(HS, 1)
+RECORD_CB_SET(DS, 1)
+RECORD_CB_SET(CS, 0)
 #undef RECORD_CB_SET
 
 // *SetShader — takes the stage-specific shader interface plus the
@@ -668,7 +679,14 @@ HRESULT STDMETHODCALLTYPE Context11Proxy::Map(
         return hr;
     D3D11_BUFFER_DESC desc;
     asBuffer->GetDesc(&desc);
+    // Stage 4c.1: only proceed if this CB has ever been bound through a
+    // vertex-pipeline stage. Lookup is identity-based (raw pointer) on the
+    // QI'd ID3D11Buffer — matches what *SetConstantBuffers tags. For COM
+    // single-inheritance, QI for ID3D11Buffer on an ID3D11Buffer returns
+    // the same pointer, so the set lookup is stable across Map calls.
+    bool isVSCB = (m_vsBoundCBs.find(asBuffer) != m_vsBoundCBs.end());
     asBuffer->Release();
+    if (!isVSCB) return hr;
     if ((desc.BindFlags & D3D11_BIND_CONSTANT_BUFFER) == 0) return hr;
     if (desc.ByteWidth == 0) return hr;
 
