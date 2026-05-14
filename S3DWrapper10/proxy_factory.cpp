@@ -16,6 +16,10 @@
 #include "DSV11Proxy.h"
 #include "Buffer11Proxy.h"
 #include "Device10Proxy.h"
+#include "Texture2D10Proxy.h"
+#include "RTV10Proxy.h"
+#include "DSV10Proxy.h"
+#include "Buffer10Proxy.h"
 #include "SwapChain11Proxy.h"
 #include "AdapterFunctions.h"  // DDILog
 
@@ -52,6 +56,18 @@ EXTERN_C const GUID IID_wiz3D_Buffer11Proxy =
 // {1D249F67-80A2-9E7F-E061-CFB0D1809020} — DX10 Option B Device proxy
 EXTERN_C const GUID IID_wiz3D_Device10Proxy =
     { 0x1D249F67, 0x80A2, 0x9E7F, { 0xE0, 0x61, 0xCF, 0xB0, 0xD1, 0x80, 0x90, 0x20 } };
+// {2E35A078-91B3-AF80-F172-D0C1E2910131} — DX10 Texture2D
+EXTERN_C const GUID IID_wiz3D_Texture2D10Proxy =
+    { 0x2E35A078, 0x91B3, 0xAF80, { 0xF1, 0x72, 0xD0, 0xC1, 0xE2, 0x91, 0x01, 0x31 } };
+// {3F46B189-A2C4-BA91-0283-E1D2F3A21242} — DX10 RTV
+EXTERN_C const GUID IID_wiz3D_RTV10Proxy =
+    { 0x3F46B189, 0xA2C4, 0xBA91, { 0x02, 0x83, 0xE1, 0xD2, 0xF3, 0xA2, 0x12, 0x42 } };
+// {4057C29A-B3D5-CBA2-1394-F2E304B32353} — DX10 DSV
+EXTERN_C const GUID IID_wiz3D_DSV10Proxy =
+    { 0x4057C29A, 0xB3D5, 0xCBA2, { 0x13, 0x94, 0xF2, 0xE3, 0x04, 0xB3, 0x23, 0x53 } };
+// {516803AB-C4E6-DCB3-24A5-03F415C43464} — DX10 Buffer
+EXTERN_C const GUID IID_wiz3D_Buffer10Proxy =
+    { 0x516803AB, 0xC4E6, 0xDCB3, { 0x24, 0xA5, 0x03, 0xF4, 0x15, 0xC4, 0x34, 0x64 } };
 
 namespace wiz3d
 {
@@ -129,6 +145,50 @@ Buffer11Proxy* TryUnwrapBuffer(ID3D11Resource* p)
         return nullptr;
     probe->Release();
     return (Buffer11Proxy*)probe;
+}
+
+Texture2D10Proxy* TryUnwrapTexture2D_10(ID3D10Resource* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_Texture2D10Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (Texture2D10Proxy*)probe;
+}
+
+RTV10Proxy* TryUnwrapRTV_10(ID3D10RenderTargetView* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_RTV10Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (RTV10Proxy*)probe;
+}
+
+DSV10Proxy* TryUnwrapDSV_10(ID3D10DepthStencilView* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_DSV10Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (DSV10Proxy*)probe;
+}
+
+Buffer10Proxy* TryUnwrapBuffer_10(ID3D10Resource* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_Buffer10Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (Buffer10Proxy*)probe;
 }
 
 } // namespace wiz3d

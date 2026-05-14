@@ -21,6 +21,10 @@ EXTERN_C const GUID IID_wiz3D_Device11Proxy;
 // IID so a DX10 game taking the factory two-call path also gets its swap
 // chain wrapped post-Original_CreateSwapChain.
 EXTERN_C const GUID IID_wiz3D_Device10Proxy;
+EXTERN_C const GUID IID_wiz3D_Texture2D10Proxy;
+EXTERN_C const GUID IID_wiz3D_RTV10Proxy;
+EXTERN_C const GUID IID_wiz3D_DSV10Proxy;
+EXTERN_C const GUID IID_wiz3D_Buffer10Proxy;
 
 // Stage 3b: same pattern for the resource/view proxies. Methods that take an
 // `ID3D11Resource*` / `ID3D11RenderTargetView*` / `ID3D11DepthStencilView*`
@@ -78,6 +82,17 @@ namespace wiz3d
     RTV11Proxy*       TryUnwrapRTV(struct ID3D11RenderTargetView* p);
     DSV11Proxy*       TryUnwrapDSV(struct ID3D11DepthStencilView* p);
     Buffer11Proxy*    TryUnwrapBuffer(struct ID3D11Resource* p);
+
+    // DX10 unwrap helpers — same memcmp-on-IID identity pattern as DX11.
+    class Texture2D10Proxy;
+    class RTV10Proxy;
+    class DSV10Proxy;
+    class Buffer10Proxy;
+
+    Texture2D10Proxy* TryUnwrapTexture2D_10(struct ID3D10Resource* p);
+    RTV10Proxy*       TryUnwrapRTV_10(struct ID3D10RenderTargetView* p);
+    DSV10Proxy*       TryUnwrapDSV_10(struct ID3D10DepthStencilView* p);
+    Buffer10Proxy*    TryUnwrapBuffer_10(struct ID3D10Resource* p);
 }
 
 // Exported entry point the d3d11.dll proxy resolves via GetProcAddress, so

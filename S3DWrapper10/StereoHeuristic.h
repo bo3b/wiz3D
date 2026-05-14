@@ -15,6 +15,7 @@
 #pragma once
 
 #include <dxgi.h>
+#include <d3d10.h>
 #include "..\S3DAPI\GlobalData.h"
 
 namespace wiz3d
@@ -100,6 +101,19 @@ inline bool ShouldDoubleTexture2D(const D3D11_TEXTURE2D_DESC* pDesc, const SIZE*
     if ((pDesc->BindFlags & D3D11_BIND_DEPTH_STENCIL) != 0)
         return ShouldDoubleDepthStencilTexture(pDesc->Width, pDesc->Height, pBBSize);
     if ((pDesc->BindFlags & D3D11_BIND_RENDER_TARGET) != 0)
+        return ShouldDoubleRenderTargetTexture(pDesc->Format, pDesc->Width, pDesc->Height, pBBSize);
+    return false;
+}
+
+// D3D10 overload — same flag values as D3D11 (D3D10_BIND_RENDER_TARGET ==
+// D3D11_BIND_RENDER_TARGET == 0x20, D3D10_BIND_DEPTH_STENCIL == 0x40) so we
+// share the underlying decisions; only the desc type changes.
+inline bool ShouldDoubleTexture2D(const D3D10_TEXTURE2D_DESC* pDesc, const SIZE* pBBSize)
+{
+    if (!pDesc) return false;
+    if ((pDesc->BindFlags & D3D10_BIND_DEPTH_STENCIL) != 0)
+        return ShouldDoubleDepthStencilTexture(pDesc->Width, pDesc->Height, pBBSize);
+    if ((pDesc->BindFlags & D3D10_BIND_RENDER_TARGET) != 0)
         return ShouldDoubleRenderTargetTexture(pDesc->Format, pDesc->Width, pDesc->Height, pBBSize);
     return false;
 }
