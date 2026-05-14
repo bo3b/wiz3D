@@ -220,6 +220,10 @@
     <ClCompile Include="..\S3DWrapper10\RTV11Proxy.cpp" />
     <ClCompile Include="..\S3DWrapper10\DSV11Proxy.cpp" />
     <ClCompile Include="..\S3DWrapper10\Buffer11Proxy.cpp" />
+    <ClCompile Include="..\S3DWrapper10\SRV11Proxy.cpp" />
+    <ClCompile Include="..\S3DWrapper10\UAV11Proxy.cpp" />
+    <ClCompile Include="..\S3DWrapper10\Texture1D11Proxy.cpp" />
+    <ClCompile Include="..\S3DWrapper10\Texture3D11Proxy.cpp" />
     <ClCompile Include="..\S3DWrapper10\Device10Proxy.cpp" />
     <ClCompile Include="..\S3DWrapper10\Texture2D10Proxy.cpp" />
     <ClCompile Include="..\S3DWrapper10\RTV10Proxy.cpp" />

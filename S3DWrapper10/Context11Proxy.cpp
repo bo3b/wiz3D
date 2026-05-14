@@ -14,6 +14,10 @@
 #include "RTV11Proxy.h"
 #include "DSV11Proxy.h"
 #include "Buffer11Proxy.h"
+#include "SRV11Proxy.h"
+#include "UAV11Proxy.h"
+#include "Texture1D11Proxy.h"
+#include "Texture3D11Proxy.h"
 #include "proxy_factory.h"     // TryUnwrap* helpers
 #include "AdapterFunctions.h"  // DDILog
 
@@ -37,8 +41,9 @@ static inline ID3D11Buffer* UnwrapBuf(ID3D11Buffer* p)
 
 // Stage 3c.1: unwrap ID3D11Resource* for the eye-aware Do* helpers. Tries
 // Texture2D11Proxy first (which has eye-stereo siblings) then Buffer11Proxy
-// (no stereo doubling, single real). Passes through unmodified for other
-// resource types until those get their own proxies (Texture1D/3D in 3c.2).
+// (no stereo doubling, single real). 3c.2 adds Texture1D/Texture3D — both
+// passthrough (no stereo) but still need unwrap so the real runtime gets
+// the real pointer.
 static inline ID3D11Resource* UnwrapResourceForEye(ID3D11Resource* p, bool pickRight)
 {
     if (!p) return nullptr;
@@ -47,8 +52,36 @@ static inline ID3D11Resource* UnwrapResourceForEye(ID3D11Resource* p, bool pickR
         ID3D11Resource* right = tex->GetRealRight();
         return (pickRight && right) ? right : static_cast<ID3D11Resource*>(tex->GetReal());
     }
+    if (auto* tex1 = wiz3d::TryUnwrapTexture1D(p))
+        return static_cast<ID3D11Resource*>(tex1->GetReal());
+    if (auto* tex3 = wiz3d::TryUnwrapTexture3D(p))
+        return static_cast<ID3D11Resource*>(tex3->GetReal());
     if (auto* buf = wiz3d::TryUnwrapBuffer(p))
         return static_cast<ID3D11Resource*>(buf->GetReal());
+    return p;
+}
+
+// Stage 3c.2: eye-aware unwrap helpers for SRV/UAV. Right-eye sibling is
+// optional — falls back to left when null or when picking left eye.
+static inline ID3D11ShaderResourceView* UnwrapSRVForEye(ID3D11ShaderResourceView* p, bool pickRight)
+{
+    if (!p) return nullptr;
+    if (auto* sp = wiz3d::TryUnwrapSRV(p))
+    {
+        ID3D11ShaderResourceView* right = sp->GetRealRight();
+        return (pickRight && right) ? right : sp->GetReal();
+    }
+    return p;
+}
+
+static inline ID3D11UnorderedAccessView* UnwrapUAVForEye(ID3D11UnorderedAccessView* p, bool pickRight)
+{
+    if (!p) return nullptr;
+    if (auto* up = wiz3d::TryUnwrapUAV(p))
+    {
+        ID3D11UnorderedAccessView* right = up->GetRealRight();
+        return (pickRight && right) ? right : up->GetReal();
+    }
     return p;
 }
 
@@ -95,16 +128,24 @@ void Context11Proxy::ReplayFrameCommands(Eye eye)
 
 // Stage 4b.4 (more state setters): record-and-replay for *SetShaderResources
 // across all 6 shader stages. Each stage's method body is identical except
-// for the method name, so a macro keeps the boilerplate tractable. SRVs are
-// not yet wrapped (Stage 3c) so capture-and-restore is straightforward —
-// just hold a ref through the lambda's lifetime so the SRV survives the
-// frame even if the game releases it. Same gate (m_presentHookActive) as
-// OMSet so games whose swap chain bypasses us stay safely in passthrough.
+// for the method name, so a macro keeps the boilerplate tractable. Stage 3c.2
+// wraps SRVs so we unwrap before forwarding (the runtime can't see our
+// vtable past ID3D11ShaderResourceView signatures), and the closure unwraps
+// again per-eye on replay so right-eye siblings get bound at the right pass.
+// Same gate (m_presentHookActive) as OMSet so games whose swap chain
+// bypasses us stay safely in passthrough.
 #define RECORD_SRV_SET(STAGE_PREFIX)                                                        \
 void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetShaderResources(                    \
     UINT StartSlot, UINT NumViews, ID3D11ShaderResourceView* const* ppShaderResourceViews)  \
 {                                                                                           \
-    m_real->STAGE_PREFIX##SetShaderResources(StartSlot, NumViews, ppShaderResourceViews);   \
+    ID3D11ShaderResourceView* rawSRVs[kMaxUnwrapArray] = { 0 };                             \
+    UINT setCap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;                 \
+    bool pickRight = (m_activeEye == Eye::Right);                                           \
+    for (UINT i = 0; i < setCap; ++i)                                                       \
+        rawSRVs[i] = UnwrapSRVForEye(ppShaderResourceViews ? ppShaderResourceViews[i]       \
+                                                           : nullptr, pickRight);           \
+    m_real->STAGE_PREFIX##SetShaderResources(StartSlot, NumViews,                           \
+        ppShaderResourceViews ? rawSRVs : nullptr);                                         \
     if (!m_presentHookActive) return;                                                       \
     std::vector<ComRefHolder> refs;                                                         \
     refs.reserve(NumViews);                                                                 \
@@ -114,8 +155,10 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetShaderResources(        
         [this, StartSlot, NumViews, refs]() {                                               \
             ID3D11ShaderResourceView* raw[kMaxUnwrapArray] = { 0 };                         \
             UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;            \
+            bool pr = (m_activeEye == Eye::Right);                                          \
             for (UINT i = 0; i < cap; ++i)                                                  \
-                raw[i] = static_cast<ID3D11ShaderResourceView*>(refs[i].p);                 \
+                raw[i] = UnwrapSRVForEye(                                                   \
+                    static_cast<ID3D11ShaderResourceView*>(refs[i].p), pr);                 \
             m_real->STAGE_PREFIX##SetShaderResources(StartSlot, NumViews, raw);             \
         });                                                                                 \
 }
@@ -489,10 +532,20 @@ void Context11Proxy::DoOMSetRenderTargetsAndUnorderedAccessViews(
             realDSV = (pickRight && right) ? right : d->GetReal();
         }
     }
-    // UAVs not yet wrapped (Stage 3c). Pass through unchanged.
+    // Stage 3c.2: unwrap UAVs (eye-aware) before forwarding.
+    ID3D11UnorderedAccessView* realUAVs[kMaxUnwrapArray] = { 0 };
+    ID3D11UnorderedAccessView* const* uavsToUse = ppUnorderedAccessViews;
+    if (NumUAVs != D3D11_KEEP_UNORDERED_ACCESS_VIEWS &&
+        NumUAVs > 0 && ppUnorderedAccessViews)
+    {
+        UINT ucap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+        for (UINT i = 0; i < ucap; ++i)
+            realUAVs[i] = UnwrapUAVForEye(ppUnorderedAccessViews[i], pickRight);
+        uavsToUse = realUAVs;
+    }
     m_real->OMSetRenderTargetsAndUnorderedAccessViews(
         NumRTVs, rtvsToUse, realDSV,
-        UAVStartSlot, NumUAVs, ppUnorderedAccessViews, pUAVInitialCounts);
+        UAVStartSlot, NumUAVs, uavsToUse, pUAVInitialCounts);
 }
 
 void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews(
@@ -541,9 +594,9 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews
                     rawRTVs[i] = static_cast<ID3D11RenderTargetView*>(rtvRefs[i].p);
                 rtvArg = rawRTVs;
             }
-            // UAVs reconstructed similarly (capped to a separate stack array
-            // since the D3D11 UAV slot count goes beyond kMaxUnwrapArray;
-            // we use the same cap value defensively).
+            // UAVs reconstructed similarly. Stage 3c.2: now wrapped, so the
+            // inner DoOMSet... helper will unwrap eye-aware. Hand it the raw
+            // proxies retrieved from the captured refs.
             ID3D11UnorderedAccessView* rawUAVs[kMaxUnwrapArray] = { 0 };
             ID3D11UnorderedAccessView* const* uavArg = nullptr;
             if (!uavRefs.empty())
@@ -569,7 +622,29 @@ void STDMETHODCALLTYPE Context11Proxy::RSSetViewports(UINT NumViewports, const D
 void STDMETHODCALLTYPE Context11Proxy::CopyStructureCount(
     ID3D11Buffer* pDstBuffer, UINT DstAlignedByteOffset, ID3D11UnorderedAccessView* pSrcView)
 {
-    m_real->CopyStructureCount(UnwrapBuf(pDstBuffer), DstAlignedByteOffset, pSrcView);
+    bool pickRight = (m_activeEye == Eye::Right);
+    m_real->CopyStructureCount(UnwrapBuf(pDstBuffer), DstAlignedByteOffset,
+                               UnwrapUAVForEye(pSrcView, pickRight));
+}
+
+void STDMETHODCALLTYPE Context11Proxy::ClearUnorderedAccessViewUint(
+    ID3D11UnorderedAccessView* pUnorderedAccessView, const UINT Values[4])
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    m_real->ClearUnorderedAccessViewUint(UnwrapUAVForEye(pUnorderedAccessView, pickRight), Values);
+}
+
+void STDMETHODCALLTYPE Context11Proxy::ClearUnorderedAccessViewFloat(
+    ID3D11UnorderedAccessView* pUnorderedAccessView, const FLOAT Values[4])
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    m_real->ClearUnorderedAccessViewFloat(UnwrapUAVForEye(pUnorderedAccessView, pickRight), Values);
+}
+
+void STDMETHODCALLTYPE Context11Proxy::GenerateMips(ID3D11ShaderResourceView* pShaderResourceView)
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    m_real->GenerateMips(UnwrapSRVForEye(pShaderResourceView, pickRight));
 }
 
 void Context11Proxy::DoCopyResource(
@@ -1068,7 +1143,15 @@ void STDMETHODCALLTYPE Context11Proxy::CSSetUnorderedAccessViews(
     ID3D11UnorderedAccessView* const* ppUnorderedAccessViews,
     const UINT* pUAVInitialCounts)
 {
-    m_real->CSSetUnorderedAccessViews(StartSlot, NumUAVs, ppUnorderedAccessViews, pUAVInitialCounts);
+    // Stage 3c.2: unwrap UAVs eye-aware before forwarding.
+    ID3D11UnorderedAccessView* rawSet[kMaxUnwrapArray] = { 0 };
+    UINT setCap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+    bool pickRight = (m_activeEye == Eye::Right);
+    for (UINT i = 0; i < setCap; ++i)
+        rawSet[i] = UnwrapUAVForEye(ppUnorderedAccessViews ? ppUnorderedAccessViews[i]
+                                                           : nullptr, pickRight);
+    m_real->CSSetUnorderedAccessViews(StartSlot, NumUAVs,
+        ppUnorderedAccessViews ? rawSet : nullptr, pUAVInitialCounts);
     if (!m_presentHookActive) return;
     std::vector<ComRefHolder> uavRefs;
     uavRefs.reserve(NumUAVs);
@@ -1082,8 +1165,10 @@ void STDMETHODCALLTYPE Context11Proxy::CSSetUnorderedAccessViews(
         {
             ID3D11UnorderedAccessView* raw[kMaxUnwrapArray] = { 0 };
             UINT cap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+            bool pr = (m_activeEye == Eye::Right);
             for (UINT i = 0; i < cap; ++i)
-                raw[i] = static_cast<ID3D11UnorderedAccessView*>(uavRefs[i].p);
+                raw[i] = UnwrapUAVForEye(
+                    static_cast<ID3D11UnorderedAccessView*>(uavRefs[i].p), pr);
             m_real->CSSetUnorderedAccessViews(
                 StartSlot, NumUAVs, raw,
                 initialCounts.empty() ? nullptr : initialCounts.data());

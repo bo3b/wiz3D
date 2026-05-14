@@ -44,6 +44,17 @@ EXTERN_C const GUID IID_wiz3D_SwapChain11Proxy;
 // decide whether to apply per-eye CB modification.
 EXTERN_C const GUID IID_wiz3D_Buffer11Proxy;
 
+// Stage 3c.2: identity IIDs for SRV/UAV/Tex1D/Tex3D proxies. SRV/UAV may
+// carry a right-eye sibling (for stereo-doubled resources) so 4e can route
+// per-eye binding via *SetShaderResources / CSSetUnorderedAccessViews.
+// Tex1D/Tex3D are pure passthrough (no stereo) but still need identity
+// wrapping so SRV/UAV creation paths can hand the real resource to the
+// runtime instead of our proxy.
+EXTERN_C const GUID IID_wiz3D_SRV11Proxy;
+EXTERN_C const GUID IID_wiz3D_UAV11Proxy;
+EXTERN_C const GUID IID_wiz3D_Texture1D11Proxy;
+EXTERN_C const GUID IID_wiz3D_Texture3D11Proxy;
+
 namespace wiz3d
 {
     // Wraps the device + (optional) immediate context the system
@@ -83,6 +94,17 @@ namespace wiz3d
     RTV11Proxy*       TryUnwrapRTV(struct ID3D11RenderTargetView* p);
     DSV11Proxy*       TryUnwrapDSV(struct ID3D11DepthStencilView* p);
     Buffer11Proxy*    TryUnwrapBuffer(struct ID3D11Resource* p);
+
+    // Stage 3c.2 unwrap helpers.
+    class SRV11Proxy;
+    class UAV11Proxy;
+    class Texture1D11Proxy;
+    class Texture3D11Proxy;
+
+    SRV11Proxy*       TryUnwrapSRV(struct ID3D11ShaderResourceView* p);
+    UAV11Proxy*       TryUnwrapUAV(struct ID3D11UnorderedAccessView* p);
+    Texture1D11Proxy* TryUnwrapTexture1D(struct ID3D11Resource* p);
+    Texture3D11Proxy* TryUnwrapTexture3D(struct ID3D11Resource* p);
 
     // DX10 unwrap helpers — same memcmp-on-IID identity pattern as DX11.
     class Texture2D10Proxy;

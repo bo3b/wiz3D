@@ -15,6 +15,10 @@
 #include "RTV11Proxy.h"
 #include "DSV11Proxy.h"
 #include "Buffer11Proxy.h"
+#include "SRV11Proxy.h"
+#include "UAV11Proxy.h"
+#include "Texture1D11Proxy.h"
+#include "Texture3D11Proxy.h"
 #include "Device10Proxy.h"
 #include "Texture2D10Proxy.h"
 #include "RTV10Proxy.h"
@@ -54,6 +58,19 @@ EXTERN_C const GUID IID_wiz3D_SwapChain11Proxy =
 // {0C138E56-7F91-8D6E-DF50-BEAFC07F819F}
 EXTERN_C const GUID IID_wiz3D_Buffer11Proxy =
     { 0x0C138E56, 0x7F91, 0x8D6E, { 0xDF, 0x50, 0xBE, 0xAF, 0xC0, 0x7F, 0x81, 0x9F } };
+// Stage 3c.2 private IIDs.
+// {7368B5CD-E809-FED5-46C7-25163FA6657C}
+EXTERN_C const GUID IID_wiz3D_SRV11Proxy =
+    { 0x7368B5CD, 0xE809, 0xFED5, { 0x46, 0xC7, 0x25, 0x16, 0x3F, 0xA6, 0x65, 0x7C } };
+// {8479C6DE-F91A-0FE6-57D8-36274BB7768D}
+EXTERN_C const GUID IID_wiz3D_UAV11Proxy =
+    { 0x8479C6DE, 0xF91A, 0x0FE6, { 0x57, 0xD8, 0x36, 0x27, 0x4B, 0xB7, 0x76, 0x8D } };
+// {958AD7EF-0A2B-10F7-68E9-47385CC8879E}
+EXTERN_C const GUID IID_wiz3D_Texture1D11Proxy =
+    { 0x958AD7EF, 0x0A2B, 0x10F7, { 0x68, 0xE9, 0x47, 0x38, 0x5C, 0xC8, 0x87, 0x9E } };
+// {A69BE8F0-1B3C-2108-79FA-58496DD998AF}
+EXTERN_C const GUID IID_wiz3D_Texture3D11Proxy =
+    { 0xA69BE8F0, 0x1B3C, 0x2108, { 0x79, 0xFA, 0x58, 0x49, 0x6D, 0xD9, 0x98, 0xAF } };
 // {1D249F67-80A2-9E7F-E061-CFB0D1809020} — DX10 Option B Device proxy
 EXTERN_C const GUID IID_wiz3D_Device10Proxy =
     { 0x1D249F67, 0x80A2, 0x9E7F, { 0xE0, 0x61, 0xCF, 0xB0, 0xD1, 0x80, 0x90, 0x20 } };
@@ -149,6 +166,50 @@ Buffer11Proxy* TryUnwrapBuffer(ID3D11Resource* p)
         return nullptr;
     probe->Release();
     return (Buffer11Proxy*)probe;
+}
+
+SRV11Proxy* TryUnwrapSRV(ID3D11ShaderResourceView* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_SRV11Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (SRV11Proxy*)probe;
+}
+
+UAV11Proxy* TryUnwrapUAV(ID3D11UnorderedAccessView* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_UAV11Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (UAV11Proxy*)probe;
+}
+
+Texture1D11Proxy* TryUnwrapTexture1D(ID3D11Resource* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_Texture1D11Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (Texture1D11Proxy*)probe;
+}
+
+Texture3D11Proxy* TryUnwrapTexture3D(ID3D11Resource* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_Texture3D11Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (Texture3D11Proxy*)probe;
 }
 
 Texture2D10Proxy* TryUnwrapTexture2D_10(ID3D10Resource* p)

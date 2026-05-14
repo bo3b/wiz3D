@@ -1,0 +1,67 @@
+/* wiz3D - ID3D11ShaderResourceView proxy implementation */
+
+#include "StdAfx.h"
+#include "SRV11Proxy.h"
+#include "Device11Proxy.h"
+#include "proxy_factory.h"
+
+#pragma comment(lib, "dxguid.lib")
+
+namespace wiz3d
+{
+
+SRV11Proxy::SRV11Proxy(ID3D11ShaderResourceView* realLeft, ID3D11ShaderResourceView* realRight, Device11Proxy* parent)
+    : m_realLeft(realLeft)
+    , m_realRight(realRight)
+    , m_parent(parent)
+    , m_refs(1)
+{
+}
+
+SRV11Proxy::~SRV11Proxy()
+{
+    if (m_realRight) { m_realRight->Release(); m_realRight = nullptr; }
+    if (m_realLeft)  { m_realLeft->Release();  m_realLeft  = nullptr; }
+}
+
+ULONG STDMETHODCALLTYPE SRV11Proxy::Release()
+{
+    LONG r = InterlockedDecrement(&m_refs);
+    if (r == 0) delete this;
+    return (ULONG)r;
+}
+
+HRESULT STDMETHODCALLTYPE SRV11Proxy::QueryInterface(REFIID riid, void** ppvObj)
+{
+    if (!ppvObj) return E_POINTER;
+    if (riid == IID_IUnknown        ||
+        riid == IID_ID3D11DeviceChild ||
+        riid == IID_ID3D11View      ||
+        riid == IID_ID3D11ShaderResourceView)
+    {
+        *ppvObj = static_cast<ID3D11ShaderResourceView*>(this);
+        AddRef();
+        return S_OK;
+    }
+    if (riid == IID_wiz3D_SRV11Proxy)
+    {
+        *ppvObj = static_cast<IUnknown*>(static_cast<ID3D11ShaderResourceView*>(this));
+        AddRef();
+        return S_OK;
+    }
+    return m_realLeft->QueryInterface(riid, ppvObj);
+}
+
+void STDMETHODCALLTYPE SRV11Proxy::GetDevice(ID3D11Device** ppDevice)
+{
+    if (!ppDevice) return;
+    if (m_parent)
+    {
+        *ppDevice = static_cast<ID3D11Device*>(m_parent);
+        m_parent->AddRef();
+        return;
+    }
+    m_realLeft->GetDevice(ppDevice);
+}
+
+} // namespace wiz3d

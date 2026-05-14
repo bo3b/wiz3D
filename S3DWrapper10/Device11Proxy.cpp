@@ -6,6 +6,10 @@
 #include "RTV11Proxy.h"
 #include "DSV11Proxy.h"
 #include "Buffer11Proxy.h"
+#include "SRV11Proxy.h"
+#include "UAV11Proxy.h"
+#include "Texture1D11Proxy.h"
+#include "Texture3D11Proxy.h"
 #include "StereoHeuristic.h"
 #include "proxy_factory.h"     // for IID_wiz3D_Device11Proxy
 #include "AdapterFunctions.h"  // DDILog
@@ -348,33 +352,98 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::CreateDepthStencilView(
     return hr;
 }
 
+HRESULT STDMETHODCALLTYPE Device11Proxy::CreateTexture1D(
+    const D3D11_TEXTURE1D_DESC* pDesc,
+    const D3D11_SUBRESOURCE_DATA* pInitialData,
+    ID3D11Texture1D** ppTexture1D)
+{
+    // Stage 3c.2: always-wrap identity (no stereo doubling for Tex1D).
+    HRESULT hr = m_real->CreateTexture1D(pDesc, pInitialData, ppTexture1D);
+    if (FAILED(hr) || !ppTexture1D || !*ppTexture1D) return hr;
+    auto* texProxy = new Texture1D11Proxy(*ppTexture1D, this);
+    *ppTexture1D = static_cast<ID3D11Texture1D*>(texProxy);
+    return hr;
+}
+
+HRESULT STDMETHODCALLTYPE Device11Proxy::CreateTexture3D(
+    const D3D11_TEXTURE3D_DESC* pDesc,
+    const D3D11_SUBRESOURCE_DATA* pInitialData,
+    ID3D11Texture3D** ppTexture3D)
+{
+    // Stage 3c.2: always-wrap identity (no stereo doubling for Tex3D).
+    HRESULT hr = m_real->CreateTexture3D(pDesc, pInitialData, ppTexture3D);
+    if (FAILED(hr) || !ppTexture3D || !*ppTexture3D) return hr;
+    auto* texProxy = new Texture3D11Proxy(*ppTexture3D, this);
+    *ppTexture3D = static_cast<ID3D11Texture3D*>(texProxy);
+    return hr;
+}
+
 HRESULT STDMETHODCALLTYPE Device11Proxy::CreateShaderResourceView(
     ID3D11Resource* pResource, const D3D11_SHADER_RESOURCE_VIEW_DESC* pDesc,
     ID3D11ShaderResourceView** ppSRView)
 {
-    // Stage 3b: unwrap pResource only — Stage 3c will add an SRV11Proxy
-    // class for full COM identity preservation. For now games get back an
-    // unwrapped SRV against the real left-eye texture; per-eye SRV routing
-    // is a Stage 4 concern.
-    Texture2D11Proxy* texProxy  = TryUnwrapTexture2D(pResource);
+    // Stage 3c.2: unwrap input resource and wrap the resulting SRV. If the
+    // source resource carries a right-eye sibling, build a parallel SRV
+    // against the right-eye real resource so 4e can route per-eye binding.
+    Texture2D11Proxy* tex2Proxy = TryUnwrapTexture2D(pResource);
+    Texture1D11Proxy* tex1Proxy = TryUnwrapTexture1D(pResource);
+    Texture3D11Proxy* tex3Proxy = TryUnwrapTexture3D(pResource);
     Buffer11Proxy*    bufProxy  = TryUnwrapBuffer(pResource);
-    ID3D11Resource*   realToUse = texProxy ? static_cast<ID3D11Resource*>(texProxy->GetReal())
-                                : bufProxy ? static_cast<ID3D11Resource*>(bufProxy->GetReal())
-                                           : pResource;
-    return m_real->CreateShaderResourceView(realToUse, pDesc, ppSRView);
+
+    ID3D11Resource* realLeftRes  = tex2Proxy ? static_cast<ID3D11Resource*>(tex2Proxy->GetReal())
+                                 : tex1Proxy ? static_cast<ID3D11Resource*>(tex1Proxy->GetReal())
+                                 : tex3Proxy ? static_cast<ID3D11Resource*>(tex3Proxy->GetReal())
+                                 : bufProxy  ? static_cast<ID3D11Resource*>(bufProxy->GetReal())
+                                             : pResource;
+    ID3D11Resource* realRightRes = tex2Proxy ? static_cast<ID3D11Resource*>(tex2Proxy->GetRealRight())
+                                             : nullptr;
+
+    HRESULT hr = m_real->CreateShaderResourceView(realLeftRes, pDesc, ppSRView);
+    if (FAILED(hr) || !ppSRView || !*ppSRView) return hr;
+
+    ID3D11ShaderResourceView* realRightSRV = nullptr;
+    if (realRightRes)
+    {
+        HRESULT hr2 = m_real->CreateShaderResourceView(realRightRes, pDesc, &realRightSRV);
+        if (FAILED(hr2)) realRightSRV = nullptr;
+    }
+
+    auto* srvProxy = new SRV11Proxy(*ppSRView, realRightSRV, this);
+    *ppSRView = static_cast<ID3D11ShaderResourceView*>(srvProxy);
+    return hr;
 }
 
 HRESULT STDMETHODCALLTYPE Device11Proxy::CreateUnorderedAccessView(
     ID3D11Resource* pResource, const D3D11_UNORDERED_ACCESS_VIEW_DESC* pDesc,
     ID3D11UnorderedAccessView** ppUAView)
 {
-    // Stage 3b: unwrap pResource only — UAV11Proxy lands in Stage 3c.
-    Texture2D11Proxy* texProxy  = TryUnwrapTexture2D(pResource);
+    // Stage 3c.2: same unwrap-input/wrap-output pattern as SRV.
+    Texture2D11Proxy* tex2Proxy = TryUnwrapTexture2D(pResource);
+    Texture1D11Proxy* tex1Proxy = TryUnwrapTexture1D(pResource);
+    Texture3D11Proxy* tex3Proxy = TryUnwrapTexture3D(pResource);
     Buffer11Proxy*    bufProxy  = TryUnwrapBuffer(pResource);
-    ID3D11Resource*   realToUse = texProxy ? static_cast<ID3D11Resource*>(texProxy->GetReal())
-                                : bufProxy ? static_cast<ID3D11Resource*>(bufProxy->GetReal())
-                                           : pResource;
-    return m_real->CreateUnorderedAccessView(realToUse, pDesc, ppUAView);
+
+    ID3D11Resource* realLeftRes  = tex2Proxy ? static_cast<ID3D11Resource*>(tex2Proxy->GetReal())
+                                 : tex1Proxy ? static_cast<ID3D11Resource*>(tex1Proxy->GetReal())
+                                 : tex3Proxy ? static_cast<ID3D11Resource*>(tex3Proxy->GetReal())
+                                 : bufProxy  ? static_cast<ID3D11Resource*>(bufProxy->GetReal())
+                                             : pResource;
+    ID3D11Resource* realRightRes = tex2Proxy ? static_cast<ID3D11Resource*>(tex2Proxy->GetRealRight())
+                                             : nullptr;
+
+    HRESULT hr = m_real->CreateUnorderedAccessView(realLeftRes, pDesc, ppUAView);
+    if (FAILED(hr) || !ppUAView || !*ppUAView) return hr;
+
+    ID3D11UnorderedAccessView* realRightUAV = nullptr;
+    if (realRightRes)
+    {
+        HRESULT hr2 = m_real->CreateUnorderedAccessView(realRightRes, pDesc, &realRightUAV);
+        if (FAILED(hr2)) realRightUAV = nullptr;
+    }
+
+    auto* uavProxy = new UAV11Proxy(*ppUAView, realRightUAV, this);
+    *ppUAView = static_cast<ID3D11UnorderedAccessView*>(uavProxy);
+    return hr;
 }
 
 } // namespace wiz3d
