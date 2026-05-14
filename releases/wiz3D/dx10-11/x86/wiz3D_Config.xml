@@ -109,6 +109,12 @@
 		     crash) and has no visible benefit yet (no per-eye CB math, no SBS composite).
 		     Flip to 1 once Stage 4c (CB stereo math) and 4d (SBS composite) ship. -->
 		<UseCOMWrapReplay Value="0"/>
+		<!-- Stage 4c: horizontal eye-shift magnitude applied to projection-style
+		     matrices in mapped CBs during the right-eye replay. Detection looks
+		     for m[2][3]=1, m[3][3]=0 pattern (D3D row-major perspective proj).
+		     Typical visible range: 0.01..0.05. Set to 0 to disable 4c math (both
+		     eyes get identical CBs — useful for comparing against pseudo-stereo). -->
+		<COMWrapEyeShift Value="0.03"/>
 		<!-- Write debug info to log files: 0=off 1=on -->
 		<CollectDebugInformation Value="0"/>
 		<!-- Screenshot format: 0=BMP, 1=JPG, 2=PNG -->

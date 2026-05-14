@@ -600,32 +600,129 @@ void STDMETHODCALLTYPE Context11Proxy::CopySubresourceRegion(
         });
 }
 
+// Stage 4c: walk the captured CB bytes 64-byte (4x4 float) at a time. If the
+// chunk matches the D3D row-major perspective projection pattern, apply the
+// configured eye-shift to the m[2][0] element so the right eye renders with
+// a horizontally-offset projection.
+//
+// D3D row-major perspective projection layout (HLSL default mul order):
+//   m[0][0]=xScale   m[0][1]=0     m[0][2]=0       m[0][3]=0
+//   m[1][0]=0        m[1][1]=yScale m[1][2]=0      m[1][3]=0
+//   m[2][0]=0        m[2][1]=0     m[2][2]=zFactor m[2][3]=1
+//   m[3][0]=0        m[3][1]=0     m[3][2]=zOffset m[3][3]=0
+//
+// As floats[0..15], we check floats[11]==1 (m[2][3]) and floats[15]==0
+// (m[3][3]) — distinguishes perspective projections from identity, view,
+// world, and orthographic. m[0][0] != 0 too (some xScale). When matched,
+// add eyeShift to floats[8] (m[2][0]). This is the standard "horizontal
+// off-axis projection" stereo trick used by iZ3D and 3DMigoto for view-
+// shift without parallax errors.
+static void ApplyEyeShiftToCB(unsigned char* data, size_t byteCount, float eyeShift)
+{
+    if (eyeShift == 0.f) return;
+    constexpr size_t kMat4Bytes = 16 * sizeof(float);
+    if (byteCount < kMat4Bytes) return;
+    for (size_t off = 0; off + kMat4Bytes <= byteCount; off += 4)
+    {
+        float* f = reinterpret_cast<float*>(data + off);
+        // Perspective projection pattern: m[2][3]==1, m[3][3]==0,
+        // m[0][0]!=0, m[1][1]!=0. The xScale / yScale checks reject
+        // matrices that happen to have 1/0 in those slots for unrelated
+        // reasons (lookups, bone weights, etc).
+        if (f[11] != 1.f) continue;
+        if (f[15] != 0.f) continue;
+        if (f[0]  == 0.f) continue;
+        if (f[5]  == 0.f) continue;
+        // Hit — shift m[2][0]. Scaled by xScale so the shift magnitude
+        // is proportional to the projected coord range (otherwise high-
+        // FOV games get too much shift, narrow-FOV games too little).
+        f[8] += eyeShift * f[0];
+    }
+}
+
 HRESULT STDMETHODCALLTYPE Context11Proxy::Map(
     ID3D11Resource* pResource, UINT Subresource, D3D11_MAP MapType, UINT MapFlags,
     D3D11_MAPPED_SUBRESOURCE* pMappedResource)
 {
-    // Stage 4d: pure passthrough. Recording disabled — see Unmap comment.
     Texture2D11Proxy* tex = TryUnwrapTexture2D(pResource);
     ID3D11Resource* realRes = tex ? tex->GetReal() : pResource;
-    return m_real->Map(realRes, Subresource, MapType, MapFlags, pMappedResource);
+    HRESULT hr = m_real->Map(realRes, Subresource, MapType, MapFlags, pMappedResource);
+    if (FAILED(hr) || !pMappedResource) return hr;
+    if (!m_presentHookActive) return hr;
+    if (!gInfo.UseCOMWrapReplay) return hr;
+
+    // Stage 4c: only record write maps on CONSTANT BUFFERS. Vertex/index/
+    // structured buffers don't carry the projection matrix and aren't worth
+    // the replay cost; their Map() bypasses our recording. CB detection
+    // happens via QI for ID3D11Buffer + BindFlags check (no ID3D11Buffer
+    // wrap needed at this stage).
+    if (MapType != D3D11_MAP_WRITE_DISCARD &&
+        MapType != D3D11_MAP_WRITE &&
+        MapType != D3D11_MAP_WRITE_NO_OVERWRITE &&
+        MapType != D3D11_MAP_READ_WRITE)
+        return hr;
+
+    ID3D11Buffer* asBuffer = nullptr;
+    if (FAILED(pResource->QueryInterface(__uuidof(ID3D11Buffer),
+                                          reinterpret_cast<void**>(&asBuffer))) || !asBuffer)
+        return hr;
+    D3D11_BUFFER_DESC desc;
+    asBuffer->GetDesc(&desc);
+    asBuffer->Release();
+    if ((desc.BindFlags & D3D11_BIND_CONSTANT_BUFFER) == 0) return hr;
+    if (desc.ByteWidth == 0) return hr;
+
+    ActiveMap am;
+    am.resource    = pResource;
+    am.subresource = Subresource;
+    am.mapType     = MapType;
+    am.mappedData  = pMappedResource->pData;
+    am.byteWidth   = desc.ByteWidth;
+    m_activeMaps.push_back(am);
+    return hr;
 }
 
 void STDMETHODCALLTYPE Context11Proxy::Unmap(ID3D11Resource* pResource, UINT Subresource)
 {
-    // Stage 4d: do NOT record Map/Unmap. Until Stage 3c wraps ID3D11Buffer,
-    // there's exactly one constant buffer instance per slot — the game's
-    // Map/Unmap mutates THAT one buffer, and both the direct left-eye draw
-    // and the right-eye replay sample from the same CB so no replay is
-    // needed for correctness. Re-issuing Map+memcpy+Unmap at replay time
-    // was a latent crash source (the recorded resource pointer could
-    // dangle across ResizeBuffers / device state flux even with ComRefHolder
-    // because Map's invariants rely on the resource being in a usable state).
-    //
-    // Stage 4c will add eye-aware CB modification by wrapping ID3D11Buffer
-    // and re-introducing per-eye Map/Unmap with a different design (modify
-    // captured bytes per eye before re-issuing).
     Texture2D11Proxy* tex = TryUnwrapTexture2D(pResource);
     ID3D11Resource* realRes = tex ? tex->GetReal() : pResource;
+
+    // Stage 4c: if Map captured this CB write, snapshot the bytes BEFORE
+    // forwarding Unmap (which invalidates the mapped pointer), then push a
+    // closure that re-maps + memcpy + applies the eye-shift heuristic +
+    // unmaps at replay time. The closure only fires its modify-and-write
+    // path on the right-eye pass (m_activeEye == Eye::Right) — the left
+    // eye is the direct path the game just did, no replay needed.
+    for (auto it = m_activeMaps.begin(); it != m_activeMaps.end(); ++it)
+    {
+        if (it->resource != pResource || it->subresource != Subresource) continue;
+        if (it->mappedData && it->byteWidth)
+        {
+            std::vector<unsigned char> bytes(it->byteWidth);
+            memcpy(bytes.data(), it->mappedData, it->byteWidth);
+            UINT subres = it->subresource;
+            D3D11_MAP mapType = it->mapType;
+            ComRefHolder resRef(pResource);
+            m_frameCommands.emplace_back(
+                [this, resRef, subres, bytes, mapType]()
+                {
+                    if (m_activeEye != Eye::Right) return;
+                    auto* gameRes = static_cast<ID3D11Resource*>(resRef.p);
+                    Texture2D11Proxy* texR = TryUnwrapTexture2D(gameRes);
+                    ID3D11Resource* real = texR ? texR->GetReal() : gameRes;
+                    D3D11_MAPPED_SUBRESOURCE mapped = {};
+                    if (FAILED(m_real->Map(real, subres, mapType, 0, &mapped))
+                        || !mapped.pData) return;
+                    memcpy(mapped.pData, bytes.data(), bytes.size());
+                    ApplyEyeShiftToCB(static_cast<unsigned char*>(mapped.pData),
+                                      bytes.size(), gInfo.COMWrapEyeShift);
+                    m_real->Unmap(real, subres);
+                });
+        }
+        m_activeMaps.erase(it);
+        break;
+    }
+
     m_real->Unmap(realRes, Subresource);
 }
 

@@ -331,6 +331,13 @@ public:
 	// (4c) and no SBS composite (4d) for the right-eye output to be
 	// seen. Flip true once 4c+4d are in place.
 	bool		UseCOMWrapReplay;
+	// Option B (Stage 4c): per-eye horizontal shift applied to the [2][0]
+	// element of projection-shaped matrices in mapped constant buffers
+	// during the right-eye replay. Scale is in same units as the matrix
+	// — typical good values are 0.01..0.05; the projection-style scan
+	// detects matrices with m[2][3]=1, m[3][3]=0 and writes m[2][0]+=
+	// COMWrapEyeShift on the right-eye replay. Zero disables 4c math.
+	float		COMWrapEyeShift;
 	bool		CollectDebugInformation;
 	DWORD       ScreenshotType;	
 	bool		FixVistaSP1ResetBug;
@@ -441,6 +448,7 @@ public:
 		UseCOMWrap = true;	// Option B default — see field comment.
 		UseCOMWrapSwapChain = false;  // Stage 4b.3 default OFF until 4d; see field comment.
 		UseCOMWrapReplay = false;     // Stage 4b.8 default OFF until 4c+4d ready.
+		COMWrapEyeShift  = 0.03f;     // Stage 4c default shift magnitude.
 		DrawType = 2;
 		DeviceMode = DEVICE_MODE_AUTO;
 		MultiWindowsMode = MULTI_WINDOWS_MODE_AUTO;
