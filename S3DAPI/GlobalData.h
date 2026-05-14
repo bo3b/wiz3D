@@ -520,15 +520,31 @@ extern S3DAPI_API GlobalInfo _gInfo;
 extern GlobalInfo& gInfo;
 
 // Option B Stage 4c / 4e: effective per-eye horizontal shift used by the
-// COM-wrap CB math. Returns the COMWrapEyeShift override when non-zero,
-// otherwise the per-game profile's StereoBase (loaded from BaseProfile.xml
-// + hotkey-adjustable via Num +/-). Inline so callers can branch cheaply
-// per Map closure without an extra .cpp dep.
+// COM-wrap CB math. Mirrors what the legacy DDI path computes in
+// D3DDeviceWrapper::UpdateProjectionMatrix (S3DWrapper10/D3DDeviceWrapper.cpp:
+// 1419-1477) so iZ3D's per-game profile values produce equivalent disparity
+// here.
+//
+// iZ3D's UpdateProjectionMatrix sets, per eye:
+//     A_left  = -cameraShift * One_div_ZPS    (cameraShift = StereoBase/2)
+//     A_right = +cameraShift * One_div_ZPS
+//     ProjectionMatrix._31 += A * _11        (i.e. m[2][0] += A * xScale)
+// Total LEFT vs RIGHT disparity in NDC.x per unit z:
+//     (A_right - A_left) * xScale = StereoBase * One_div_ZPS * xScale
+//
+// Our COM-wrap path only modifies the RIGHT eye (LEFT stays as the game's
+// native projection), so to produce the same total binocular disparity we
+// need eyeShift = StereoBase * One_div_ZPS. With iZ3D defaults
+// (StereoBase=0.16, One_div_ZPS=1/(1+ZNear)=0.5) that's 0.08.
+//
+// COMWrapEyeShift in config remains an override: non-zero forces a specific
+// magnitude (diagnostic / A-B), zero (default) uses the profile-driven path.
 inline float wiz3D_GetEffectiveEyeShift()
 {
 	if (gInfo.COMWrapEyeShift != 0.0f) return gInfo.COMWrapEyeShift;
 	const CameraPreset* preset = gInfo.Input.GetActivePreset();
-	return preset ? preset->StereoBase : 0.0f;
+	if (!preset) return 0.0f;
+	return preset->StereoBase * preset->One_div_ZPS;
 }
 
 // you should declare gInfo in project
