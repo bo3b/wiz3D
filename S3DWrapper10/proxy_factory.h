@@ -26,6 +26,11 @@ EXTERN_C const GUID IID_wiz3D_RTV10Proxy;
 EXTERN_C const GUID IID_wiz3D_DSV10Proxy;
 EXTERN_C const GUID IID_wiz3D_Buffer10Proxy;
 EXTERN_C const GUID IID_wiz3D_SwapChain10Proxy;
+// Stage 3c.2 DX10 port: SRV + Texture1D/3D proxies. DX10 has no UAVs
+// (that's a DX11 addition), so no UAV10Proxy.
+EXTERN_C const GUID IID_wiz3D_SRV10Proxy;
+EXTERN_C const GUID IID_wiz3D_Texture1D10Proxy;
+EXTERN_C const GUID IID_wiz3D_Texture3D10Proxy;
 
 // Stage 3b: same pattern for the resource/view proxies. Methods that take an
 // `ID3D11Resource*` / `ID3D11RenderTargetView*` / `ID3D11DepthStencilView*`
@@ -116,6 +121,14 @@ namespace wiz3d
     RTV10Proxy*       TryUnwrapRTV_10(struct ID3D10RenderTargetView* p);
     DSV10Proxy*       TryUnwrapDSV_10(struct ID3D10DepthStencilView* p);
     Buffer10Proxy*    TryUnwrapBuffer_10(struct ID3D10Resource* p);
+
+    class SRV10Proxy;
+    class Texture1D10Proxy;
+    class Texture3D10Proxy;
+
+    SRV10Proxy*       TryUnwrapSRV_10(struct ID3D10ShaderResourceView* p);
+    Texture1D10Proxy* TryUnwrapTexture1D_10(struct ID3D10Resource* p);
+    Texture3D10Proxy* TryUnwrapTexture3D_10(struct ID3D10Resource* p);
 }
 
 // Exported entry point the d3d11.dll proxy resolves via GetProcAddress, so

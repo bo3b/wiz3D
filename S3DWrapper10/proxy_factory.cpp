@@ -24,6 +24,9 @@
 #include "RTV10Proxy.h"
 #include "DSV10Proxy.h"
 #include "Buffer10Proxy.h"
+#include "SRV10Proxy.h"
+#include "Texture1D10Proxy.h"
+#include "Texture3D10Proxy.h"
 #include "SwapChain10Proxy.h"
 #include "SwapChain11Proxy.h"
 #include "AdapterFunctions.h"  // DDILog
@@ -89,6 +92,16 @@ EXTERN_C const GUID IID_wiz3D_Buffer10Proxy =
 // {627914BC-D5F7-EDC4-35B6-1405269554A5} — DX10 SwapChain
 EXTERN_C const GUID IID_wiz3D_SwapChain10Proxy =
     { 0x627914BC, 0xD5F7, 0xEDC4, { 0x35, 0xB6, 0x14, 0x05, 0x26, 0x95, 0x54, 0xA5 } };
+// Stage 3c.2 DX10 port IIDs.
+// {738A25CD-E608-FED5-46C7-25163FA6657D}
+EXTERN_C const GUID IID_wiz3D_SRV10Proxy =
+    { 0x738A25CD, 0xE608, 0xFED5, { 0x46, 0xC7, 0x25, 0x16, 0x3F, 0xA6, 0x65, 0x7D } };
+// {849B36DE-F719-0FE6-57D8-36274BB7768E}
+EXTERN_C const GUID IID_wiz3D_Texture1D10Proxy =
+    { 0x849B36DE, 0xF719, 0x0FE6, { 0x57, 0xD8, 0x36, 0x27, 0x4B, 0xB7, 0x76, 0x8E } };
+// {95AC47EF-082A-10F7-68E9-47385CC8879F}
+EXTERN_C const GUID IID_wiz3D_Texture3D10Proxy =
+    { 0x95AC47EF, 0x082A, 0x10F7, { 0x68, 0xE9, 0x47, 0x38, 0x5C, 0xC8, 0x87, 0x9F } };
 
 namespace wiz3d
 {
@@ -254,6 +267,39 @@ Buffer10Proxy* TryUnwrapBuffer_10(ID3D10Resource* p)
         return nullptr;
     probe->Release();
     return (Buffer10Proxy*)probe;
+}
+
+SRV10Proxy* TryUnwrapSRV_10(ID3D10ShaderResourceView* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_SRV10Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (SRV10Proxy*)probe;
+}
+
+Texture1D10Proxy* TryUnwrapTexture1D_10(ID3D10Resource* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_Texture1D10Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (Texture1D10Proxy*)probe;
+}
+
+Texture3D10Proxy* TryUnwrapTexture3D_10(ID3D10Resource* p)
+{
+    if (!p) return nullptr;
+    IUnknown* probe = nullptr;
+    if (FAILED(p->QueryInterface(IID_wiz3D_Texture3D10Proxy,
+                                  reinterpret_cast<void**>(&probe))) || !probe)
+        return nullptr;
+    probe->Release();
+    return (Texture3D10Proxy*)probe;
 }
 
 } // namespace wiz3d

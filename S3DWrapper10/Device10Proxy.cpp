@@ -6,6 +6,9 @@
 #include "RTV10Proxy.h"
 #include "DSV10Proxy.h"
 #include "Buffer10Proxy.h"
+#include "SRV10Proxy.h"
+#include "Texture1D10Proxy.h"
+#include "Texture3D10Proxy.h"
 #include "DXGIDevice10Proxy.h"
 #include "StereoHeuristic.h"
 #include "proxy_factory.h"     // IID_wiz3D_Device10Proxy + TryUnwrap_10 helpers
@@ -45,8 +48,27 @@ static inline ID3D10Resource* UnwrapResForEye10(ID3D10Resource* p, bool pickRigh
         ID3D10Resource* right = tex->GetRealRight();
         return (pickRight && right) ? right : static_cast<ID3D10Resource*>(tex->GetReal());
     }
+    if (auto* tex1 = TryUnwrapTexture1D_10(p))
+        return static_cast<ID3D10Resource*>(tex1->GetReal());
+    if (auto* tex3 = TryUnwrapTexture3D_10(p))
+        return static_cast<ID3D10Resource*>(tex3->GetReal());
     if (auto* buf = TryUnwrapBuffer_10(p))
         return static_cast<ID3D10Resource*>(buf->GetReal());
+    return p;
+}
+
+// Stage 3c.2 DX10: eye-aware SRV unwrap helper. SRV10Proxy carries an
+// optional right-eye sibling — when active eye is Right, point the runtime
+// at it so downstream samples see right-eye RT content.
+static inline ID3D10ShaderResourceView* UnwrapSRV10ForEye(
+    ID3D10ShaderResourceView* p, bool pickRight)
+{
+    if (!p) return nullptr;
+    if (auto* sp = TryUnwrapSRV_10(p))
+    {
+        ID3D10ShaderResourceView* right = sp->GetRealRight();
+        return (pickRight && right) ? right : sp->GetReal();
+    }
     return p;
 }
 
@@ -280,16 +302,63 @@ HRESULT STDMETHODCALLTYPE Device10Proxy::CreateDepthStencilView(
     return hr;
 }
 
+HRESULT STDMETHODCALLTYPE Device10Proxy::CreateTexture1D(
+    const D3D10_TEXTURE1D_DESC* pDesc,
+    const D3D10_SUBRESOURCE_DATA* pInitialData,
+    ID3D10Texture1D** ppTexture1D)
+{
+    HRESULT hr = m_real->CreateTexture1D(pDesc, pInitialData, ppTexture1D);
+    if (FAILED(hr) || !ppTexture1D || !*ppTexture1D) return hr;
+    auto* texProxy = new Texture1D10Proxy(*ppTexture1D, this);
+    *ppTexture1D = static_cast<ID3D10Texture1D*>(texProxy);
+    return hr;
+}
+
+HRESULT STDMETHODCALLTYPE Device10Proxy::CreateTexture3D(
+    const D3D10_TEXTURE3D_DESC* pDesc,
+    const D3D10_SUBRESOURCE_DATA* pInitialData,
+    ID3D10Texture3D** ppTexture3D)
+{
+    HRESULT hr = m_real->CreateTexture3D(pDesc, pInitialData, ppTexture3D);
+    if (FAILED(hr) || !ppTexture3D || !*ppTexture3D) return hr;
+    auto* texProxy = new Texture3D10Proxy(*ppTexture3D, this);
+    *ppTexture3D = static_cast<ID3D10Texture3D*>(texProxy);
+    return hr;
+}
+
 HRESULT STDMETHODCALLTYPE Device10Proxy::CreateShaderResourceView(
     ID3D10Resource* pResource, const D3D10_SHADER_RESOURCE_VIEW_DESC* pDesc,
     ID3D10ShaderResourceView** ppSRView)
 {
-    Texture2D10Proxy* texProxy  = TryUnwrapTexture2D_10(pResource);
+    // Stage 3c.2 DX10 port: same unwrap-input/wrap-output pattern as DX11.
+    // Right-eye sibling SRV gets allocated against the right-eye real
+    // resource (Texture2D only — Buffer/Tex1D/Tex3D have no siblings).
+    Texture2D10Proxy* tex2Proxy = TryUnwrapTexture2D_10(pResource);
+    Texture1D10Proxy* tex1Proxy = TryUnwrapTexture1D_10(pResource);
+    Texture3D10Proxy* tex3Proxy = TryUnwrapTexture3D_10(pResource);
     Buffer10Proxy*    bufProxy  = TryUnwrapBuffer_10(pResource);
-    ID3D10Resource*   realToUse = texProxy ? static_cast<ID3D10Resource*>(texProxy->GetReal())
-                                : bufProxy ? static_cast<ID3D10Resource*>(bufProxy->GetReal())
-                                           : pResource;
-    return m_real->CreateShaderResourceView(realToUse, pDesc, ppSRView);
+
+    ID3D10Resource* realLeftRes  = tex2Proxy ? static_cast<ID3D10Resource*>(tex2Proxy->GetReal())
+                                 : tex1Proxy ? static_cast<ID3D10Resource*>(tex1Proxy->GetReal())
+                                 : tex3Proxy ? static_cast<ID3D10Resource*>(tex3Proxy->GetReal())
+                                 : bufProxy  ? static_cast<ID3D10Resource*>(bufProxy->GetReal())
+                                             : pResource;
+    ID3D10Resource* realRightRes = tex2Proxy ? static_cast<ID3D10Resource*>(tex2Proxy->GetRealRight())
+                                             : nullptr;
+
+    HRESULT hr = m_real->CreateShaderResourceView(realLeftRes, pDesc, ppSRView);
+    if (FAILED(hr) || !ppSRView || !*ppSRView) return hr;
+
+    ID3D10ShaderResourceView* realRightSRV = nullptr;
+    if (realRightRes)
+    {
+        if (FAILED(m_real->CreateShaderResourceView(realRightRes, pDesc, &realRightSRV)))
+            realRightSRV = nullptr;
+    }
+
+    auto* srvProxy = new SRV10Proxy(*ppSRView, realRightSRV, this);
+    *ppSRView = static_cast<ID3D10ShaderResourceView*>(srvProxy);
+    return hr;
 }
 
 // ---------------------------------------------------------------------------
@@ -564,6 +633,12 @@ void STDMETHODCALLTYPE Device10Proxy::ResolveSubresource(
         UnwrapResForEye10(pSrcResource, pickRight), SrcSubresource, Format);
 }
 
+void STDMETHODCALLTYPE Device10Proxy::GenerateMips(ID3D10ShaderResourceView* pShaderResourceView)
+{
+    bool pickRight = (m_activeEye == Eye::Right);
+    m_real->GenerateMips(UnwrapSRV10ForEye(pShaderResourceView, pickRight));
+}
+
 static void DoClearRTV_internal(
     ID3D10Device* real, bool pickRight,
     ID3D10RenderTargetView* pRenderTargetView, const FLOAT ColorRGBA[4])
@@ -639,7 +714,14 @@ void STDMETHODCALLTYPE Device10Proxy::ClearDepthStencilView(
 void STDMETHODCALLTYPE Device10Proxy::STAGE_PREFIX##SetShaderResources(                     \
     UINT StartSlot, UINT NumViews, ID3D10ShaderResourceView* const* ppShaderResourceViews)  \
 {                                                                                           \
-    m_real->STAGE_PREFIX##SetShaderResources(StartSlot, NumViews, ppShaderResourceViews);   \
+    ID3D10ShaderResourceView* rawSet[kMaxUnwrapArray] = { 0 };                              \
+    UINT setCap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;                 \
+    bool pickRight = (m_activeEye == Eye::Right);                                           \
+    for (UINT i = 0; i < setCap; ++i)                                                       \
+        rawSet[i] = UnwrapSRV10ForEye(ppShaderResourceViews ? ppShaderResourceViews[i]      \
+                                                            : nullptr, pickRight);          \
+    m_real->STAGE_PREFIX##SetShaderResources(StartSlot, NumViews,                           \
+        ppShaderResourceViews ? rawSet : nullptr);                                          \
     if (!m_presentHookActive) return;                                                       \
     std::vector<ComRefHolder10> refs;                                                       \
     refs.reserve(NumViews);                                                                 \
@@ -649,8 +731,10 @@ void STDMETHODCALLTYPE Device10Proxy::STAGE_PREFIX##SetShaderResources(         
         [this, StartSlot, NumViews, refs]() {                                               \
             ID3D10ShaderResourceView* raw[kMaxUnwrapArray] = { 0 };                         \
             UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;            \
+            bool pr = (m_activeEye == Eye::Right);                                          \
             for (UINT i = 0; i < cap; ++i)                                                  \
-                raw[i] = static_cast<ID3D10ShaderResourceView*>(refs[i].p);                 \
+                raw[i] = UnwrapSRV10ForEye(                                                 \
+                    static_cast<ID3D10ShaderResourceView*>(refs[i].p), pr);                 \
             m_real->STAGE_PREFIX##SetShaderResources(StartSlot, NumViews, raw);             \
         });                                                                                 \
 }
