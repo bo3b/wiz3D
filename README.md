@@ -419,6 +419,7 @@ Games that used 3D Vision "Automatic Mode" driver stereo injection, but communic
 
 | Game | API | Bits | iZ3D Profile | Testing | Notes |
 |------|-----|------|--------|-------|-------|
+| Alice: Madness Returns | DX9 | x86 | ✕ | ✅ Mostly Working | `AllowNvidiaStereo3d=True` in `AliceEngine.ini`. Needs windows and shadow shader fix. |
 | Assassin's Creed: Revelations | DX9 | x86 | ✕ | Untested | `3D Vision Fog` in game settings |
 | Batman: Arkham Asylum | DX9 | x86 | ✓ | ✅ Working | Enables `Nvidia Stereoscopic 3D` in game setting. |
 | Batman: Arkham City | DX9/DX11 | x86 | ✕ | ✅ Partially Working | DX9 working, DX11 not working. Might need to implement more 3D Vison features. |
@@ -427,7 +428,7 @@ Games that used 3D Vision "Automatic Mode" driver stereo injection, but communic
 | Brave: The Video Game | DX9 | x86 | ✕ | Untested |  |
 | Call of Duty: Black Ops | DX9 | x86 | ✓ | ✅ Working | Might need to implement more 3D Vison features. |
 | Carrier Command: Gaea Mission | DX9/DX11 | x86 | ✕ | Untested |  |
-| Dead Rising 2 | DX9 | x86 | ✕ | ✅ Working | May need shader fix. |
+| Dead Rising 2 | DX9 | x86 | ✕ | ✅ Mostly Working | Needs mirrors and fade-out zombies shader fix. |
 | Deep Black: Reloaded | DX9 | x86 | ✕ | Untested |  |
 | Depth Hunter | DX9 | x86 | ✕ | Untested |  |
 | Devil May Cry 4 | DX9/10 | x86 | ✓ | Untested | `Stereo=ON` in `config.ini`. |
