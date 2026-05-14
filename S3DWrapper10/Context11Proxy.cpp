@@ -97,7 +97,9 @@ Context11Proxy::Context11Proxy(ID3D11DeviceContext* real, Device11Proxy* parent)
     , m_currentBBBound(false)
     , m_activeEye(Eye::Left)
     , m_presentHookActive(false)
+    , m_boundVS(nullptr)
 {
+    for (UINT i = 0; i < kMaxVSCBSlots; ++i) m_boundVSCBs[i] = nullptr;
 }
 
 Context11Proxy::~Context11Proxy()
@@ -241,13 +243,57 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetConstantBuffers(        
             m_real->STAGE_PREFIX##SetConstantBuffers(StartSlot, NumBuffers, raw);           \
         });                                                                                 \
 }
-RECORD_CB_SET(VS, 1)
 RECORD_CB_SET(PS, 0)
 RECORD_CB_SET(GS, 1)
 RECORD_CB_SET(HS, 1)
 RECORD_CB_SET(DS, 1)
 RECORD_CB_SET(CS, 0)
 #undef RECORD_CB_SET
+
+// Stage 4e.2: VS variant of RECORD_CB_SET that ALSO updates m_boundVSCBs[]
+// so Unmap can recover which slot each CB is at when consulting the bound
+// VS's projection-matrix register table.
+void STDMETHODCALLTYPE Context11Proxy::VSSetConstantBuffers(
+    UINT StartSlot, UINT NumBuffers, ID3D11Buffer* const* ppConstantBuffers)
+{
+    ID3D11Buffer* rawCBs[kMaxUnwrapArray] = { 0 };
+    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+    for (UINT i = 0; i < cap; ++i)
+    {
+        ID3D11Buffer* p = ppConstantBuffers ? ppConstantBuffers[i] : nullptr;
+        // 4e.2 slot snapshot — stored even when m_presentHookActive is off,
+        // because Unmap path always uses it.
+        UINT slot = StartSlot + i;
+        if (slot < kMaxVSCBSlots) m_boundVSCBs[slot] = p;
+
+        if (p)
+        {
+            if (auto* bp = wiz3d::TryUnwrapBuffer(static_cast<ID3D11Resource*>(p)))
+            {
+                bp->TagVSBound();
+                rawCBs[i] = bp->GetReal();
+            }
+            else
+            {
+                rawCBs[i] = p;
+            }
+        }
+    }
+    m_real->VSSetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers ? rawCBs : nullptr);
+    if (!m_presentHookActive) return;
+    std::vector<ComRefHolder> refs;
+    refs.reserve(NumBuffers);
+    for (UINT i = 0; i < NumBuffers; ++i)
+        refs.emplace_back(ppConstantBuffers ? ppConstantBuffers[i] : nullptr);
+    m_frameCommands.emplace_back(
+        [this, StartSlot, NumBuffers, refs]() {
+            ID3D11Buffer* raw[kMaxUnwrapArray] = { 0 };
+            UINT replayCap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            for (UINT i = 0; i < replayCap; ++i)
+                raw[i] = UnwrapBuf(static_cast<ID3D11Buffer*>(refs[i].p));
+            m_real->VSSetConstantBuffers(StartSlot, NumBuffers, raw);
+        });
+}
 
 // *SetShader — takes the stage-specific shader interface plus the
 // class-instance array. Class instances are rarely non-null (used for
@@ -275,12 +321,42 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetShader(                 
                 NumClassInstances);                                                         \
         });                                                                                 \
 }
-RECORD_SHADER_SET(VS, ID3D11VertexShader)
 RECORD_SHADER_SET(PS, ID3D11PixelShader)
 RECORD_SHADER_SET(GS, ID3D11GeometryShader)
 RECORD_SHADER_SET(HS, ID3D11HullShader)
 RECORD_SHADER_SET(DS, ID3D11DomainShader)
 RECORD_SHADER_SET(CS, ID3D11ComputeShader)
+
+// Stage 4e.2: VS variant that ALSO snapshots m_boundVS for the Unmap path's
+// projection-data lookup. Snapshot stored regardless of m_presentHookActive
+// because Unmap-time consultation is independent of the replay-recording
+// gate. NB: not AddRef'd — the game owns the shader; if it Releases under
+// us, we'll get a stale-positive lookup that either misses (no entry in
+// shaderProjections map) or hits an entry that's no longer the live shader,
+// which downgrades to the original heuristic / no-op for that CB.
+void STDMETHODCALLTYPE Context11Proxy::VSSetShader(
+    ID3D11VertexShader* pShader, ID3D11ClassInstance* const* ppClassInstances,
+    UINT NumClassInstances)
+{
+    m_boundVS = pShader;
+    m_real->VSSetShader(pShader, ppClassInstances, NumClassInstances);
+    if (!m_presentHookActive) return;
+    ComRefHolder shaderRef(pShader);
+    std::vector<ComRefHolder> ciRefs;
+    ciRefs.reserve(NumClassInstances);
+    for (UINT i = 0; i < NumClassInstances; ++i)
+        ciRefs.emplace_back(ppClassInstances ? ppClassInstances[i] : nullptr);
+    m_frameCommands.emplace_back(
+        [this, shaderRef, ciRefs, NumClassInstances]() {
+            ID3D11ClassInstance* raw[kMaxUnwrapArray] = { 0 };
+            UINT cap = NumClassInstances <= kMaxUnwrapArray ? NumClassInstances : kMaxUnwrapArray;
+            for (UINT i = 0; i < cap; ++i)
+                raw[i] = static_cast<ID3D11ClassInstance*>(ciRefs[i].p);
+            m_real->VSSetShader(
+                static_cast<ID3D11VertexShader*>(shaderRef.p),
+                ciRefs.empty() ? nullptr : raw, NumClassInstances);
+        });
+}
 #undef RECORD_SHADER_SET
 
 // Stage 4b.7: record-and-replay for draw/dispatch. Pure POD captures for the
@@ -723,6 +799,47 @@ void STDMETHODCALLTYPE Context11Proxy::CopySubresourceRegion(
 // add eyeShift to floats[8] (m[2][0]). This is the standard "horizontal
 // off-axis projection" stereo trick used by iZ3D and 3DMigoto for view-
 // shift without parallax errors.
+// Stage 4e.2: targeted modifier. matrices[] enumerates known matrix start
+// registers (matrixRegister) + their transposed flag. Each register is
+// 16 bytes (4 floats). Non-transposed (HLSL row_major): matrix spans
+// 4 consecutive registers row-by-row; m[2][0] is at the (register+2)*16
+// byte offset, component 0. Transposed (HLSL default column_major): same
+// 4 registers but stored column-by-column; m[2][0] is at register*16 + 8.
+// We also need m[0][0] (xScale) to scale the shift by — at offset 0 of
+// the first register in both layouts.
+struct EyeShiftMatrix
+{
+    DWORD matrixRegister;   // register index inside CB
+    BOOL  matrixIsTransposed;
+};
+
+static void ApplyTargetedEyeShiftToCB(unsigned char* data, size_t byteCount,
+                                      float eyeShift,
+                                      const std::vector<EyeShiftMatrix>& matrices)
+{
+    if (eyeShift == 0.f || matrices.empty()) return;
+    constexpr size_t kRegBytes  = 16;
+    constexpr size_t kMat4Bytes = 4 * kRegBytes;
+    for (const auto& m : matrices)
+    {
+        size_t base = size_t(m.matrixRegister) * kRegBytes;
+        if (base + kMat4Bytes > byteCount) continue;
+        float* f = reinterpret_cast<float*>(data + base);
+        float xScale = f[0];
+        if (xScale == 0.f) continue;
+        if (m.matrixIsTransposed)
+        {
+            // m[2][0] = register 0, component 2
+            f[2] += eyeShift * xScale;
+        }
+        else
+        {
+            // m[2][0] = register 2, component 0
+            f[8] += eyeShift * xScale;
+        }
+    }
+}
+
 static void ApplyEyeShiftToCB(unsigned char* data, size_t byteCount, float eyeShift)
 {
     if (eyeShift == 0.f) return;
@@ -811,8 +928,37 @@ void STDMETHODCALLTYPE Context11Proxy::Unmap(ID3D11Resource* pResource, UINT Sub
             UINT subres = it->subresource;
             D3D11_MAP mapType = it->mapType;
             ComRefHolder resRef(pResource);
+
+            // Stage 4e.2: consult the analyzer for the currently bound VS.
+            // If the bound shader has known projection matrices at any VS-CB
+            // slot where this buffer is bound, build a targeted matrix list.
+            // Empty list ⇒ fall back to the m[2][3]==1 / m[3][3]==0 heuristic.
+            std::vector<EyeShiftMatrix> targets;
+            if (m_boundVS && m_parent)
+            {
+                const ShaderAnalysis11Result* info =
+                    m_parent->LookupShaderProjection(m_boundVS);
+                if (info && info->parsed)
+                {
+                    for (UINT slot = 0; slot < kMaxVSCBSlots; ++slot)
+                    {
+                        if (m_boundVSCBs[slot] != pResource) continue;
+                        auto cbIt = info->projection.matrixData.cb.find(slot);
+                        if (cbIt == info->projection.matrixData.cb.end()) continue;
+                        for (const auto& pmd : cbIt->second)
+                        {
+                            if (pmd.incorrectProjection) continue;
+                            EyeShiftMatrix em;
+                            em.matrixRegister     = pmd.matrixRegister;
+                            em.matrixIsTransposed = pmd.matrixIsTransposed;
+                            targets.push_back(em);
+                        }
+                    }
+                }
+            }
+
             m_frameCommands.emplace_back(
-                [this, resRef, subres, bytes, mapType]()
+                [this, resRef, subres, bytes, mapType, targets]()
                 {
                     if (m_activeEye != Eye::Right) return;
                     auto* gameRes = static_cast<ID3D11Resource*>(resRef.p);
@@ -821,8 +967,17 @@ void STDMETHODCALLTYPE Context11Proxy::Unmap(ID3D11Resource* pResource, UINT Sub
                     if (FAILED(m_real->Map(real, subres, mapType, 0, &mapped))
                         || !mapped.pData) return;
                     memcpy(mapped.pData, bytes.data(), bytes.size());
-                    ApplyEyeShiftToCB(static_cast<unsigned char*>(mapped.pData),
-                                      bytes.size(), gInfo.COMWrapEyeShift);
+                    if (!targets.empty())
+                    {
+                        ApplyTargetedEyeShiftToCB(
+                            static_cast<unsigned char*>(mapped.pData),
+                            bytes.size(), gInfo.COMWrapEyeShift, targets);
+                    }
+                    else
+                    {
+                        ApplyEyeShiftToCB(static_cast<unsigned char*>(mapped.pData),
+                                          bytes.size(), gInfo.COMWrapEyeShift);
+                    }
                     m_real->Unmap(real, subres);
                 });
         }

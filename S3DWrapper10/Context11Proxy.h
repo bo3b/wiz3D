@@ -272,6 +272,18 @@ private:
     Eye                  m_activeEye;            // Stage 4a: which eye OMSet binds
     bool                 m_presentHookActive;    // Stage 4b.4 safety gate
 
+    // Stage 4e.2: VS binding snapshot for targeted CB stereo math. m_boundVS
+    // is the game's vertex shader pointer most recently set via VSSetShader.
+    // m_boundVSCBs[i] is the wrapped buffer pointer set at VS CB slot i via
+    // VSSetConstantBuffers. Neither is AddRef'd — the game owns lifetime,
+    // and at worst the analyzer cache miss falls us back to the heuristic
+    // scan. Used inside Unmap to ask Device11Proxy::LookupShaderProjection
+    // whether the bound VS has a known projection-matrix register in the CB
+    // being mapped, so per-eye writes target only that register.
+    static constexpr UINT kMaxVSCBSlots = 15;
+    ID3D11VertexShader*  m_boundVS;
+    ID3D11Buffer*        m_boundVSCBs[kMaxVSCBSlots];
+
     // Stage 4b.1: per-frame command record. Stage 4b.8 + 4d flush + replay
     // before each Present. Only populated when m_presentHookActive is true.
     std::vector<std::function<void()>> m_frameCommands;
