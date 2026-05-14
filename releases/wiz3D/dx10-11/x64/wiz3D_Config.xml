@@ -95,20 +95,16 @@
 		     Win11 D3D11.10 DDI mismatch that broke the original iZ3D hook path. Set to 0
 		     to roll back to the legacy DDI hook path for comparison. -->
 		<UseCOMWrap Value="1"/>
-		<!-- Option B (Stage 4b.3 gate): when 1, the d3d11.dll proxy wraps the IDXGISwapChain
-		     returned by D3D11CreateDeviceAndSwapChain in our SwapChain11Proxy so we can hook
-		     Present for stereo output (needed by Stage 4d's SBS composite). Off by default
-		     because some engines (BioShock UE2.5-era, similar) walk swap-chain struct
-		     internals past the COM vtable and crash on the wrapped pointer. Stage 4d will
-		     either move to vtable hot-patching or enable game-by-game. -->
-		<UseCOMWrapSwapChain Value="0"/>
-		<!-- Option B (Stage 4b.8 gate): when 1, SwapChain11Proxy::Present re-runs the recorded
-		     command stream with the right-eye flag set, so the right-eye sibling textures
-		     are populated for the future SBS composite. Off by default — the replay can
-		     dangle on ResizeBuffers / SetFullscreenState (Max Payne 3 fullscreen toggle
-		     crash) and has no visible benefit yet (no per-eye CB math, no SBS composite).
-		     Flip to 1 once Stage 4c (CB stereo math) and 4d (SBS composite) ship. -->
-		<UseCOMWrapReplay Value="0"/>
+		<!-- Option B: swap-chain wrap + Present hook. Required for stereo output —
+		     without it the SBS composite (Stage 4d) never runs. Default ON now that
+		     Stage 4d has shipped. Flip to 0 only to diagnose swap-chain wrap
+		     regressions on specific games. -->
+		<UseCOMWrapSwapChain Value="1"/>
+		<!-- Option B: right-eye replay sweep at Present. Required for stereo output —
+		     without it the right-eye sibling textures never get populated, so the
+		     SBS composite shows the same image on both halves. Default ON now that
+		     Stage 4c (per-eye CB math) and 4e (shader analyzer) have shipped. -->
+		<UseCOMWrapReplay Value="1"/>
 		<!-- Stage 4c: horizontal eye-shift magnitude applied to projection-style
 		     matrices in mapped CBs during the right-eye replay. Detection looks
 		     for m[2][3]=1, m[3][3]=0 pattern (D3D row-major perspective proj).

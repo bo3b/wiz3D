@@ -314,22 +314,18 @@ public:
 	bool		UseCOMWrap;
 	// Option B (Stage 4b.3 gate): controls whether the d3d11.dll proxy's
 	// D3D11CreateDeviceAndSwapChain path wraps the returned IDXGISwapChain
-	// in our SwapChain11Proxy. Off by default because BioShock (and similar
-	// engines that walk swap-chain struct internals past the COM vtable)
-	// crash on the wrapped pointer — same TR2013 / Lost Planet class of
-	// bug iZ3D's wrappers ran into. Stage 4d will revisit when the Present
-	// hook is needed for stereo output; either move to vtable hot-patching
-	// or game-by-game enable.
+	// in our SwapChain11Proxy. Required for stereo output — without it
+	// the Present hook never fires, so there's no SBS composite. Default
+	// true now that Stage 4d (SBS composite) has shipped; flip to false
+	// only to diagnose swap-chain wrap regressions in specific games
+	// (BioShock historically; #119 ResizeBuffers E_ACCESSDENIED).
 	bool		UseCOMWrapSwapChain;
 	// Option B (Stage 4b.8 gate): drives the per-eye Replay sweep in
-	// SwapChain11Proxy::Present(Pre). When false the Pre-hook is a no-op
-	// so the game runs as pure passthrough (Post-hook still clears the
-	// recording so the recorder doesn't accumulate). Off by default
-	// because the replay re-issues recorded handles that can dangle
-	// across ResizeBuffers / SetFullscreenState (Max Payne 3 fullscreen
-	// toggle crash) and can't help yet — there's no per-eye CB math
-	// (4c) and no SBS composite (4d) for the right-eye output to be
-	// seen. Flip true once 4c+4d are in place.
+	// SwapChain11Proxy::Present(Pre). Required for stereo output —
+	// without it the right-eye sibling textures never get populated,
+	// so the SBS composite shows the same image on both halves. Default
+	// true now that Stage 4c (per-eye CB math) and 4e (shader analyzer)
+	// have shipped; flip to false only as a dev escape hatch.
 	bool		UseCOMWrapReplay;
 	// Option B (Stage 4c): per-eye horizontal shift applied to the [2][0]
 	// element of projection-shaped matrices in mapped constant buffers
@@ -445,9 +441,9 @@ public:
 #endif
 		Input = DataInput();
 		RenderTargetCreationMode = 2;
-		UseCOMWrap = true;	// Option B default — see field comment.
-		UseCOMWrapSwapChain = false;  // Stage 4b.3 default OFF until 4d; see field comment.
-		UseCOMWrapReplay = false;     // Stage 4b.8 default OFF until 4c+4d ready.
+		UseCOMWrap = true;            // Option B device/context/resource wrap.
+		UseCOMWrapSwapChain = true;   // Swap-chain wrap + Present hook (4d composite needs this).
+		UseCOMWrapReplay = true;      // Right-eye replay at Present (4c CB math + 4e analyzer use this).
 		COMWrapEyeShift  = 0.03f;     // Stage 4c default shift magnitude.
 		DrawType = 2;
 		DeviceMode = DEVICE_MODE_AUTO;
