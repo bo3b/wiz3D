@@ -39,6 +39,7 @@ Device11Proxy::Device11Proxy(ID3D11Device* real)
 {
     InitializeCriticalSection(&m_rtvSetLock);
     InitializeCriticalSection(&m_dxgiCacheLock);
+    InitializeCriticalSection(&m_shaderProjLock);
 }
 
 Device11Proxy::~Device11Proxy()
@@ -54,6 +55,100 @@ Device11Proxy::~Device11Proxy()
     }
     DeleteCriticalSection(&m_rtvSetLock);
     DeleteCriticalSection(&m_dxgiCacheLock);
+    DeleteCriticalSection(&m_shaderProjLock);
+}
+
+void Device11Proxy::StoreShaderProjection(void* shaderPtr, const ShaderAnalysis11Result& info)
+{
+    if (!shaderPtr) return;
+    EnterCriticalSection(&m_shaderProjLock);
+    m_shaderProjections[shaderPtr] = info;
+    LeaveCriticalSection(&m_shaderProjLock);
+}
+
+const ShaderAnalysis11Result* Device11Proxy::LookupShaderProjection(void* shaderPtr) const
+{
+    if (!shaderPtr) return nullptr;
+    auto* self = const_cast<Device11Proxy*>(this);
+    EnterCriticalSection(&self->m_shaderProjLock);
+    auto it = m_shaderProjections.find(shaderPtr);
+    const ShaderAnalysis11Result* p = (it == m_shaderProjections.end()) ? nullptr : &it->second;
+    LeaveCriticalSection(&self->m_shaderProjLock);
+    return p;
+}
+
+namespace {
+
+template<typename TShader, typename CreateFn>
+HRESULT AnalyzeAndCreate(const char* tag, Device11Proxy* self, CreateFn createReal,
+                         const void* pBytecode, SIZE_T byteLength,
+                         ID3D11ClassLinkage* pClassLinkage, TShader** ppShader)
+{
+    HRESULT hr = createReal(pBytecode, byteLength, pClassLinkage, ppShader);
+    if (FAILED(hr) || !ppShader || !*ppShader) return hr;
+
+    ShaderAnalysis11Result info;
+    if (AnalyzeShader11(pBytecode, byteLength, info) && !info.projection.matrixData.cb.empty())
+    {
+        NVDM_TRACE_FIRST_N(32,
+            "  Device11Proxy::Create%sShader: CRC=0x%08lX shader=%p matrices in %u CB(s)\n",
+            tag, info.crc32, *ppShader,
+            (unsigned)info.projection.matrixData.cb.size());
+        self->StoreShaderProjection(*ppShader, info);
+    }
+    else
+    {
+        NVDM_TRACE_FIRST_N(16,
+            "  Device11Proxy::Create%sShader: CRC=0x%08lX shader=%p (no projection found, parsed=%d)\n",
+            tag, info.crc32, *ppShader, (int)info.parsed);
+    }
+    return hr;
+}
+
+} // namespace
+
+HRESULT STDMETHODCALLTYPE Device11Proxy::CreateVertexShader(
+    const void* pShaderBytecode, SIZE_T BytecodeLength,
+    ID3D11ClassLinkage* pClassLinkage, ID3D11VertexShader** ppVertexShader)
+{
+    return AnalyzeAndCreate<ID3D11VertexShader>("Vertex", this,
+        [this](const void* b, SIZE_T n, ID3D11ClassLinkage* cl, ID3D11VertexShader** pp) {
+            return m_real->CreateVertexShader(b, n, cl, pp);
+        },
+        pShaderBytecode, BytecodeLength, pClassLinkage, ppVertexShader);
+}
+
+HRESULT STDMETHODCALLTYPE Device11Proxy::CreateGeometryShader(
+    const void* pShaderBytecode, SIZE_T BytecodeLength,
+    ID3D11ClassLinkage* pClassLinkage, ID3D11GeometryShader** ppGeometryShader)
+{
+    return AnalyzeAndCreate<ID3D11GeometryShader>("Geometry", this,
+        [this](const void* b, SIZE_T n, ID3D11ClassLinkage* cl, ID3D11GeometryShader** pp) {
+            return m_real->CreateGeometryShader(b, n, cl, pp);
+        },
+        pShaderBytecode, BytecodeLength, pClassLinkage, ppGeometryShader);
+}
+
+HRESULT STDMETHODCALLTYPE Device11Proxy::CreateHullShader(
+    const void* pShaderBytecode, SIZE_T BytecodeLength,
+    ID3D11ClassLinkage* pClassLinkage, ID3D11HullShader** ppHullShader)
+{
+    return AnalyzeAndCreate<ID3D11HullShader>("Hull", this,
+        [this](const void* b, SIZE_T n, ID3D11ClassLinkage* cl, ID3D11HullShader** pp) {
+            return m_real->CreateHullShader(b, n, cl, pp);
+        },
+        pShaderBytecode, BytecodeLength, pClassLinkage, ppHullShader);
+}
+
+HRESULT STDMETHODCALLTYPE Device11Proxy::CreateDomainShader(
+    const void* pShaderBytecode, SIZE_T BytecodeLength,
+    ID3D11ClassLinkage* pClassLinkage, ID3D11DomainShader** ppDomainShader)
+{
+    return AnalyzeAndCreate<ID3D11DomainShader>("Domain", this,
+        [this](const void* b, SIZE_T n, ID3D11ClassLinkage* cl, ID3D11DomainShader** pp) {
+            return m_real->CreateDomainShader(b, n, cl, pp);
+        },
+        pShaderBytecode, BytecodeLength, pClassLinkage, ppDomainShader);
 }
 
 void Device11Proxy::RegisterBackBufferTexture(void* pTextureLike)

@@ -14,6 +14,8 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <unordered_set>
+#include <unordered_map>
+#include "ShaderAnalyzer11.h"  // ShaderAnalysis11Result
 
 namespace wiz3d
 {
@@ -52,12 +54,12 @@ public:
     HRESULT STDMETHODCALLTYPE CreateRenderTargetView(ID3D11Resource* pResource, const D3D11_RENDER_TARGET_VIEW_DESC* pDesc, ID3D11RenderTargetView** ppRTView) override;
     HRESULT STDMETHODCALLTYPE CreateDepthStencilView(ID3D11Resource* pResource, const D3D11_DEPTH_STENCIL_VIEW_DESC* pDesc, ID3D11DepthStencilView** ppDepthStencilView) override;
     HRESULT STDMETHODCALLTYPE CreateInputLayout(const D3D11_INPUT_ELEMENT_DESC* pInputElementDescs, UINT NumElements, const void* pShaderBytecodeWithInputSignature, SIZE_T BytecodeLength, ID3D11InputLayout** ppInputLayout) override { return m_real->CreateInputLayout(pInputElementDescs, NumElements, pShaderBytecodeWithInputSignature, BytecodeLength, ppInputLayout); }
-    HRESULT STDMETHODCALLTYPE CreateVertexShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11VertexShader** ppVertexShader) override        { return m_real->CreateVertexShader(pShaderBytecode, BytecodeLength, pClassLinkage, ppVertexShader); }
-    HRESULT STDMETHODCALLTYPE CreateGeometryShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11GeometryShader** ppGeometryShader) override  { return m_real->CreateGeometryShader(pShaderBytecode, BytecodeLength, pClassLinkage, ppGeometryShader); }
+    HRESULT STDMETHODCALLTYPE CreateVertexShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11VertexShader** ppVertexShader) override;
+    HRESULT STDMETHODCALLTYPE CreateGeometryShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11GeometryShader** ppGeometryShader) override;
     HRESULT STDMETHODCALLTYPE CreateGeometryShaderWithStreamOutput(const void* pShaderBytecode, SIZE_T BytecodeLength, const D3D11_SO_DECLARATION_ENTRY* pSODeclaration, UINT NumEntries, const UINT* pBufferStrides, UINT NumStrides, UINT RasterizedStream, ID3D11ClassLinkage* pClassLinkage, ID3D11GeometryShader** ppGeometryShader) override { return m_real->CreateGeometryShaderWithStreamOutput(pShaderBytecode, BytecodeLength, pSODeclaration, NumEntries, pBufferStrides, NumStrides, RasterizedStream, pClassLinkage, ppGeometryShader); }
     HRESULT STDMETHODCALLTYPE CreatePixelShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11PixelShader** ppPixelShader) override           { return m_real->CreatePixelShader(pShaderBytecode, BytecodeLength, pClassLinkage, ppPixelShader); }
-    HRESULT STDMETHODCALLTYPE CreateHullShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11HullShader** ppHullShader) override              { return m_real->CreateHullShader(pShaderBytecode, BytecodeLength, pClassLinkage, ppHullShader); }
-    HRESULT STDMETHODCALLTYPE CreateDomainShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11DomainShader** ppDomainShader) override        { return m_real->CreateDomainShader(pShaderBytecode, BytecodeLength, pClassLinkage, ppDomainShader); }
+    HRESULT STDMETHODCALLTYPE CreateHullShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11HullShader** ppHullShader) override;
+    HRESULT STDMETHODCALLTYPE CreateDomainShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11DomainShader** ppDomainShader) override;
     HRESULT STDMETHODCALLTYPE CreateComputeShader(const void* pShaderBytecode, SIZE_T BytecodeLength, ID3D11ClassLinkage* pClassLinkage, ID3D11ComputeShader** ppComputeShader) override     { return m_real->CreateComputeShader(pShaderBytecode, BytecodeLength, pClassLinkage, ppComputeShader); }
     HRESULT STDMETHODCALLTYPE CreateClassLinkage(ID3D11ClassLinkage** ppLinkage) override                                                                                                    { return m_real->CreateClassLinkage(ppLinkage); }
     HRESULT STDMETHODCALLTYPE CreateBlendState(const D3D11_BLEND_DESC* pBlendStateDesc, ID3D11BlendState** ppBlendState) override                                                            { return m_real->CreateBlendState(pBlendStateDesc, ppBlendState); }
@@ -109,6 +111,13 @@ public:
     void TrackBackBufferRTV(ID3D11RenderTargetView* rtv);
     bool IsBackBufferRTV(ID3D11RenderTargetView* rtv) const;
 
+    // Stage 4e: record per-shader projection-matrix metadata keyed by the
+    // returned ID3D11Vertex/Geometry/Hull/Domain Shader pointer. Stored only
+    // when the analyzer actually found one or more projection matrices —
+    // mono shaders don't need an entry. Lookup returns nullptr if none.
+    void StoreShaderProjection(void* shaderPtr, const ShaderAnalysis11Result& info);
+    const ShaderAnalysis11Result* LookupShaderProjection(void* shaderPtr) const;
+
 private:
     // Helper for QueryInterface(IDXGIDevice*) — returns a new ref on the
     // cached proxy (creating + caching it on first call). Returns nullptr
@@ -140,6 +149,16 @@ private:
     void*            m_pBackBufferResource;
     std::unordered_set<ID3D11RenderTargetView*> m_backBufferRTVs;
     CRITICAL_SECTION m_rtvSetLock;
+
+    // Stage 4e: shader -> projection-matrix info map. Game-side shader
+    // pointers (not addref'd — game owns lifetime). Stale-entry risk is
+    // bounded: if a game releases shader X then creates a new one at the
+    // same address, the cached entry may apply to the new shader; harmless
+    // (we'd just be looking for projection matrices that aren't there or
+    // are at different registers — at worst we skip per-eye stereo for
+    // that draw, which falls back to mono).
+    std::unordered_map<void*, ShaderAnalysis11Result> m_shaderProjections;
+    CRITICAL_SECTION                                  m_shaderProjLock;
 };
 
 } // namespace wiz3d
