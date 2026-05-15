@@ -494,14 +494,18 @@ CONST TCHAR* GetStereoImageFileExtension( )
 {
 	switch ( gInfo.ScreenshotType )
 	{
-	case 1: // PNG
+	case 1: // PNS (stereo extension for PNG, same bytes as .png)
 		return _T(".pns");
-	case 2: // BMP
-		return _T(".bmp");
-	case 3: // DDS
-		return _T(".dds");
-	default: // JPG
+	case 2: // JPEG (no stereo convention - both eyes share .jpg)
+		return _T(".jpg");
+	case 3: // JPS (stereo extension for JPEG, same bytes as .jpg)
 		return _T(".jps");
+	case 4: // BMP
+		return _T(".bmp");
+	case 5: // DDS
+		return _T(".dds");
+	default: // PNG
+		return _T(".png");
 	}
 }
 
@@ -509,14 +513,18 @@ CONST TCHAR* GetImageFileExtension( )
 {
 	switch ( gInfo.ScreenshotType )
 	{
-	case 1: // PNG
+	case 1: // PNS - mono fallback is plain PNG
 		return _T(".png");
-	case 2: // BMP
-		return _T(".bmp");
-	case 3: // DDS
-		return _T(".dds");
-	default: // JPG
+	case 2: // JPEG
 		return _T(".jpg");
+	case 3: // JPS - mono fallback is plain JPEG
+		return _T(".jpg");
+	case 4: // BMP
+		return _T(".bmp");
+	case 5: // DDS
+		return _T(".dds");
+	default: // PNG
+		return _T(".png");
 	}
 }
 #endif

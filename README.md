@@ -509,7 +509,7 @@ In-game hotkeys for adjusting stereo on the fly. All bindings are remappable in 
 | `Shift+Numpad *` | Open the on-screen wizard overlay |
 | `Shift+F1` | Toggle on-screen hotkey hints |
 | `Ctrl+Numpad /` | Toggle laser sight (crosshair anchored at screen depth) |
-| `PrintScreen` | Save a stereo screenshot to `My Pictures\wiz3D Screenshots\<Game>\` (default format `.jps`; configurable via `<ScreenshotType>`) |
+| `PrintScreen` | Save a stereo screenshot to `My Pictures\wiz3D Screenshots\<Game>\` (default format `.png`; pick PNG/PNS/JPEG/JPS/BMP/DDS via `<ScreenshotType>` in `wiz3D_Config.xml`) |
 | `Ctrl+PrintScreen` | Save a stereo screenshot without applying the display's gamma ramp |
 
 ---
