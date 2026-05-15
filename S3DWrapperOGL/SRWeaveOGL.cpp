@@ -1,0 +1,266 @@
+/*
+ * LeiaSR OpenGL weaver integration for S3DWrapperOGL (mode 10).
+ * See SRWeaveOGL.h for the public API contract.
+ */
+
+#include "stdafx.h"
+#include "SRWeaveOGL.h"
+
+#include <GL/gl.h>
+
+// LeiaSR SDK. Headers are identical across the two SDK versions we vendor:
+//   x64:   lib/Simulated Reality/LeiaSR-SDK-1.36.2-win64/include
+//   Win32: lib/Simulated Reality/simulatedreality-1.34.10-win32-Release/include
+// Both export the same IGLWeaver1 / CreateGLWeaver surface; the include
+// path is set per-arch in S3DWrapperOGL.vcxproj.
+#include "sr/management/srcontext.h"
+#include "sr/weaver/glweaver.h"
+#include "sr/utility/exception.h"
+
+// GL FBO entry points — loaded via wglGetProcAddress so we don't introduce
+// a static dep on a specific GL header version. Same pattern S3DWrapperOGL
+// already uses for the WGL_ARB extensions.
+typedef void   (APIENTRY *PFN_GenFramebuffers)(GLsizei n, GLuint* framebuffers);
+typedef void   (APIENTRY *PFN_BindFramebuffer)(GLenum target, GLuint framebuffer);
+typedef void   (APIENTRY *PFN_DeleteFramebuffers)(GLsizei n, const GLuint* framebuffers);
+typedef void   (APIENTRY *PFN_FramebufferTexture2D)(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+typedef GLenum (APIENTRY *PFN_CheckFramebufferStatus)(GLenum target);
+
+#ifndef GL_FRAMEBUFFER
+#define GL_FRAMEBUFFER          0x8D40
+#define GL_COLOR_ATTACHMENT0    0x8CE0
+#define GL_FRAMEBUFFER_COMPLETE 0x8CD5
+#define GL_SRGB8_ALPHA8         0x8C43
+#endif
+
+struct SRWeaveOGLContext {
+    SR::SRContext*  srContext;
+    SR::IGLWeaver1* weaver;
+    GLuint          sbsTexture;       // size = (viewWidth*2) x viewHeight, RGBA8/sRGB
+    GLuint          sbsFramebuffer;
+    unsigned int    viewWidth;        // per-eye width (sbs texture is 2x this)
+    unsigned int    viewHeight;
+    bool            fallback;         // sticky; once true we never retry SR this session
+
+    PFN_GenFramebuffers        glGenFramebuffers;
+    PFN_BindFramebuffer        glBindFramebuffer;
+    PFN_DeleteFramebuffers     glDeleteFramebuffers;
+    PFN_FramebufferTexture2D   glFramebufferTexture2D;
+    PFN_CheckFramebufferStatus glCheckFramebufferStatus;
+};
+
+// Try the core 3.0 names first, fall back to the EXT 1.5+ variants. Returns
+// true if a full set was resolved (some IHVs only export one suffix).
+static bool LoadFBOEntryPoints(SRWeaveOGLContext* ctx)
+{
+    ctx->glGenFramebuffers        = (PFN_GenFramebuffers)       wglGetProcAddress("glGenFramebuffers");
+    ctx->glBindFramebuffer        = (PFN_BindFramebuffer)       wglGetProcAddress("glBindFramebuffer");
+    ctx->glDeleteFramebuffers     = (PFN_DeleteFramebuffers)    wglGetProcAddress("glDeleteFramebuffers");
+    ctx->glFramebufferTexture2D   = (PFN_FramebufferTexture2D)  wglGetProcAddress("glFramebufferTexture2D");
+    ctx->glCheckFramebufferStatus = (PFN_CheckFramebufferStatus)wglGetProcAddress("glCheckFramebufferStatus");
+
+    bool haveCore = ctx->glGenFramebuffers && ctx->glBindFramebuffer &&
+                    ctx->glDeleteFramebuffers && ctx->glFramebufferTexture2D &&
+                    ctx->glCheckFramebufferStatus;
+    if (haveCore) return true;
+
+    ctx->glGenFramebuffers        = (PFN_GenFramebuffers)       wglGetProcAddress("glGenFramebuffersEXT");
+    ctx->glBindFramebuffer        = (PFN_BindFramebuffer)       wglGetProcAddress("glBindFramebufferEXT");
+    ctx->glDeleteFramebuffers     = (PFN_DeleteFramebuffers)    wglGetProcAddress("glDeleteFramebuffersEXT");
+    ctx->glFramebufferTexture2D   = (PFN_FramebufferTexture2D)  wglGetProcAddress("glFramebufferTexture2DEXT");
+    ctx->glCheckFramebufferStatus = (PFN_CheckFramebufferStatus)wglGetProcAddress("glCheckFramebufferStatusEXT");
+
+    return ctx->glGenFramebuffers && ctx->glBindFramebuffer &&
+           ctx->glDeleteFramebuffers && ctx->glFramebufferTexture2D &&
+           ctx->glCheckFramebufferStatus;
+}
+
+bool SRWeaveOGL_Initialize(SRWeaveOGLContext** outCtx, HWND hWnd,
+                           unsigned int viewWidth, unsigned int viewHeight)
+{
+    *outCtx = nullptr;
+    SRWeaveOGLContext* ctx = new SRWeaveOGLContext();
+    ctx->srContext = nullptr;
+    ctx->weaver = nullptr;
+    ctx->sbsTexture = 0;
+    ctx->sbsFramebuffer = 0;
+    ctx->viewWidth = viewWidth;
+    ctx->viewHeight = viewHeight;
+    ctx->fallback = false;
+
+    if (!LoadFBOEntryPoints(ctx)) {
+        OutputDebugStringA("[SRWeaveOGL] FBO entry points unavailable - context too old. Falling back to plain SBS.\n");
+        ctx->fallback = true;
+        *outCtx = ctx;
+        return false;
+    }
+
+    // SBS texture: 2*viewWidth wide, viewHeight tall, sRGB so the shader-side
+    // sRGB conversion in the weaver works correctly.
+    glGenTextures(1, &ctx->sbsTexture);
+    glBindTexture(GL_TEXTURE_2D, ctx->sbsTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, viewWidth * 2, viewHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    ctx->glGenFramebuffers(1, &ctx->sbsFramebuffer);
+    ctx->glBindFramebuffer(GL_FRAMEBUFFER, ctx->sbsFramebuffer);
+    ctx->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ctx->sbsTexture, 0);
+    GLenum fbStatus = ctx->glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    ctx->glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    if (fbStatus != GL_FRAMEBUFFER_COMPLETE) {
+        OutputDebugStringA("[SRWeaveOGL] SBS framebuffer incomplete. Falling back to plain SBS.\n");
+        if (ctx->sbsFramebuffer) ctx->glDeleteFramebuffers(1, &ctx->sbsFramebuffer);
+        if (ctx->sbsTexture) glDeleteTextures(1, &ctx->sbsTexture);
+        ctx->sbsFramebuffer = 0;
+        ctx->sbsTexture = 0;
+        ctx->fallback = true;
+        *outCtx = ctx;
+        return false;
+    }
+
+    // SR context. SRContext::create() throws ServerNotAvailableException when
+    // the SR Service isn't running (or DELAYLOAD couldn't bind the DLL).
+    try {
+        ctx->srContext = SR::SRContext::create();
+    }
+    catch (...) {
+        OutputDebugStringA("[SRWeaveOGL] LeiaSR runtime unavailable. Falling back to plain SBS.\n");
+        ctx->glDeleteFramebuffers(1, &ctx->sbsFramebuffer);
+        glDeleteTextures(1, &ctx->sbsTexture);
+        ctx->sbsFramebuffer = 0;
+        ctx->sbsTexture = 0;
+        ctx->fallback = true;
+        *outCtx = ctx;
+        return false;
+    }
+
+    SR::WeaverErrorCode rc = SR::CreateGLWeaver(*ctx->srContext, hWnd, &ctx->weaver);
+    if (rc != SR::WeaverSuccess) {
+        OutputDebugStringA("[SRWeaveOGL] CreateGLWeaver failed. Falling back to plain SBS.\n");
+        SR::SRContext::deleteSRContext(ctx->srContext);
+        ctx->srContext = nullptr;
+        ctx->glDeleteFramebuffers(1, &ctx->sbsFramebuffer);
+        glDeleteTextures(1, &ctx->sbsTexture);
+        ctx->sbsFramebuffer = 0;
+        ctx->sbsTexture = 0;
+        ctx->fallback = true;
+        *outCtx = ctx;
+        return false;
+    }
+
+    // setInputViewTexture: per-eye width (the weaver knows the texture is SBS
+    // and splits it in half internally).
+    ctx->weaver->setInputViewTexture(ctx->sbsTexture, viewWidth, viewHeight, GL_SRGB8_ALPHA8);
+
+    // Per the SR SDK contract, initialize() runs AFTER weaver creation.
+    ctx->srContext->initialize();
+
+    *outCtx = ctx;
+    return true;
+}
+
+void SRWeaveOGL_Cleanup(SRWeaveOGLContext** ctxPtr)
+{
+    if (!ctxPtr || !*ctxPtr) return;
+    SRWeaveOGLContext* ctx = *ctxPtr;
+
+    if (ctx->weaver) {
+        ctx->weaver->destroy();
+        ctx->weaver = nullptr;
+    }
+    if (ctx->srContext) {
+        SR::SRContext::deleteSRContext(ctx->srContext);
+        ctx->srContext = nullptr;
+    }
+    if (ctx->sbsFramebuffer && ctx->glDeleteFramebuffers) {
+        ctx->glDeleteFramebuffers(1, &ctx->sbsFramebuffer);
+        ctx->sbsFramebuffer = 0;
+    }
+    if (ctx->sbsTexture) {
+        glDeleteTextures(1, &ctx->sbsTexture);
+        ctx->sbsTexture = 0;
+    }
+    delete ctx;
+    *ctxPtr = nullptr;
+}
+
+// Render a fullscreen textured quad using fixed-function GL (immediate mode)
+// — keeps us out of the wrapper's bound GLSL program and matches the existing
+// renderer's drawing style. texCoordMax {X,Y} = fraction of the source
+// texture that holds live image (handles the wrapper's pow2-padded textures).
+// Caller has bound the target FBO and viewport.
+static void DrawFullscreenTexturedQuad(GLuint textureId, float texCoordMaxX, float texCoordMaxY)
+{
+    glBindTexture(GL_TEXTURE_2D, textureId);
+    glBegin(GL_QUADS);
+        glTexCoord2f(0.0f,         0.0f);          glVertex2f(-1.0f, -1.0f);
+        glTexCoord2f(texCoordMaxX, 0.0f);          glVertex2f( 1.0f, -1.0f);
+        glTexCoord2f(texCoordMaxX, texCoordMaxY);  glVertex2f( 1.0f,  1.0f);
+        glTexCoord2f(0.0f,         texCoordMaxY);  glVertex2f(-1.0f,  1.0f);
+    glEnd();
+}
+
+bool SRWeaveOGL_Render(SRWeaveOGLContext* ctx,
+                       unsigned int leftTexId, unsigned int rightTexId,
+                       float texCoordX, float texCoordY,
+                       unsigned int windowWidth, unsigned int windowHeight)
+{
+    if (!ctx || ctx->fallback || !ctx->weaver) return false;
+
+    // Step 1: copy left + right eye textures into the two halves of the
+    // SBS framebuffer texture. We unbind the wrapper's GLSL program so
+    // fixed-function texturing applies — pixel-perfect copy, no gamma drift.
+    GLint savedProgram = 0;
+    glGetIntegerv(0x8B8D /* GL_CURRENT_PROGRAM */, &savedProgram);
+
+    typedef void (APIENTRY *PFN_UseProgram)(GLuint program);
+    static PFN_UseProgram useProgram = nullptr;
+    if (!useProgram) useProgram = (PFN_UseProgram)wglGetProcAddress("glUseProgram");
+    if (useProgram) useProgram(0);
+
+    ctx->glBindFramebuffer(GL_FRAMEBUFFER, ctx->sbsFramebuffer);
+    glEnable(GL_TEXTURE_2D);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
+    glViewport(0, 0, (GLsizei)ctx->viewWidth, (GLsizei)ctx->viewHeight);
+    DrawFullscreenTexturedQuad(leftTexId, texCoordX, texCoordY);
+
+    glViewport((GLsizei)ctx->viewWidth, 0, (GLsizei)ctx->viewWidth, (GLsizei)ctx->viewHeight);
+    DrawFullscreenTexturedQuad(rightTexId, texCoordX, texCoordY);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    ctx->glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Step 2: full-window viewport, hand off to the SR runtime.
+    glViewport(0, 0, (GLsizei)windowWidth, (GLsizei)windowHeight);
+
+    bool ok = true;
+    try {
+        // weave() is inherited from IWeaverBase1; the chain is brought in by
+        // sr/weaver/glweaver.h's includes.
+        ctx->weaver->weave();
+    }
+    catch (...) {
+        OutputDebugStringA("[SRWeaveOGL] weave() raised an exception - disabling SR for this session.\n");
+        ctx->fallback = true;
+        ok = false;
+    }
+
+    // Restore previously-bound shader program (the wrapper's compose shader,
+    // unused in mode 10 but other code may depend on it being set).
+    if (useProgram && savedProgram) useProgram((GLuint)savedProgram);
+
+    return ok;
+}
+
+bool SRWeaveOGL_IsFallback(SRWeaveOGLContext* ctx)
+{
+    return !ctx || ctx->fallback;
+}
