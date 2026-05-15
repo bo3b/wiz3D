@@ -252,6 +252,31 @@ static FakeStereoState g_Stereo = {
 // ============================================================
 static int g_disableStereoSpoof = 0;
 
+// ============================================================
+// Stereo_SetNotificationMessage state. NVAPI lets a game register
+// (HWND, messageId); the driver PostMessage()s that message whenever
+// stereo activation state changes externally (e.g. user pressed Ctrl+T
+// on a real 3D Vision rig, or in our case the wiz3D '*' hotkey). The
+// game's WndProc then updates its in-UI 3D toggle.
+//
+// We piggy-back on the game's own Stereo_IsActivated polling cadence
+// rather than spinning up a watcher thread: whenever IsActivated would
+// return a different value from the last one we reported, we PostMessage
+// after returning. Latency is bounded by the game's poll interval (60
+// frames in Alice TMR, fast enough to feel responsive). Trade-off
+// vs. a thread/callback: zero extra code in the wrapper, no new
+// inter-DLL surface, no thread-safety hazards.
+//
+// Edge case: when the game itself calls Stereo_Activate/Deactivate, the
+// next IsActivated will see a different value vs. lastReported and
+// fire a notification with wParam = new state. That's the canonical
+// NVAPI behaviour too (drivers always notify, even on self-initiated
+// changes — handlers are expected to be idempotent).
+// ============================================================
+static HWND        g_notifyHwnd        = nullptr;
+static UINT        g_notifyMsg         = 0;
+static int         g_lastReportedActive = -1; // -1 = haven't reported yet
+
 static int ReadConfigInt(const char* xml, const char* tag, int defaultValue)
 {
     char needle[64];
@@ -671,6 +696,18 @@ NVAPI_INTERFACE Spoof_Stereo_IsActivated(StereoHandle, NvU8* p)
             : g_Stereo.isActive;
     }
     g_gameHasReadActive = true; // user-UI gate: game has now queried our state
+
+    // Push notification: if a game registered (HWND, msg) via
+    // Stereo_SetNotificationMessage and our returned state differs from
+    // what we last reported, PostMessage so its in-UI checkbox can sync.
+    // Skip the very first report (lastReported == -1) so games don't
+    // get a spurious notification on startup.
+    if (g_notifyHwnd && g_lastReportedActive >= 0 && (int)*p != g_lastReportedActive)
+    {
+        PostMessage(g_notifyHwnd, g_notifyMsg, (WPARAM)*p, 0);
+    }
+    g_lastReportedActive = (int)*p;
+
     NVAPI_TRACE_PERIODIC("Stereo_IsActivated", "%d", (int)*p);
     return NVAPI_OK;
 }
@@ -867,7 +904,14 @@ NVAPI_INTERFACE Spoof_Stereo_SetFrustumAdjustMode(StereoHandle, NvU32 mode)
 NVAPI_INTERFACE Spoof_Stereo_InitActivation(StereoHandle, NvU8 /*enable*/)        { NVAPI_TRACE_FIRST("Stereo_InitActivation");        return NVAPI_OK; }
 NVAPI_INTERFACE Spoof_Stereo_Trigger_Activation(StereoHandle)                     { NVAPI_TRACE_FIRST("Stereo_Trigger_Activation");    return NVAPI_OK; }
 NVAPI_INTERFACE Spoof_Stereo_ReverseStereoBlitControl(StereoHandle, NvU8 /*on*/)  { NVAPI_TRACE_FIRST("Stereo_ReverseStereoBlitControl"); return NVAPI_OK; }
-NVAPI_INTERFACE Spoof_Stereo_SetNotificationMessage(StereoHandle, NvU64, NvU64)   { NVAPI_TRACE_FIRST("Stereo_SetNotificationMessage"); return NVAPI_OK; }
+NVAPI_INTERFACE Spoof_Stereo_SetNotificationMessage(StereoHandle, NvU64 hWnd, NvU64 msgId)
+{
+    NVAPI_TRACE_FIRST("Stereo_SetNotificationMessage");
+    // NVAPI passes HWND + UINT widened to NvU64 for x64 ABI compat.
+    g_notifyHwnd = (HWND)(uintptr_t)hWnd;
+    g_notifyMsg  = (UINT)msgId;
+    return NVAPI_OK;
+}
 
 NVAPI_INTERFACE Spoof_Stereo_SetDefaultProfile(const char* /*szName*/)            { NVAPI_TRACE_FIRST("Stereo_SetDefaultProfile");      return NVAPI_OK; }
 NVAPI_INTERFACE Spoof_Stereo_GetDefaultProfile(NvU32 /*cbIn*/, char* /*szName*/, NvU32* pcbOut)
