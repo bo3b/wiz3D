@@ -18,6 +18,7 @@
 #include "Shaders.h"
 #include "tchar.h"
 #include "ProductNames.h"
+#include "SRWeaveOGL.h"
 
 std::vector<Renderer>	g_RendererList;
 static HWND	m_hFrontWnd;
@@ -43,6 +44,14 @@ Renderer::Renderer(void)
 Renderer::~Renderer(void)
 {
 	//DestroyPB();
+	// SR weave teardown must happen while the GL context is still alive so
+	// the IGLWeaver1::destroy() call can free its GL resources cleanly.
+	if (m_pSRWeave)
+	{
+		SRWeaveOGLContext* sr = (SRWeaveOGLContext*)m_pSRWeave;
+		SRWeaveOGL_Cleanup(&sr);
+		m_pSRWeave = nullptr;
+	}
 	if (m_TextureID[0])
 	{
 		glDeleteTextures(1, &m_TextureID[0]);
@@ -671,7 +680,57 @@ BOOL	Renderer::SwapBuffers()
 
 	// ---- Output compositing ----
 	GLint sL, sR;
-	if (gInfo.OutputMode == OGL_OUTPUT_IZ3D)
+	if (gInfo.OutputMode == OGL_OUTPUT_SR_WEAVE)
+	{
+		// LeiaSR weave path. Lazy-init the SR weaver on first call (HWND,
+		// per-eye textures and GL context all need to be live by now);
+		// then per frame copy the eyes into the SBS texture and let the
+		// SR runtime weave to the default framebuffer. Falls back to SBS
+		// on any SR failure for the rest of the session.
+		if (!m_pSRWeave && !m_bSRWeaveTriedInit)
+		{
+			m_bSRWeaveTriedInit = TRUE;
+			SRWeaveOGLContext* sr = nullptr;
+			SRWeaveOGL_Initialize(&sr, m_hWnd, m_nWindowWidth, m_nWindowHeight);
+			m_pSRWeave = sr;
+		}
+		bool srOk = false;
+		if (m_pSRWeave && !SRWeaveOGL_IsFallback((SRWeaveOGLContext*)m_pSRWeave))
+		{
+			pfnOrig_glDrawBuffer(m_nDrawBufferMode[0]);
+			srOk = SRWeaveOGL_Render((SRWeaveOGLContext*)m_pSRWeave,
+				(unsigned int)m_TextureID[0], (unsigned int)m_TextureID[1],
+				fTextureCoordX, fTextureCoordY,
+				m_nWindowWidth, m_nWindowHeight);
+		}
+		if (!srOk)
+		{
+			// SR runtime missing / broken — render plain Half SBS as
+			// fallback so the user still sees an image. Two textured
+			// quads, left into left half of the back buffer, right into
+			// right half. Same as the SBS path further down but
+			// inlined to keep the dispatch flat.
+			pfnOrig_glDrawBuffer(m_nDrawBufferMode[0]);
+			glUseProgramObjectARB(0);
+			glEnable(GL_TEXTURE_2D);
+			glActiveTextureARB(GL_TEXTURE0_ARB);
+			glBindTexture(GL_TEXTURE_2D, m_TextureID[0]);
+			glBegin(GL_QUADS);
+				glTexCoord2f(0,              0             ); glVertex2f(-1, -1);
+				glTexCoord2f(0,              fTextureCoordY); glVertex2f(-1,  1);
+				glTexCoord2f(fTextureCoordX, fTextureCoordY); glVertex2f( 0,  1);
+				glTexCoord2f(fTextureCoordX, 0             ); glVertex2f( 0, -1);
+			glEnd();
+			glBindTexture(GL_TEXTURE_2D, m_TextureID[1]);
+			glBegin(GL_QUADS);
+				glTexCoord2f(0,              0             ); glVertex2f( 0, -1);
+				glTexCoord2f(0,              fTextureCoordY); glVertex2f( 0,  1);
+				glTexCoord2f(fTextureCoordX, fTextureCoordY); glVertex2f( 1,  1);
+				glTexCoord2f(fTextureCoordX, 0             ); glVertex2f( 1, -1);
+			glEnd();
+		}
+	}
+	else if (gInfo.OutputMode == OGL_OUTPUT_IZ3D)
 	{
 		// iZ3D dual-panel path: FrontScreen to second adapter, BackScreen to primary
 		GLenum buf;

@@ -8,6 +8,12 @@
 
 #include <GL/gl.h>
 
+// The SR header chain pulls in opencv2/core/types.hpp which uses
+// reinterpret_cast between related classes (cv::Matx <-> cv::Scalar_).
+// Common.props promotes C4946 to an error; harmless here because we
+// never touch those types ourselves, so suppress just for this TU.
+#pragma warning(disable: 4946)
+
 // LeiaSR SDK. Headers are identical across the two SDK versions we vendor:
 //   x64:   lib/Simulated Reality/LeiaSR-SDK-1.36.2-win64/include
 //   Win32: lib/Simulated Reality/simulatedreality-1.34.10-win32-Release/include
@@ -16,6 +22,16 @@
 #include "sr/management/srcontext.h"
 #include "sr/weaver/glweaver.h"
 #include "sr/utility/exception.h"
+
+// OpenCV-free link stub. SR's Exception class has a cv::String message
+// member, so the compiler emits a reference to cv::String::deallocate
+// anywhere an SR exception might be destroyed during stack unwind.
+// We never actually construct cv::String at runtime — only the SR runtime
+// throws SR exceptions, and our catch(...) doesn't bind the typed exception.
+// This empty stub satisfies the linker without pulling in the ~10 MB of
+// OpenCV static init that opencv_world343.lib would drag in.  Same trick
+// NvDirectMode/d3d11/SwapChainProxy.cpp uses for the DX11 SR weave path.
+void cv::String::deallocate() {}
 
 // GL FBO entry points — loaded via wglGetProcAddress so we don't introduce
 // a static dep on a specific GL header version. Same pattern S3DWrapperOGL
@@ -139,8 +155,8 @@ bool SRWeaveOGL_Initialize(SRWeaveOGLContext** outCtx, HWND hWnd,
         return false;
     }
 
-    SR::WeaverErrorCode rc = SR::CreateGLWeaver(*ctx->srContext, hWnd, &ctx->weaver);
-    if (rc != SR::WeaverSuccess) {
+    WeaverErrorCode rc = SR::CreateGLWeaver(*ctx->srContext, hWnd, &ctx->weaver);
+    if (rc != WeaverSuccess) {
         OutputDebugStringA("[SRWeaveOGL] CreateGLWeaver failed. Falling back to plain SBS.\n");
         SR::SRContext::deleteSRContext(ctx->srContext);
         ctx->srContext = nullptr;

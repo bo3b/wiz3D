@@ -52,6 +52,7 @@
 			   7 = Line Interleaved           (passive 3D TVs / row-polarised monitors)
 			   8 = Column Interleaved         (rare column-polarised monitors)
 			   9 = Checkerboard               (DLP-Link 3D projectors)
+			  10 = LeiaSR Weave              (Samsung Odyssey 3D / Acer SpatialLabs — falls back to plain SBS if SR runtime missing)
 		-->
 		<OutputMethodDll Value=""/>
 
