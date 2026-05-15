@@ -40,29 +40,23 @@
 
 		<!-- OUTPUT MODE — which stereo display method to use.
 			 Set this to the DLL name (without .dll) from the OutputMethods/ folder.
-			 Options:
-			   "SideBySideOutput"     — Side-by-side (VR headsets, 3D TVs, passive monitors)
-			   "AnaglyphOutput"       — Red/cyan anaglyph glasses
-			   "InterlacedOutput"     — Row-interlaced (passive 3D monitors like Zalman)
-			   "S3DOutput"            — iZ3D monitor native dual-panel output
-			   "S3DMarkedOutput"      — Debug: marks left/right with visual indicators
-			   "ShutterOutput"        — Page-flip shutter glasses (generic)
-			   "S3DShutterOutput"     — iZ3D shutter glasses
-			   "iZShutterOutput"      — iZ3D shutter (alternate driver)
-			   "CMOShutterOutput"     — CMO brand shutter glasses
-			   "DualProjectionOutput" — Dual projector setups
-			   "DLP3DOutput"          — DLP Link 3D projectors
-			   "ATIDLP3DOutput"       — ATI DLP 3D
-			   "AMDHD3DOutput"        — AMD HD3D
-			   "StereoMirrorOutput"   — Mirror left/right views
-			   "S3D120HzProjectorsOutput" — 120Hz projector output
-			   "VR920Output"          — Vuzix VR920 headset
-			   "Z800Output"           — eMagin Z800 headset
-			   "LenovoOutput"         — Lenovo 3D display
-			   "ZalmanOutput"         — Zalman Trimon monitors
-			   "TaerimOutput"         — Taerim display
-			   "AvitridOutput"        — Avitrid display
-			   "SimulatedRealityWeaveOutput" — Leia / Samsung Odyssey 3D / Acer SpatialLabs (Moving Lightfield displays)
+			 Shipped (present in OutputMethods/):
+			   "SideBySideOutput"            — Side-by-side (VR headsets, 3D TVs, passive monitors)
+			   "AnaglyphOutput"              — Red/cyan anaglyph glasses
+			   "InterlacedOutput"            — Row-interlaced (passive 3D monitors like Zalman)
+			   "S3DOutput"                   — iZ3D monitor native dual-panel output
+			   "S3DMarkedOutput"             — Debug: marks left/right with visual indicators
+			   "ShutterOutput"               — Page-flip shutter glasses (generic)
+			   "S3DShutterOutput"            — iZ3D shutter glasses
+			   "CMOShutterOutput"            — CMO brand shutter glasses
+			   "DLP3DOutput"                 — DLP-Link 3D projectors
+			   "ATIDLP3DOutput"              — ATI DLP-Link 3D projectors
+			   "S3D120HzProjectorsOutput"    — 120 Hz active-stereo projectors
+			   "StereoMirrorOutput"          — Mirror left/right to a second display
+			   "SimulatedRealityWeaveOutput" — Leia / Samsung Odyssey 3D / Acer SpatialLabs (lightfield displays)
+			 Source-only — built but not shipped; copy from bin\Release\<arch>\OutputMethods\\
+			 if you have the hardware: AMDHD3DOutput, DualProjectionOutput, LenovoOutput,
+			 TaerimOutput, VR920Output, Z800Output, AvitridOutput.
 		-->
 		<OutputMethodDll Value="SimulatedRealityWeaveOutput"/>
 

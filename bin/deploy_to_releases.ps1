@@ -34,14 +34,34 @@ $dx10ExtraDeps = @('S3Dilu.dll')           # dx10-11 only
 $openglDeps    = @('S3DAPI.dll', 'S3DUtils.dll', 'ZLOg.dll')   # OpenGL skips DevIL/ilu
 
 # Output methods supported by each render API. Most APIs ship the same set;
-# OpenGL only ships the SR weave method (limited stereo support upstream).
+# OpenGL only ships the SR weave method (no other OGL implementations exist yet).
+#
+# Curation rationale: every output method has DX9 + DX10 source under
+# OutputMethods/ and most build cleanly. We ship the ones targeting hardware
+# someone might plausibly own today — modern HMDs / 3D TVs (SBS), passive
+# 3D monitors (Interlaced), DLP-Link projectors (DLP3D / ATIDLP3D / 120Hz),
+# generic and iZ3D shutter glasses (Shutter / S3DShutter / CMOShutter), the
+# StereoMirror for soft-mirror dual-display rigs, anaglyph for the cardboard
+# brigade, debug overlays (S3DMarked), and LeiaSR weave for SR panels.
+# Source-only (not shipped): AMDHD3DOutput (its own native HD3D path,
+# different code), Avitrid / DualProjection / Lenovo (variant) / Taerim /
+# VR920 / Z800 — all target hardware that's effectively dead. Users who
+# want any of the source-only ones can drop the built DLL from
+# bin/Release/.../OutputMethods/ into their game folder manually.
 $standardOMs = @(
     'AnaglyphOutput.dll',
+    'ATIDLP3DOutput.dll',
+    'CMOShutterOutput.dll',
+    'DLP3DOutput.dll',
     'InterlacedOutput.dll',
+    'S3D120HzProjectorsOutput.dll',
     'S3DMarkedOutput.dll',
     'S3DOutput.dll',
+    'S3DShutterOutput.dll',
+    'ShutterOutput.dll',
     'SideBySideOutput.dll',
-    'SimulatedRealityWeaveOutput.dll'
+    'SimulatedRealityWeaveOutput.dll',
+    'StereoMirrorOutput.dll'
 )
 $openglOMs = @('SimulatedRealityWeaveOutput.dll')
 
