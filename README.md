@@ -435,7 +435,7 @@ Games that used 3D Vision "Automatic Mode" driver stereo injection, but communic
 | Devil May Cry 4 Special Edition | DX9 | x86 | ✓ | Untested | `Stereo=ON` in `config.ini`. |
 | Dragon's Dogma: Dark Arisen | DX9 | x86 | ✕ | Untested | `Stereo=ON` in `config.ini`. |
 | Duke Nukem Forever | DX9/DX10 | x86 | ✕ | Untested |  |
-| Grand Theft Auto IV | DX9 | x32 | ✓ | Untested | `-stereo` command line argument. |
+| Grand Theft Auto IV | DX9 | x32 | ✓ | ✅ Mostly Working | `-stereo` command line argument.<br>Needs shadows shader fix. |
 | Grand Theft Auto V (Legacy) | DX11 | x64 | ✕ | Untested | `Stereo 3D` option in `Graphics` menu. |
 | GT Legends | DX9 | x86 | ✕ | Untested |  |
 | Inversion | DX9/DX11 | x86 | ✕ | ⚠️ Partial | Might need to implement more 3D Vison features or shader fix. |
