@@ -109,13 +109,13 @@ typedef boost::unordered_map<std::wstring, CallTimeData>	CallProfiler;
 extern CallProfiler g_Profiler;
 
 #ifdef _DEBUG
-typedef stdext::hash_map	<HANDLE, D3DDDI_RESOURCEFLAGS>	ResourcesTypeMap;
+typedef std::unordered_map	<HANDLE, D3DDDI_RESOURCEFLAGS>	ResourcesTypeMap;
 #else
 typedef boost::unordered_map<HANDLE, D3DDDI_RESOURCEFLAGS>	ResourcesTypeMap;
 #endif
 extern ResourcesTypeMap	g_ResourceType;
 #ifdef _DEBUG
-typedef stdext::hash_map	<HANDLE, D3DDDIQUERYTYPE>		QueriesTypeMap;
+typedef std::unordered_map	<HANDLE, D3DDDIQUERYTYPE>		QueriesTypeMap;
 #else
 typedef boost::unordered_map<HANDLE, D3DDDIQUERYTYPE>		QueriesTypeMap;
 #endif

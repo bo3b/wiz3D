@@ -8,7 +8,7 @@
 #include <atlbase.h>
 #include <atlcom.h>
 #include "boost/unordered_map.hpp"
-#include <hash_map>
+#include <unordered_map>
 
 interface IWrapper;
 

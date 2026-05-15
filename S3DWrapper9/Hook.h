@@ -9,7 +9,7 @@
 #include <d3d9.h>
 #include <set>
 #include "boost/unordered_map.hpp"
-#include <hash_map>
+#include <unordered_map>
 #include "Trace.h"
 #include "MadCHook.h"
 
@@ -88,7 +88,7 @@ struct AddressSet
 };
 
 #ifdef _DEBUG // to simplify debugging
-typedef stdext::hash_map	<LPVOID, AddressSet> AddressSetMap;
+typedef std::unordered_map	<LPVOID, AddressSet> AddressSetMap;
 #else
 typedef boost::unordered_map<LPVOID, AddressSet> AddressSetMap;
 #endif

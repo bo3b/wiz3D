@@ -7,7 +7,7 @@
 
 #include "ShaderRegister.h"
 #include <boost/unordered_map.hpp>
-#include <hash_map>
+#include <unordered_map>
 
 #pragma warning(disable : 4996)
 

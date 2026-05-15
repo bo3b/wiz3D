@@ -7,7 +7,7 @@
 
 #include <d3dumddi.h>
 #include "boost/unordered_map.hpp"
-#include <hash_map>
+#include <unordered_map>
 #include <vector>
 
 struct	_D3DDDIARG_OPENADAPTER;

@@ -2,6 +2,7 @@
 #include "Wiz3DStereoApi.h"
 #include "BaseStereoRenderer.h"
 #include "..\S3DAPI\GlobalData.h"
+#include "..\S3DAPI\ReadData.h"   // WriteInputData for UserProfile.xml persistence
 
 // Single active renderer. wiz3D's typical case is one IDirect3DDevice9 per
 // process, so a single global pointer suffices. If a process ever creates
@@ -53,6 +54,7 @@ void Wiz3D_SetStereoActive(int active)
 	if (!g_pActiveRenderer)
 		return; // no-op; caller will retry once renderer registers
 	g_pActiveRenderer->m_Input.StereoActive = active ? true : false;
+	WriteInputData(&g_pActiveRenderer->m_Input);
 }
 
 float Wiz3D_GetSeparationPercent()
@@ -71,6 +73,7 @@ void Wiz3D_SetSeparationPercent(float percent)
 	if (percent > 100.0f) percent = 100.0f;
 	CameraPreset* p = g_pActiveRenderer->m_Input.GetActivePreset();
 	p->StereoBase = PERCENT_TO_SEPARATION(percent);
+	WriteInputData(&g_pActiveRenderer->m_Input);
 }
 
 float Wiz3D_GetConvergence()
@@ -91,6 +94,42 @@ void Wiz3D_SetConvergence(float depth)
 		return;
 	CameraPreset* p = g_pActiveRenderer->m_Input.GetActivePreset();
 	p->One_div_ZPS = 1.0f / depth;
+	WriteInputData(&g_pActiveRenderer->m_Input);
+}
+
+void Wiz3D_StepSeparation(int dir)
+{
+	if (!g_pActiveRenderer)
+		return;
+	CameraPreset* p = g_pActiveRenderer->m_Input.GetActivePreset();
+	float step = (dir > 0) ? STEP_STEREOBASE : -STEP_STEREOBASE;
+	p->StereoBase += step;
+	if (p->StereoBase < 0.0f) p->StereoBase = 0.0f;
+	if (p->StereoBase > MAX_STEREOBASE) p->StereoBase = MAX_STEREOBASE;
+	WriteInputData(&g_pActiveRenderer->m_Input);
+}
+
+void Wiz3D_StepConvergence(int dir)
+{
+	// "Increase convergence" pushes parallax plane FURTHER away (Z_conv up).
+	// Since One_div_ZPS = 1/Z_conv, that maps to One_div_ZPS DECREASING.
+	if (!g_pActiveRenderer)
+		return;
+	CameraPreset* p = g_pActiveRenderer->m_Input.GetActivePreset();
+	float step = (dir > 0) ? -STEP_ONE_DIV_ZPS : STEP_ONE_DIV_ZPS;
+	p->One_div_ZPS += step;
+	if (p->One_div_ZPS < MIN_ONE_DIV_ZPS) p->One_div_ZPS = MIN_ONE_DIV_ZPS;
+	if (p->One_div_ZPS > MAX_ONE_DIV_ZPS) p->One_div_ZPS = MAX_ONE_DIV_ZPS;
+	WriteInputData(&g_pActiveRenderer->m_Input);
+}
+
+int Wiz3D_HasProfileEntry()
+{
+	// gInfo flags are set during ReadProfilesAllParts when the running game's
+	// exe matches an entry under <Profile><File Name="..."> in any of the
+	// three profile files. No renderer required — these reflect static load
+	// state from process startup, even if the renderer hasn't registered yet.
+	return (gInfo.bMatchedInBase || gInfo.bMatchedInCommunity || gInfo.bMatchedInUser) ? 1 : 0;
 }
 
 } // extern "C"

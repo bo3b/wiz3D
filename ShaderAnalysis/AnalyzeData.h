@@ -2,7 +2,7 @@
 #include <wtypes.h>
 #include <bitset>
 #include <vector>
-#include <hash_map>
+#include <unordered_map>
 #include <d3dx9math.h>
 #include <boost/unordered_map.hpp>
 
@@ -74,14 +74,14 @@ struct MatrixDataWithCB
 typedef std::vector<ProjectionMatrixData>	ProjectionCBMatrices;
 typedef std::vector<UnprojectionMatrixData> UnprojectionCBMatrices;
 
-typedef std::hash_map<DWORD, ProjectionCBMatrices>		ProjectionMatricesMap;
-typedef std::hash_map<DWORD, UnprojectionCBMatrices>	UnprojectionMatricesMap;
+typedef std::unordered_map<DWORD, ProjectionCBMatrices>		ProjectionMatricesMap;
+typedef std::unordered_map<DWORD, UnprojectionCBMatrices>	UnprojectionMatricesMap;
 
 template<typename MatrixData>
 struct ShaderCBs
 {
 	typedef std::vector<MatrixData>				CBMatrices;
-	typedef std::hash_map<DWORD, CBMatrices>	MatricesMap;
+	typedef std::unordered_map<DWORD, CBMatrices>	MatricesMap;
 	
 	MatricesMap cb;
 	DWORD		mask;

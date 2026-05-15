@@ -476,6 +476,12 @@ void ReadInputData(TiXmlNode* node)
 	pitem = item->FirstChildElement("LaserSightEnable");
 	if (pitem)
 		pitem->QueryBoolAttribute("Value", &gInfo.Input.LaserSightEnable);
+	// NvAPI bridge: stereo on/off persists in UserProfile so the in-game
+	// 3D Vision-style toggle round-trips across sessions (and across the
+	// launcher/game split for titles like Batman AA).
+	pitem = item->FirstChildElement("StereoActive");
+	if (pitem)
+		pitem->QueryBoolAttribute("Value", &gInfo.Input.StereoActive);
 	node = node->FirstChild("Presets");
 	if (node)
 	{
@@ -553,6 +559,8 @@ void WriteInputData(DataInput* overrideInput)
 	pitem->SetAttribute("Value", overrideInput->SwapEyes);
 	pitem = FindOrCreateElement(node, "LaserSightEnable");
 	pitem->SetAttribute("Value", overrideInput->LaserSightEnable);
+	pitem = FindOrCreateElement(node, "StereoActive");
+	pitem->SetAttribute("Value", overrideInput->StereoActive);
 	TiXmlNode* node2 = node->FirstChild("Presets");
 	if (!node2)
 		node2 = node->InsertEndChild(TiXmlElement("Presets"));

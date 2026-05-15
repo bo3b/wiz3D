@@ -8,7 +8,7 @@
 #include "S3DAPI.h"
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
-#include <hash_map>
+#include <unordered_map>
 #include <vector>
 #include <d3dx9math.h>
 #include <list>
@@ -40,8 +40,8 @@ public:
 };
 
 #ifdef _DEBUG
-typedef stdext::hash_map<DWORD, ResourceProfileData>			ResourceCRCMultiplierMap;
-typedef stdext::hash_map<DWORD, ResourceCRCMultiplierMap>		ResourcesCRCMultiplierMapBySize;
+typedef std::unordered_map<DWORD, ResourceProfileData>			ResourceCRCMultiplierMap;
+typedef std::unordered_map<DWORD, ResourceCRCMultiplierMap>		ResourcesCRCMultiplierMapBySize;
 #else
 typedef boost::unordered_map<DWORD, ResourceProfileData>		ResourceCRCMultiplierMap;
 typedef boost::unordered_map<DWORD, ResourceCRCMultiplierMap>	ResourcesCRCMultiplierMapBySize;

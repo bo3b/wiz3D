@@ -308,9 +308,43 @@ struct Wiz3DBridge
     void  (__cdecl* SetSeparationPercent)(float);
     float (__cdecl* GetConvergence)();
     void  (__cdecl* SetConvergence)(float);
+    void  (__cdecl* StepSeparation)(int);
+    void  (__cdecl* StepConvergence)(int);
+    int   (__cdecl* HasProfileEntry)();
 };
 static Wiz3DBridge g_Wiz3D = {};
 static HMODULE     g_Wiz3DModule = nullptr;
+
+// Profile-aware Set gating. When a Base/Community/User profile entry
+// matched the running game, profile values should win over game-side
+// startup defaults. We distinguish "game init Set" from "user-adjusted
+// Set" by tracking whether the game has called Get yet — in-game UI
+// widgets always Get-then-Set (to position their slider), init code
+// just blindly Sets hardcoded defaults.
+static bool g_gameHasReadSeparation = false;
+static bool g_gameHasReadConvergence = false;
+static bool g_gameHasReadActive = false;
+
+// Decide whether to apply this Set to wiz3D state. Logic:
+//   has_profile && !user_engaged → ignore (profile wins)
+//   !has_profile && !user_engaged → apply (no better info, game's default
+//                                          becomes our initial value;
+//                                          don't persist yet, wait for
+//                                          an actual user interaction)
+//   user_engaged → apply + persist (user adjustment, always honor)
+//
+// "Persist" means call the bridge's Set (which writes UserProfile.xml).
+// The "no profile + init" branch updates the bridge state in a way that
+// affects current-session rendering but the bridge's WriteInputData
+// happens anyway. Per design: rather than complicate the bridge with
+// a "don't persist this one" path, we accept that the first init Set
+// for an unprofiled game DOES get saved, which is fine — it's the
+// best baseline we have.
+static bool ShouldApplyGameSet(bool& userEngagedFlag)
+{
+    if (userEngagedFlag) return true;
+    return g_Wiz3D.HasProfileEntry ? (g_Wiz3D.HasProfileEntry() == 0) : true;
+}
 
 static bool ResolveWiz3DBridge()
 {
@@ -322,6 +356,7 @@ static bool ResolveWiz3DBridge()
             // Wrapper was unloaded - drop pointers
             memset(&g_Wiz3D, 0, sizeof(g_Wiz3D));
             g_Wiz3DModule = nullptr;
+            g_gameHasReadSeparation = g_gameHasReadConvergence = g_gameHasReadActive = false;
         }
         return false;
     }
@@ -333,6 +368,9 @@ static bool ResolveWiz3DBridge()
         g_Wiz3D.SetSeparationPercent = (void  (__cdecl*)(float))GetProcAddress(m, "Wiz3D_SetSeparationPercent");
         g_Wiz3D.GetConvergence       = (float (__cdecl*)())   GetProcAddress(m, "Wiz3D_GetConvergence");
         g_Wiz3D.SetConvergence       = (void  (__cdecl*)(float))GetProcAddress(m, "Wiz3D_SetConvergence");
+        g_Wiz3D.StepSeparation       = (void  (__cdecl*)(int))GetProcAddress(m, "Wiz3D_StepSeparation");
+        g_Wiz3D.StepConvergence      = (void  (__cdecl*)(int))GetProcAddress(m, "Wiz3D_StepConvergence");
+        g_Wiz3D.HasProfileEntry      = (int   (__cdecl*)())   GetProcAddress(m, "Wiz3D_HasProfileEntry");
         g_Wiz3DModule = m;
     }
     return g_Wiz3D.GetSeparationPercent != nullptr;
@@ -606,14 +644,16 @@ NVAPI_INTERFACE Spoof_Stereo_DestroyHandle(StereoHandle) { NVAPI_TRACE_FIRST("St
 NVAPI_INTERFACE Spoof_Stereo_Activate(StereoHandle)
 {
     NVAPI_TRACE_FIRST("Stereo_Activate");
-    if (ResolveWiz3DBridge()) g_Wiz3D.SetStereoActive(1);
+    if (ResolveWiz3DBridge() && ShouldApplyGameSet(g_gameHasReadActive))
+        g_Wiz3D.SetStereoActive(1);
     g_Stereo.isActive = 1;
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_Deactivate(StereoHandle)
 {
     NVAPI_TRACE_FIRST("Stereo_Deactivate");
-    if (ResolveWiz3DBridge()) g_Wiz3D.SetStereoActive(0);
+    if (ResolveWiz3DBridge() && ShouldApplyGameSet(g_gameHasReadActive))
+        g_Wiz3D.SetStereoActive(0);
     g_Stereo.isActive = 0;
     return NVAPI_OK;
 }
@@ -630,6 +670,7 @@ NVAPI_INTERFACE Spoof_Stereo_IsActivated(StereoHandle, NvU8* p)
             ? (NvU8)(g_Wiz3D.GetStereoActive() ? 1 : 0)
             : g_Stereo.isActive;
     }
+    g_gameHasReadActive = true; // user-UI gate: game has now queried our state
     NVAPI_TRACE_PERIODIC("Stereo_IsActivated", "%d", (int)*p);
     return NVAPI_OK;
 }
@@ -640,32 +681,50 @@ NVAPI_INTERFACE Spoof_Stereo_GetSeparation(StereoHandle, float* p)
     *p = ResolveWiz3DBridge()
         ? g_Wiz3D.GetSeparationPercent()
         : g_Stereo.separation;
+    g_gameHasReadSeparation = true; // user-UI gate
     NVAPI_TRACE_PERIODIC("Stereo_GetSeparation", "%.2f%%", *p);
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetSeparation(StereoHandle, float v)
 {
     if (v < 0.0f || v > 100.0f) return NVAPI_ERROR;
-    if (ResolveWiz3DBridge()) g_Wiz3D.SetSeparationPercent(v);
+    if (ResolveWiz3DBridge() && ShouldApplyGameSet(g_gameHasReadSeparation))
+        g_Wiz3D.SetSeparationPercent(v);
     g_Stereo.separation = v;
     NVAPI_TRACE_EVERY("Stereo_SetSeparation", "%.2f%%", v);
     return NVAPI_OK;
 }
-NVAPI_INTERFACE Spoof_Stereo_DecreaseSeparation(StereoHandle h)
+NVAPI_INTERFACE Spoof_Stereo_DecreaseSeparation(StereoHandle)
 {
-    float cur = 0.0f;
-    Spoof_Stereo_GetSeparation(h, &cur);
-    cur = (cur > 5.0f) ? cur - 5.0f : 0.0f;
-    NVAPI_TRACE_EVERY("Stereo_DecreaseSeparation", "-> %.2f%%", cur);
-    return Spoof_Stereo_SetSeparation(h, cur);
+    // Hotkey-style entry — always treat as user intent. Route to wiz3D's
+    // native STEP_STEREOBASE step (Num+/- equivalent magnitude).
+    NVAPI_TRACE_EVERY("Stereo_DecreaseSeparation", "step %d", -1);
+    if (ResolveWiz3DBridge() && g_Wiz3D.StepSeparation)
+    {
+        g_Wiz3D.StepSeparation(-1);
+        g_Stereo.separation = g_Wiz3D.GetSeparationPercent();
+    }
+    else
+    {
+        g_Stereo.separation = (g_Stereo.separation > 5.0f) ? g_Stereo.separation - 5.0f : 0.0f;
+    }
+    g_gameHasReadSeparation = true;
+    return NVAPI_OK;
 }
-NVAPI_INTERFACE Spoof_Stereo_IncreaseSeparation(StereoHandle h)
+NVAPI_INTERFACE Spoof_Stereo_IncreaseSeparation(StereoHandle)
 {
-    float cur = 0.0f;
-    Spoof_Stereo_GetSeparation(h, &cur);
-    cur = (cur < 95.0f) ? cur + 5.0f : 100.0f;
-    NVAPI_TRACE_EVERY("Stereo_IncreaseSeparation", "-> %.2f%%", cur);
-    return Spoof_Stereo_SetSeparation(h, cur);
+    NVAPI_TRACE_EVERY("Stereo_IncreaseSeparation", "step %d", +1);
+    if (ResolveWiz3DBridge() && g_Wiz3D.StepSeparation)
+    {
+        g_Wiz3D.StepSeparation(+1);
+        g_Stereo.separation = g_Wiz3D.GetSeparationPercent();
+    }
+    else
+    {
+        g_Stereo.separation = (g_Stereo.separation < 95.0f) ? g_Stereo.separation + 5.0f : 100.0f;
+    }
+    g_gameHasReadSeparation = true;
+    return NVAPI_OK;
 }
 
 NVAPI_INTERFACE Spoof_Stereo_GetConvergence(StereoHandle, float* p)
@@ -674,29 +733,47 @@ NVAPI_INTERFACE Spoof_Stereo_GetConvergence(StereoHandle, float* p)
     *p = ResolveWiz3DBridge()
         ? g_Wiz3D.GetConvergence()
         : g_Stereo.convergence;
+    g_gameHasReadConvergence = true; // user-UI gate
     NVAPI_TRACE_PERIODIC("Stereo_GetConvergence", "%.4f", *p);
     return NVAPI_OK;
 }
 NVAPI_INTERFACE Spoof_Stereo_SetConvergence(StereoHandle, float v)
 {
-    if (ResolveWiz3DBridge()) g_Wiz3D.SetConvergence(v);
+    if (ResolveWiz3DBridge() && ShouldApplyGameSet(g_gameHasReadConvergence))
+        g_Wiz3D.SetConvergence(v);
     g_Stereo.convergence = v;
     NVAPI_TRACE_EVERY("Stereo_SetConvergence", "%.4f", v);
     return NVAPI_OK;
 }
-NVAPI_INTERFACE Spoof_Stereo_DecreaseConvergence(StereoHandle h)
+NVAPI_INTERFACE Spoof_Stereo_DecreaseConvergence(StereoHandle)
 {
-    float cur = 0.0f;
-    Spoof_Stereo_GetConvergence(h, &cur);
-    NVAPI_TRACE_EVERY("Stereo_DecreaseConvergence", "from %.4f -> %.4f", cur, cur - 0.05f);
-    return Spoof_Stereo_SetConvergence(h, cur - 0.05f);
+    NVAPI_TRACE_EVERY("Stereo_DecreaseConvergence", "step %d", -1);
+    if (ResolveWiz3DBridge() && g_Wiz3D.StepConvergence)
+    {
+        g_Wiz3D.StepConvergence(-1);
+        g_Stereo.convergence = g_Wiz3D.GetConvergence();
+    }
+    else
+    {
+        g_Stereo.convergence -= 0.05f;
+    }
+    g_gameHasReadConvergence = true;
+    return NVAPI_OK;
 }
-NVAPI_INTERFACE Spoof_Stereo_IncreaseConvergence(StereoHandle h)
+NVAPI_INTERFACE Spoof_Stereo_IncreaseConvergence(StereoHandle)
 {
-    float cur = 0.0f;
-    Spoof_Stereo_GetConvergence(h, &cur);
-    NVAPI_TRACE_EVERY("Stereo_IncreaseConvergence", "from %.4f -> %.4f", cur, cur + 0.05f);
-    return Spoof_Stereo_SetConvergence(h, cur + 0.05f);
+    NVAPI_TRACE_EVERY("Stereo_IncreaseConvergence", "step %d", +1);
+    if (ResolveWiz3DBridge() && g_Wiz3D.StepConvergence)
+    {
+        g_Wiz3D.StepConvergence(+1);
+        g_Stereo.convergence = g_Wiz3D.GetConvergence();
+    }
+    else
+    {
+        g_Stereo.convergence += 0.05f;
+    }
+    g_gameHasReadConvergence = true;
+    return NVAPI_OK;
 }
 
 NVAPI_INTERFACE Spoof_Stereo_GetEyeSeparation(StereoHandle, float* p)

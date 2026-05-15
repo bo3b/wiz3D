@@ -62,7 +62,7 @@ struct RHWEmulData
 
 typedef std::pair<IDirect3DVertexDeclaration9* const, RHWEmulData>			RHWEmulPair;
 #ifdef _DEBUG
-typedef stdext::hash_map	<IDirect3DVertexDeclaration9*, RHWEmulData>	RHWEmulMap;
+typedef std::unordered_map	<IDirect3DVertexDeclaration9*, RHWEmulData>	RHWEmulMap;
 #else
 typedef boost::unordered_map<IDirect3DVertexDeclaration9*, RHWEmulData>	RHWEmulMap;
 #endif

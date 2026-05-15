@@ -7,7 +7,7 @@
 
 #include <atlbase.h>
 #include <atlcom.h>
-#include <hash_map>
+#include <unordered_map>
 #include "boost/unordered_map.hpp"
 
 interface IWrapper;
@@ -26,7 +26,7 @@ public:
 #ifndef _DEBUG
 typedef boost::unordered_map<IUnknown *, IWrapper *> WrappersMap_t;
 #else
-typedef stdext::hash_map<IUnknown *, IWrapper *> WrappersMap_t;
+typedef std::unordered_map<IUnknown *, IWrapper *> WrappersMap_t;
 #endif
 
 class CWrapperTable: 

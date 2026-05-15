@@ -11,7 +11,7 @@
 #include <d3d9.h>
 #include <d3dx9.h>
 #include "boost/unordered_map.hpp"
-#include <hash_map>
+#include <unordered_map>
 #include "ShaderAnalyzer.h"
 #include "ProxyDevice9.h"
 

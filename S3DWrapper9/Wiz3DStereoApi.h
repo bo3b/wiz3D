@@ -33,4 +33,20 @@ extern "C"
 	// Internally wiz3D stores 1/depth (One_div_ZPS); the bridge inverts.
 	__declspec(dllexport) float __cdecl Wiz3D_GetConvergence();
 	__declspec(dllexport) void  __cdecl Wiz3D_SetConvergence(float depth);
+
+	// Hotkey-equivalent step adjustments. NvAPI's Increase/Decrease entry
+	// points come from the Ctrl+F3/F4/F5/F6 default 3D Vision keybinds —
+	// route these to wiz3D's STEP_STEREOBASE / STEP_ONE_DIV_ZPS so they
+	// match the magnitude of wiz3D's own Num+/- hotkeys. dir > 0 increases,
+	// dir <= 0 decreases. NB: for convergence, "increase" pushes the
+	// parallax plane FURTHER from viewer = SMALLER One_div_ZPS.
+	__declspec(dllexport) void  __cdecl Wiz3D_StepSeparation(int dir);
+	__declspec(dllexport) void  __cdecl Wiz3D_StepConvergence(int dir);
+
+	// Profile-match probe: returns 1 if Base/Community/User profile matched
+	// the running game, else 0. NvApiProxy uses this to decide whether to
+	// accept game-side init Sets (no profile → accept as our default,
+	// profile exists → ignore until user-initiated, detected via "did the
+	// game call Get first?").
+	__declspec(dllexport) int   __cdecl Wiz3D_HasProfileEntry();
 }
