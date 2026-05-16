@@ -587,6 +587,19 @@ static BOOL LoadRealOpenGL32(void)
         if (g_pOrigGL[i]) resolved++;
     }
     Log("Resolved %d of 368 opengl32 exports\n", resolved);
+    if (resolved < 368)
+    {
+        // Wine/Proton typically lacks 7 legacy exports (Glmf*, wglDescribeLayerPlane,
+        // wglSwapMultipleBuffers, etc). The thunks themselves are NULL-safe (see
+        // GL_THUNK macro below), but knowing exactly which exports a Wine runtime
+        // drops is useful forensic data when triaging crash reports.
+        Log("Unresolved exports (%d):\n", 368 - resolved);
+        for (int i = 0; i < 368; i++)
+        {
+            if (!g_pOrigGL[i])
+                Log("  [%d] %s\n", i, g_glExportNames[i]);
+        }
+    }
     return TRUE;
 }
 
