@@ -631,6 +631,27 @@ NVAPI_INTERFACE Spoof_D3D11_SetDepthBoundsTest(void* /*pDevice*/, NvU32 /*bEnabl
 // Activate/Deactivate. Wire both pairs into wiz3D's StereoActive flag so
 // either kind of in-game toggle drives wiz3D's mono/stereo state — same
 // effect as the user pressing the * hotkey.
+//
+// Canonical NVAPI stereo init order (per Tal Liron's `opengl-3d-vision-bridge`,
+// MIT; the same order NVIDIA's own docs prescribe):
+//
+//   NvAPI_Initialize();                                       // global init
+//   NvAPI_Stereo_CreateConfigurationProfileRegistryKey(
+//       NVAPI_STEREO_DX9_REGISTRY_PROFILE);                   // before device
+//   NvAPI_Stereo_Enable();                                    // before device
+//   /* ... create IDirect3DDevice9 / DX10 / DX11 device ... */
+//   NvAPI_Stereo_CreateHandleFromIUnknown(device, &handle);   // after device
+//   NvAPI_Stereo_Activate(handle);                            // start rendering
+//   NvAPI_Stereo_GetSeparation(handle, &sep);                 // optional, query
+//   NvAPI_Stereo_GetConvergence(handle, &conv);
+//   NvAPI_Stereo_GetFrustumAdjustMode(handle, &mode);         // NO_ADJUST / STRETCH / CLEAR_EDGES
+//   NvAPI_Stereo_GetEyeSeparation(handle, &eyeSep);
+//
+// We're the spoof side of this contract — every function above has an entry
+// in the dispatch table below, plus a Spoof_* implementation that returns
+// NVAPI_OK with sensible defaults so the game's init succeeds even on
+// non-NVIDIA hardware. The wiz3D bridge picks up the in-game stereo toggle
+// regardless of which sequence the game uses.
 NVAPI_INTERFACE Spoof_Stereo_Enable(void)
 {
     NVAPI_TRACE_FIRST("Stereo_Enable");
@@ -1028,7 +1049,7 @@ static bool IsStereoFunctionId(NvU32 id)
     case 0xED4416C5: // Stereo_Debug_WasLastDrawStereoized
     case 0x44F0ECD1: // Stereo_SetDefaultProfile
     case 0x624E21C2: // Stereo_GetDefaultProfile
-    case 0xBE7692EC: // Stereo_CreateConfigurationProfileRegistryKey  (Hard Reset)
+    case 0xBE7692EC: // Stereo_CreateConfigurationProfileRegistryKey
     case 0xF117B834: // Stereo_DeleteConfigurationProfileRegistryKey
     case 0x24409F48: // Stereo_SetConfigurationProfileValue
     case 0x49BCEECF: // Stereo_DeleteConfigurationProfileValue
