@@ -1024,26 +1024,142 @@ void Context11Proxy::DoUpdateSubresource(
                               pSrcData, SrcRowPitch, SrcDepthPitch);
 }
 
+// True for the BC1..BC7 block-compressed format families. UpdateSubresource on
+// BC textures sends 4x4-block rows, so byte counts are (height/4) * rowPitch
+// not height * rowPitch.
+static bool IsBCFormat(DXGI_FORMAT f)
+{
+    return (f >= DXGI_FORMAT_BC1_TYPELESS && f <= DXGI_FORMAT_BC5_SNORM)
+        || (f >= DXGI_FORMAT_BC6H_TYPELESS && f <= DXGI_FORMAT_BC7_UNORM_SRGB);
+}
+
+// Compute how many source bytes UpdateSubresource will read so we can capture
+// the right amount for replay. Returns 0 if uncomputable — caller should skip
+// recording in that case. The previous Stage-4d attempt to record this call
+// crashed Batman because it under-sized pSrcData; this version queries the
+// destination resource's actual dimensions before copying.
+static SIZE_T ComputeUpdateSubresourceCopyBytes(
+    ID3D11Resource* res, UINT subresource, const D3D11_BOX* box,
+    UINT srcRowPitch, UINT srcDepthPitch)
+{
+    if (!res) return 0;
+    D3D11_RESOURCE_DIMENSION type;
+    res->GetType(&type);
+    switch (type)
+    {
+        case D3D11_RESOURCE_DIMENSION_TEXTURE2D:
+        {
+            D3D11_TEXTURE2D_DESC desc;
+            static_cast<ID3D11Texture2D*>(res)->GetDesc(&desc);
+            UINT mips = desc.MipLevels ? desc.MipLevels : 1;
+            UINT mip = subresource % mips;
+            UINT mipHeight = desc.Height >> mip;
+            if (mipHeight == 0) mipHeight = 1;
+            UINT height = box ? (box->bottom - box->top) : mipHeight;
+            UINT rows = IsBCFormat(desc.Format) ? (height + 3) / 4 : height;
+            return SIZE_T(rows) * srcRowPitch;
+        }
+        case D3D11_RESOURCE_DIMENSION_TEXTURE3D:
+        {
+            D3D11_TEXTURE3D_DESC desc;
+            static_cast<ID3D11Texture3D*>(res)->GetDesc(&desc);
+            UINT mips = desc.MipLevels ? desc.MipLevels : 1;
+            UINT mip = subresource % mips;
+            UINT mipDepth = desc.Depth >> mip;
+            if (mipDepth == 0) mipDepth = 1;
+            UINT depth = box ? (box->back - box->front) : mipDepth;
+            return SIZE_T(depth) * srcDepthPitch;
+        }
+        case D3D11_RESOURCE_DIMENSION_TEXTURE1D:
+            return srcRowPitch;
+        case D3D11_RESOURCE_DIMENSION_BUFFER:
+        {
+            if (box) return box->right - box->left;
+            D3D11_BUFFER_DESC desc;
+            static_cast<ID3D11Buffer*>(res)->GetDesc(&desc);
+            return desc.ByteWidth;
+        }
+        default:
+            return 0;
+    }
+}
+
 void STDMETHODCALLTYPE Context11Proxy::UpdateSubresource(
     ID3D11Resource* pDstResource, UINT DstSubresource, const D3D11_BOX* pDstBox,
     const void* pSrcData, UINT SrcRowPitch, UINT SrcDepthPitch)
 {
-    // Stage 4d: do NOT record this call. The recording attempted to snapshot
-    // pSrcData into a std::vector and replay UpdateSubresource for the right
-    // eye, but sizing it correctly requires knowing the texture height /
-    // array slice count / format bytes-per-block — none of which we have
-    // from the API surface. The naive SrcRowPitch-only sizing caused the
-    // driver to read past the captured buffer (Batman Arkham Origins
-    // crashed inside nvwgf2um.dll during the right-eye replay sweep).
-    //
-    // Skipping the right-eye duplicate is OK at 4d: UpdateSubresource on a
-    // stereo-doubled texture is rare in the per-frame loop (mostly used for
-    // mono textures at level load), and stereo RTs receive their per-eye
-    // content via the replayed Draw/Clear path, not via CPU uploads. Stage
-    // 4c will revisit with a proper size calculation if CB Update becomes
-    // load-bearing for the per-eye math.
+    // Live call — applies to the active-eye sibling (left when called from
+    // the game directly; right when called from replay).
     DoUpdateSubresource(pDstResource, DstSubresource, pDstBox,
                         pSrcData, SrcRowPitch, SrcDepthPitch);
+    if (!m_presentHookActive) return;
+    if (!pSrcData) return;
+
+    // Only worth recording for replay when the destination is a stereo-doubled
+    // Texture2D — that's the only resource kind where the right-eye sibling
+    // diverges from the left. Texture1D/3D/Buffer have a single backing real,
+    // so the live call already covered both eyes; recording would just bloat
+    // memory and pay another driver-side upload cost for no visible benefit.
+    Texture2D11Proxy* tex2d = TryUnwrapTexture2D(pDstResource);
+    if (!tex2d || !tex2d->IsStereo()) return;
+
+    // Use the wrapped resource's real (left) handle for sizing — both eye
+    // siblings have identical descriptors by construction.
+    SIZE_T bytes = ComputeUpdateSubresourceCopyBytes(
+        static_cast<ID3D11Resource*>(tex2d->GetReal()),
+        DstSubresource, pDstBox, SrcRowPitch, SrcDepthPitch);
+    if (bytes == 0) return;
+
+    std::vector<BYTE> data(bytes);
+    memcpy(data.data(), pSrcData, bytes);
+
+    ComRefHolder dstRef(pDstResource);
+    bool hasBox = (pDstBox != nullptr);
+    D3D11_BOX box = {};
+    if (hasBox) box = *pDstBox;
+
+    m_frameCommands.emplace_back(
+        [this, dstRef, DstSubresource, hasBox, box, data, SrcRowPitch, SrcDepthPitch]()
+        {
+            DoUpdateSubresource(
+                static_cast<ID3D11Resource*>(dstRef.p),
+                DstSubresource,
+                hasBox ? &box : nullptr,
+                data.data(), SrcRowPitch, SrcDepthPitch);
+        });
+}
+
+// ClearState resets every pipeline slot to defaults (shaders, SRVs, RTs,
+// viewports, blend/depth/raster state, etc). Without recording, the right-eye
+// replay sees subsequent state-setters applied on top of whatever state was
+// in effect from the previous frame's replay tail — so eye-aware bindings
+// can leak across the ClearState boundary. Closure has no captures; the real
+// runtime handles the reset itself when replayed.
+void STDMETHODCALLTYPE Context11Proxy::ClearState()
+{
+    m_real->ClearState();
+    if (!m_presentHookActive) return;
+    m_frameCommands.emplace_back(
+        [this]() { m_real->ClearState(); });
+}
+
+// ExecuteCommandList submits a previously-built command list (typically from
+// a deferred context). Without recording, deferred-context games (some
+// DA2-era engines) submit entire batches of state + draws via this single
+// call and the right-eye replay never sees them. Command lists are
+// idempotent at the API level; replaying the same call is safe.
+void STDMETHODCALLTYPE Context11Proxy::ExecuteCommandList(
+    ID3D11CommandList* pCommandList, BOOL RestoreContextState)
+{
+    m_real->ExecuteCommandList(pCommandList, RestoreContextState);
+    if (!m_presentHookActive) return;
+    ComRefHolder cmdRef(pCommandList);
+    m_frameCommands.emplace_back(
+        [this, cmdRef, RestoreContextState]()
+        {
+            m_real->ExecuteCommandList(
+                static_cast<ID3D11CommandList*>(cmdRef.p), RestoreContextState);
+        });
 }
 
 void Context11Proxy::DoResolveSubresource(
