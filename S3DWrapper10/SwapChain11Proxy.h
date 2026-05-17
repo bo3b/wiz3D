@@ -22,9 +22,11 @@
 #include <d3d9types.h>   // D3DCOLORVALUE for the DXGI_RGBA shim below
 #ifndef _DXGI_RGBA_DEFINED
 #define _DXGI_RGBA_DEFINED
-typedef D3DCOLORVALUE DXGI_RGBA;     // see DXGIDeviceProxy.h — bundled
-                                     // lib/d3d10 dxgitype.h shadows the
-                                     // SDK header and is missing this.
+typedef D3DCOLORVALUE DXGI_RGBA;     // bundled lib/d3d10 dxgitype.h shadows
+                                     // the Win11 SDK header and is missing
+                                     // DXGI_RGBA; pre-define here. Every
+                                     // header touching DXGI uses the same
+                                     // _DXGI_RGBA_DEFINED guard.
 #endif
 #include <dxgi.h>
 #include <dxgi1_2.h>

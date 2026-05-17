@@ -86,13 +86,14 @@ HRESULT STDMETHODCALLTYPE DXGIDeviceProxy::QueryInterface(REFIID riid, void** pp
         return S_OK;
     }
 
-    // Anything else (IDXGIDevice4, ID3D11Device1+, vendor IIDs) — passthrough
-    // unwrapped. Identity won't be preserved for those riids; a future stage
-    // can extend coverage as games need it.
-    HRESULT hr = m_real0->QueryInterface(riid, ppvObj);
+    // Anything else (IDXGIDevice4, ID3D11Device1+, vendor IIDs) — refuse so
+    // games can't escape through the DXGI side either. Returning the raw real
+    // device for these IIDs let games bypass our wrap on the resource-creation
+    // path; per-frame trace confirmed `rtv0={proxy=00000000}` consistently.
     NVDM_TRACE_FIRST_N(8,
-        "  DXGIDeviceProxy::QI(unknown IID) hr=0x%08lX -- bypass risk\n", hr);
-    return hr;
+        "  DXGIDeviceProxy::QI(unhandled IID) -- refusing to avoid bypass\n");
+    *ppvObj = nullptr;
+    return E_NOINTERFACE;
 }
 
 // GetAdapter / GetParent(IDXGIAdapter*) used to wrap returned adapters in

@@ -281,13 +281,18 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::QueryInterface(REFIID riid, void** ppvO
         return hr;
     }
 
-    // Device1/Device2/Device3/etc. — pass through unwrapped for now.
-    // 1b-iii/iv may need to claim those if a Direct Mode game uses them
-    // for swap-chain / RTV creation.
-    HRESULT hr = m_real->QueryInterface(riid, ppvObj);
+    // Refuse Device1/Device2/Device3/etc. — handing back the unwrapped real
+    // device let games create textures and RTVs via the unwrapped path,
+    // bypassing our stereo siblings. The per-frame trace (May 2026) confirmed
+    // every right-eye-broken DX10/11 game had `rtv0={proxy=00000000}` because
+    // of this. Returning E_NOINTERFACE makes well-behaved games fall back to
+    // the base ID3D11Device interface, which IS wrapped. Games that *require*
+    // Device1+ functionality will fail to init — documented limitation; full
+    // Device1+ wrap deferred (SDK headers conflict with bundled DDI headers).
     NVDM_TRACE_FIRST_N(16,
-        "  Device11Proxy::QI(unknown IID, e.g. Device1+) hr=0x%08lX -- bypass risk\n", hr);
-    return hr;
+        "  Device11Proxy::QI(Device1+ / unhandled IID) -- refusing to avoid bypass\n");
+    *ppvObj = nullptr;
+    return E_NOINTERFACE;
 }
 
 DXGIDeviceProxy* Device11Proxy::GetOrCreateDXGIDeviceProxyAddRef()

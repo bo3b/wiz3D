@@ -45,9 +45,7 @@
 #include <d3d9types.h>   // pulls D3DCOLORVALUE for the DXGI_RGBA shim below
 // wiz3D's bundled lib/d3d10/include/dxgitype.h shadows the Win11 SDK
 // version and is missing DXGI_RGBA. The system dxgi1_2.h (IDXGIOutput1
-// SetBackgroundColor) needs it, so pre-define here if absent. Harmless
-// when the SDK header eventually provides it — DXGI_RGBA is a permanent
-// alias of D3DCOLORVALUE.
+// SetBackgroundColor) needs it, so pre-define here if absent.
 #ifndef _DXGI_RGBA_DEFINED
 #define _DXGI_RGBA_DEFINED
 typedef D3DCOLORVALUE DXGI_RGBA;
