@@ -4,6 +4,7 @@
 #include "AdapterFunctions.h"
 #include "D3DDeviceWrapper.h"
 #include "DeviceWrapperRegistry.h"
+#include "GlobalData.h"
 #include <cstdarg>
 #include <cstdio>
 
@@ -32,6 +33,57 @@ void DDILog(const char* fmt, ...)
 	vfprintf(fp, fmt, ap);
 	va_end(ap);
 	fflush(fp);
+}
+
+// ---------------------------------------------------------------------------
+// Per-frame trace appender — writes to wiz3D_frame_trace.log next to the
+// game exe when gInfo.VerboseFrameTrace > 0. Counts down to 0 at each
+// FrameTraceTickFrame() call (one per Present completion) and then stops.
+// ---------------------------------------------------------------------------
+int g_FrameTraceRemaining = -1;  // -1 = uninitialized, 0 = done, >0 = active
+
+static FILE* OpenFrameTraceFile()
+{
+	static FILE* fp = NULL;
+	if (fp) return fp;
+	WCHAR dir[MAX_PATH];
+	GetModuleFileNameW(NULL, dir, MAX_PATH);
+	WCHAR* pSlash = wcsrchr(dir, L'\\');
+	if (pSlash) *(pSlash + 1) = L'\0';
+	lstrcatW(dir, L"wiz3D_frame_trace.log");
+	fp = _wfopen(dir, L"w");  // truncate; only one capture session per game launch
+	if (fp) fputs("=== wiz3D frame trace ===\n", fp);
+	return fp;
+}
+
+void FrameTrace(const char* fmt, ...)
+{
+	if (g_FrameTraceRemaining <= 0) return;
+	FILE* fp = OpenFrameTraceFile();
+	if (!fp) return;
+	va_list ap;
+	va_start(ap, fmt);
+	vfprintf(fp, fmt, ap);
+	va_end(ap);
+	fflush(fp);
+}
+
+void FrameTraceTickFrame()
+{
+	if (g_FrameTraceRemaining < 0)
+	{
+		// First Present after wrapper init — read the config'd frame count.
+		g_FrameTraceRemaining = (int)gInfo.VerboseFrameTrace;
+		if (g_FrameTraceRemaining > 0)
+			FrameTrace("=== capturing %d frames (gInfo.VerboseFrameTrace) ===\n",
+			           g_FrameTraceRemaining);
+	}
+	if (g_FrameTraceRemaining > 0)
+	{
+		--g_FrameTraceRemaining;
+		if (g_FrameTraceRemaining == 0)
+			FrameTrace("=== trace complete (auto-disabled) ===\n");
+	}
 }
 
 static union{

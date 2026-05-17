@@ -233,6 +233,7 @@ bool ReadConfigRouterType()
 			DECLARE_BVALUE(UseCOMWrap),
 			DECLARE_BVALUE(UseCOMWrapSwapChain),
 			DECLARE_BVALUE(UseCOMWrapReplay),
+			DECLARE_IVALUE(VerboseFrameTrace),
 			DECLARE_FVALUE(COMWrapEyeShift),
 			DECLARE_BVALUE(CollectDebugInformation),
 			DECLARE_IVALUE(ScreenshotType),

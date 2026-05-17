@@ -6,6 +6,17 @@
 // CreateOutput, etc.).
 void DDILog(const char* fmt, ...);
 
+// Per-frame trace logger — writes to wiz3D_frame_trace.log when enabled via
+// gInfo.VerboseFrameTrace > 0 (counts how many frames to capture before
+// auto-disabling). Used to compare what the right-eye replay pass actually
+// does against the left-eye live pass: emits OMSet/Clear/Draw/replay-boundary
+// events with per-eye context. Default off — hot-path cost is one branch
+// against g_FrameTraceRemaining when disabled.
+extern int g_FrameTraceRemaining;
+void FrameTrace(const char* fmt, ...);
+void FrameTraceTickFrame();  // call once at end of each Present
+inline bool FrameTraceActive() { return g_FrameTraceRemaining > 0; }
+
 // Per-trampoline entry counter for the Draw* DDI hooks. The macro-local
 // static gives one counter per call site, so each Draw variant tallies on
 // its own. Rate-limited to first 5 + every 10000th so it survives an

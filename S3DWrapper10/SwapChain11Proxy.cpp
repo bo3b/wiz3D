@@ -424,8 +424,12 @@ HRESULT STDMETHODCALLTYPE SwapChain11Proxy::GetBuffer(UINT Buffer, REFIID riid, 
     return m_real->GetBuffer(Buffer, riid, ppSurface);
 }
 
+static int s_FramePresentCounter = 0;
+
 void SwapChain11Proxy::OnPresentBoundaryPre()
 {
+    if (FrameTraceActive())
+        FrameTrace("\n=== Present #%d PRE ===\n", s_FramePresentCounter);
     // Stage 4b.8: PRE-PRESENT sweep. The game has already issued frame N's
     // state setters and draws — those ran for the left eye via the direct
     // passthrough in each proxy method. When UseCOMWrapReplay=1 we re-issue
@@ -447,15 +451,23 @@ void SwapChain11Proxy::OnPresentBoundaryPre()
     if (ctx->IsPresentHookActive())
         ctx->ReplayFrameCommands(Context11Proxy::Eye::Right);
 
+    if (FrameTraceActive())
+        FrameTrace("--- composite start ---\n");
+
     // Stage 4d: composite the left + right BB siblings into the real BB.
     // Coupled to UseCOMWrapReplay because without the replay there's no
     // right-eye content to composite. Skipped silently if the wrapped BB
     // wasn't allocated (game took some non-standard GetBuffer path).
     DoComposite();
+    if (FrameTraceActive())
+        FrameTrace("--- composite end ---\n");
 }
 
 void SwapChain11Proxy::OnPresentBoundaryPost()
 {
+    if (FrameTraceActive())
+        FrameTrace("=== Present #%d POST ===\n", s_FramePresentCounter++);
+    FrameTraceTickFrame();
     // Stage 4b.8: POST-PRESENT housekeeping. Real Present has flipped the
     // BB; clear the recording vector and arm it for frame N+1. We arm
     // unconditionally (not just on the first call) so a context that's

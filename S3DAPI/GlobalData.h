@@ -327,6 +327,12 @@ public:
 	// true now that Stage 4c (per-eye CB math) and 4e (shader analyzer)
 	// have shipped; flip to false only as a dev escape hatch.
 	bool		UseCOMWrapReplay;
+	// DX10/11 diagnostic: capture per-frame trace for this many frames then
+	// auto-disable. 0 = off (default). When > 0, each Present writes a
+	// detailed event stream (OMSet/Clear/Draw/replay-boundary marks with
+	// per-eye context) to wiz3D_frame_trace.log so we can compare what the
+	// right-eye replay pass actually does against the left-eye live pass.
+	DWORD		VerboseFrameTrace;
 	// Option B (Stage 4c): internal dev override for the per-eye horizontal
 	// shift applied to projection matrices' m[2][0] during the right-eye
 	// replay. Not surfaced in the user-facing wiz3D_Config.xml — the user

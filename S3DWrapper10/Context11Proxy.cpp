@@ -134,8 +134,14 @@ void Context11Proxy::ReplayFrameCommands(Eye eye)
     // eye-appropriate real handle via m_activeEye automatically.
     Eye saved = m_activeEye;
     m_activeEye = eye;
+    if (FrameTraceActive())
+        FrameTrace("--- replay begin (eye=%c, %zu commands) ---\n",
+                   eye == Eye::Right ? 'R' : 'L', m_frameCommands.size());
     for (auto& fn : m_frameCommands)
         fn();
+    if (FrameTraceActive())
+        FrameTrace("--- replay end (eye=%c) ---\n",
+                   eye == Eye::Right ? 'R' : 'L');
     m_activeEye = saved;
 }
 
@@ -380,11 +386,19 @@ void STDMETHODCALLTYPE Context11Proxy::VSSetShader(
 
 void STDMETHODCALLTYPE Context11Proxy::Draw(UINT VertexCount, UINT StartVertexLocation)
 {
+    if (FrameTraceActive())
+        FrameTrace("    Draw eye=%c vcount=%u start=%u\n",
+                   m_activeEye == Eye::Right ? 'R' : 'L',
+                   VertexCount, StartVertexLocation);
     m_real->Draw(VertexCount, StartVertexLocation);
     if (!m_presentHookActive) return;
     m_frameCommands.emplace_back(
         [this, VertexCount, StartVertexLocation]()
         {
+            if (FrameTraceActive())
+                FrameTrace("    Draw eye=%c vcount=%u start=%u (replay)\n",
+                           m_activeEye == Eye::Right ? 'R' : 'L',
+                           VertexCount, StartVertexLocation);
             m_real->Draw(VertexCount, StartVertexLocation);
         });
 }
@@ -392,11 +406,19 @@ void STDMETHODCALLTYPE Context11Proxy::Draw(UINT VertexCount, UINT StartVertexLo
 void STDMETHODCALLTYPE Context11Proxy::DrawIndexed(
     UINT IndexCount, UINT StartIndexLocation, INT BaseVertexLocation)
 {
+    if (FrameTraceActive())
+        FrameTrace("    DrawIndexed eye=%c icount=%u start=%u base=%d\n",
+                   m_activeEye == Eye::Right ? 'R' : 'L',
+                   IndexCount, StartIndexLocation, BaseVertexLocation);
     m_real->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
     if (!m_presentHookActive) return;
     m_frameCommands.emplace_back(
         [this, IndexCount, StartIndexLocation, BaseVertexLocation]()
         {
+            if (FrameTraceActive())
+                FrameTrace("    DrawIndexed eye=%c icount=%u start=%u base=%d (replay)\n",
+                           m_activeEye == Eye::Right ? 'R' : 'L',
+                           IndexCount, StartIndexLocation, BaseVertexLocation);
             m_real->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
         });
 }
@@ -523,6 +545,18 @@ void Context11Proxy::DoOMSetRenderTargets(
     // latter is null, so we fall back to left). Stage 4b.8 will flip
     // m_activeEye between L/R passes during the per-frame replay.
     bool pickRight = (m_activeEye == Eye::Right);
+    if (FrameTraceActive())
+    {
+        RTV11Proxy* rtv0 = (NumViews > 0 && ppRenderTargetViews)
+                               ? TryUnwrapRTV(ppRenderTargetViews[0]) : nullptr;
+        DSV11Proxy* dsv  = TryUnwrapDSV(pDepthStencilView);
+        FrameTrace("  OMSet eye=%c NumViews=%u rtv0={proxy=%p stereo=%d right=%p} dsv={proxy=%p stereo=%d right=%p}\n",
+                   pickRight ? 'R' : 'L', NumViews,
+                   rtv0, rtv0 ? rtv0->GetRealRight() != nullptr : 0,
+                   rtv0 ? rtv0->GetRealRight() : nullptr,
+                   dsv,  dsv  ? dsv->GetRealRight() != nullptr  : 0,
+                   dsv  ? dsv->GetRealRight()  : nullptr);
+    }
     ID3D11RenderTargetView* realRTVs[kMaxRTVs] = { 0 };
     ID3D11RenderTargetView* const* rtvsToUse = ppRenderTargetViews;
     if (NumViews > 0 && ppRenderTargetViews)
@@ -1200,6 +1234,16 @@ void Context11Proxy::DoClearRenderTargetView(
     {
         ID3D11RenderTargetView* right = rtv->GetRealRight();
         real = (pickRight && right) ? right : rtv->GetReal();
+    }
+    if (FrameTraceActive())
+    {
+        FrameTrace("  Clear eye=%c rtv={proxy=%p stereo=%d sibling=%c real=%p} color=[%.2f %.2f %.2f %.2f]\n",
+                   pickRight ? 'R' : 'L',
+                   rtv, rtv ? rtv->GetRealRight() != nullptr : 0,
+                   (pickRight && rtv && rtv->GetRealRight()) ? 'R' : 'L',
+                   real,
+                   ColorRGBA ? ColorRGBA[0] : 0.f, ColorRGBA ? ColorRGBA[1] : 0.f,
+                   ColorRGBA ? ColorRGBA[2] : 0.f, ColorRGBA ? ColorRGBA[3] : 0.f);
     }
     m_real->ClearRenderTargetView(real, ColorRGBA);
 }
