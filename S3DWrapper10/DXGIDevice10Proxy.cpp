@@ -82,7 +82,10 @@ HRESULT STDMETHODCALLTYPE DXGIDevice10Proxy::QueryInterface(REFIID riid, void** 
         return S_OK;
     }
 
-    return m_real0->QueryInterface(riid, ppvObj);
+    // IDXGIDevice4 + ID3D10Device1+ + vendor IIDs: refuse rather than hand
+    // back the unwrapped real (same bypass shape as the DX11 fix d0c17324).
+    *ppvObj = nullptr;
+    return E_NOINTERFACE;
 }
 
 } // namespace wiz3d
