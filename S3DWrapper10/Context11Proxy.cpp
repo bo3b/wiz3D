@@ -704,6 +704,20 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews
 void STDMETHODCALLTYPE Context11Proxy::RSSetViewports(UINT NumViewports, const D3D11_VIEWPORT* pViewports)
 {
     m_real->RSSetViewports(NumViewports, pViewports);
+    if (!m_presentHookActive) return;
+    // Capture for replay. Without this the right-eye pass runs all draws
+    // against whatever viewport is current at Present time (likely the SBS
+    // compose viewport or the last UI viewport), producing the right-eye
+    // geometry glitching / missing-elements / doubled-cursor symptoms that
+    // followed the May 2026 kMaxUnwrapArray fix.
+    std::vector<D3D11_VIEWPORT> vps;
+    if (pViewports) vps.assign(pViewports, pViewports + NumViewports);
+    m_frameCommands.emplace_back(
+        [this, NumViewports, vps]()
+        {
+            m_real->RSSetViewports(
+                NumViewports, vps.empty() ? nullptr : vps.data());
+        });
 }
 
 void STDMETHODCALLTYPE Context11Proxy::CopyStructureCount(
