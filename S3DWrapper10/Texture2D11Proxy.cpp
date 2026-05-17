@@ -21,6 +21,11 @@ Texture2D11Proxy::Texture2D11Proxy(ID3D11Texture2D* realLeft, ID3D11Texture2D* r
 
 Texture2D11Proxy::~Texture2D11Proxy()
 {
+    // Unregister BEFORE releasing the real, so the parent device's real→proxy
+    // map can't return a stale proxy pointer for a real texture that's about
+    // to be destroyed.
+    if (m_parent && m_realLeft)
+        m_parent->UnregisterRealToProxy(m_realLeft);
     if (m_realRight) { m_realRight->Release(); m_realRight = nullptr; }
     if (m_realLeft)  { m_realLeft->Release();  m_realLeft  = nullptr; }
 }

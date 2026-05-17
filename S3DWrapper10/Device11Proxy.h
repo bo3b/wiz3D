@@ -30,6 +30,7 @@ namespace wiz3d
 
 class Context11Proxy;
 class DXGIDeviceProxy;
+class Texture2D11Proxy;
 
 class Device11Proxy : public ID3D11Device3
 {
@@ -161,6 +162,21 @@ public:
     void StoreShaderProjection(void* shaderPtr, const ShaderAnalysis11Result& info);
     const ShaderAnalysis11Result* LookupShaderProjection(void* shaderPtr) const;
 
+    // Real-pointer → Texture2D11Proxy lookup map. Games sometimes obtain a
+    // raw real ID3D11Resource* from one of our wrapped textures via paths
+    // we don't fully wrap (most common: pProxyTex->QI(IDXGIResource) →
+    // dxgiRes->QI(ID3D11Resource) returns the m_realLeft pointer). When the
+    // game then passes that raw pointer to CreateRenderTargetView, the
+    // standard TryUnwrapTexture2D probe fails (the IID-based QI doesn't
+    // recognise a real D3D11 texture as one of ours). This map gives us a
+    // fallback: register every Texture2D11Proxy's m_realLeft pointer at
+    // creation, unregister at destruction; CreateRTV/DSV/SRV/UAV consult
+    // the map when the IID probe fails. Closes the De Blob right-eye bypass
+    // confirmed via per-frame trace 2026-05-17.
+    void RegisterRealToProxy(void* realLeft, Texture2D11Proxy* proxy);
+    void UnregisterRealToProxy(void* realLeft);
+    Texture2D11Proxy* LookupProxyByReal(void* realLeft) const;
+
 private:
     // Helper for QueryInterface(IDXGIDevice*) — returns a new ref on the
     // cached proxy (creating + caching it on first call). Returns nullptr
@@ -207,6 +223,12 @@ private:
     // that draw, which falls back to mono).
     std::unordered_map<void*, ShaderAnalysis11Result> m_shaderProjections;
     CRITICAL_SECTION                                  m_shaderProjLock;
+
+    // Real-pointer → Texture2D11Proxy fallback. See accessor doc above. Game
+    // owns the real-pointer lifetime via the proxy; entry is unregistered in
+    // ~Texture2D11Proxy before the real Release fires.
+    std::unordered_map<void*, Texture2D11Proxy*>      m_realToProxy;
+    CRITICAL_SECTION                                  m_realToProxyLock;
 };
 
 } // namespace wiz3d

@@ -43,6 +43,7 @@ Device11Proxy::Device11Proxy(ID3D11Device* real)
     InitializeCriticalSection(&m_rtvSetLock);
     InitializeCriticalSection(&m_dxgiCacheLock);
     InitializeCriticalSection(&m_shaderProjLock);
+    InitializeCriticalSection(&m_realToProxyLock);
     // Cache Device1/2/3 upgrades. QI failures leave the pointer null; we
     // refuse to claim the corresponding IID in our own QI when null.
     if (m_real)
@@ -72,6 +73,34 @@ Device11Proxy::~Device11Proxy()
     DeleteCriticalSection(&m_rtvSetLock);
     DeleteCriticalSection(&m_dxgiCacheLock);
     DeleteCriticalSection(&m_shaderProjLock);
+    DeleteCriticalSection(&m_realToProxyLock);
+}
+
+void Device11Proxy::RegisterRealToProxy(void* realLeft, Texture2D11Proxy* proxy)
+{
+    if (!realLeft || !proxy) return;
+    EnterCriticalSection(&m_realToProxyLock);
+    m_realToProxy[realLeft] = proxy;
+    LeaveCriticalSection(&m_realToProxyLock);
+}
+
+void Device11Proxy::UnregisterRealToProxy(void* realLeft)
+{
+    if (!realLeft) return;
+    EnterCriticalSection(&m_realToProxyLock);
+    m_realToProxy.erase(realLeft);
+    LeaveCriticalSection(&m_realToProxyLock);
+}
+
+Texture2D11Proxy* Device11Proxy::LookupProxyByReal(void* realLeft) const
+{
+    if (!realLeft) return nullptr;
+    auto* self = const_cast<Device11Proxy*>(this);
+    EnterCriticalSection(&self->m_realToProxyLock);
+    auto it = m_realToProxy.find(realLeft);
+    Texture2D11Proxy* p = (it == m_realToProxy.end()) ? nullptr : it->second;
+    LeaveCriticalSection(&self->m_realToProxyLock);
+    return p;
 }
 
 void Device11Proxy::StoreShaderProjection(void* shaderPtr, const ShaderAnalysis11Result& info)
@@ -209,6 +238,12 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::CreateRenderTargetView(
     // to the game.
     Texture2D11Proxy* texProxy   = TryUnwrapTexture2D(pResource);
     Buffer11Proxy*    bufProxy   = TryUnwrapBuffer(pResource);
+    // Real-pointer fallback: De Blob and similar games QI our wrapped
+    // texture for IDXGIResource, then QI that back to ID3D11Resource — which
+    // returns the m_realLeft pointer. The probe above doesn't recognise raw
+    // real pointers as ours. LookupProxyByReal closes that bypass.
+    if (!texProxy && !bufProxy && pResource)
+        texProxy = LookupProxyByReal(pResource);
     ID3D11Resource*   realToUse  = texProxy ? static_cast<ID3D11Resource*>(texProxy->GetReal())
                                  : bufProxy ? static_cast<ID3D11Resource*>(bufProxy->GetReal())
                                             : pResource;
@@ -483,6 +518,10 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::CreateTexture2D(
 
     auto* texProxy = new Texture2D11Proxy(realLeft, realRight, this);
     *ppTexture2D = static_cast<ID3D11Texture2D*>(texProxy);
+    // Register the real → proxy mapping so CreateRTV/DSV/SRV/UAV can recover
+    // the proxy when the game passes a raw real pointer (most often via the
+    // IDXGIResource QI escape hatch). Unregistered in ~Texture2D11Proxy.
+    RegisterRealToProxy(realLeft, texProxy);
     NVDM_TRACE_FIRST_N(32,
         "  Device11Proxy::CreateTexture2D: %ux%u fmt=%d bind=0x%X -> Texture2D11Proxy=%p stereo=%d\n",
         (unsigned)(pDesc ? pDesc->Width : 0),
@@ -500,6 +539,8 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::CreateDepthStencilView(
     // Stage 3b: same unwrap-then-rewrap pattern as CreateRenderTargetView.
     Texture2D11Proxy* texProxy   = TryUnwrapTexture2D(pResource);
     Buffer11Proxy*    bufProxy   = TryUnwrapBuffer(pResource);  // DSV-on-buffer is exotic but legal
+    if (!texProxy && !bufProxy && pResource)
+        texProxy = LookupProxyByReal(pResource);  // raw-pointer fallback (see CreateRTV comment)
     ID3D11Resource*   realToUse  = texProxy ? static_cast<ID3D11Resource*>(texProxy->GetReal())
                                  : bufProxy ? static_cast<ID3D11Resource*>(bufProxy->GetReal())
                                             : pResource;
@@ -568,6 +609,8 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::CreateShaderResourceView(
     Texture1D11Proxy* tex1Proxy = TryUnwrapTexture1D(pResource);
     Texture3D11Proxy* tex3Proxy = TryUnwrapTexture3D(pResource);
     Buffer11Proxy*    bufProxy  = TryUnwrapBuffer(pResource);
+    if (!tex2Proxy && !tex1Proxy && !tex3Proxy && !bufProxy && pResource)
+        tex2Proxy = LookupProxyByReal(pResource);  // raw-pointer fallback
 
     ID3D11Resource* realLeftRes  = tex2Proxy ? static_cast<ID3D11Resource*>(tex2Proxy->GetReal())
                                  : tex1Proxy ? static_cast<ID3D11Resource*>(tex1Proxy->GetReal())
@@ -601,6 +644,8 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::CreateUnorderedAccessView(
     Texture1D11Proxy* tex1Proxy = TryUnwrapTexture1D(pResource);
     Texture3D11Proxy* tex3Proxy = TryUnwrapTexture3D(pResource);
     Buffer11Proxy*    bufProxy  = TryUnwrapBuffer(pResource);
+    if (!tex2Proxy && !tex1Proxy && !tex3Proxy && !bufProxy && pResource)
+        tex2Proxy = LookupProxyByReal(pResource);  // raw-pointer fallback
 
     ID3D11Resource* realLeftRes  = tex2Proxy ? static_cast<ID3D11Resource*>(tex2Proxy->GetReal())
                                  : tex1Proxy ? static_cast<ID3D11Resource*>(tex1Proxy->GetReal())
