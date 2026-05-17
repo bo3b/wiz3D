@@ -21,10 +21,21 @@
 #include "proxy_factory.h"     // TryUnwrap* helpers
 #include "AdapterFunctions.h"  // DDILog
 
-// Static-size cap on per-call temp arrays used to unwrap RTV/RSV pointer
-// arrays passed to OMSetRenderTargets. D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT
-// is 8; UAVs go higher but we cap defensively.
-static constexpr UINT kMaxUnwrapArray = 16;
+// Per-resource caps on stack-allocated temp arrays used to unwrap proxy pointers
+// before forwarding to the real D3D11 runtime. These MUST be sized to the D3D11
+// spec maximum per resource type — undersizing makes the runtime read past our
+// array into uninitialized stack memory and treat random values as pointers,
+// dereference them, and AV. Caused the Metro 2033 / MP3 / De Blob right-eye
+// breakage in May 2026 (a single kMaxUnwrapArray=16 was too small for SRVs and
+// VBs in particular).
+static constexpr UINT kMaxSRVs       = 128;  // D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT
+static constexpr UINT kMaxSamplers   = 16;   // D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT
+static constexpr UINT kMaxCBs        = 15;   // D3D11_1_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT (14 in plain D3D11)
+static constexpr UINT kMaxRTVs       = 8;    // D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT
+static constexpr UINT kMaxUAVs       = 64;   // D3D11_1_UAV_SLOT_COUNT (8 in plain D3D11)
+static constexpr UINT kMaxVBs        = 32;   // D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT
+static constexpr UINT kMaxSOBuffers  = 4;    // D3D11_SO_BUFFER_SLOT_COUNT
+static constexpr UINT kMaxClassInst  = 253;  // D3D11_SHADER_MAX_INTERFACES
 
 // Stage 3c.1: lightweight inline unwrap for ID3D11Buffer*. Used at every
 // method boundary that hands a buffer to the real D3D11 runtime — passing
@@ -140,8 +151,8 @@ void Context11Proxy::ReplayFrameCommands(Eye eye)
 void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetShaderResources(                    \
     UINT StartSlot, UINT NumViews, ID3D11ShaderResourceView* const* ppShaderResourceViews)  \
 {                                                                                           \
-    ID3D11ShaderResourceView* rawSRVs[kMaxUnwrapArray] = { 0 };                             \
-    UINT setCap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;                 \
+    ID3D11ShaderResourceView* rawSRVs[kMaxSRVs] = { 0 };                                    \
+    UINT setCap = NumViews <= kMaxSRVs ? NumViews : kMaxSRVs;                               \
     bool pickRight = (m_activeEye == Eye::Right);                                           \
     for (UINT i = 0; i < setCap; ++i)                                                       \
         rawSRVs[i] = UnwrapSRVForEye(ppShaderResourceViews ? ppShaderResourceViews[i]       \
@@ -155,8 +166,8 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetShaderResources(        
         refs.emplace_back(ppShaderResourceViews ? ppShaderResourceViews[i] : nullptr);      \
     m_frameCommands.emplace_back(                                                           \
         [this, StartSlot, NumViews, refs]() {                                               \
-            ID3D11ShaderResourceView* raw[kMaxUnwrapArray] = { 0 };                         \
-            UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;            \
+            ID3D11ShaderResourceView* raw[kMaxSRVs] = { 0 };                                \
+            UINT cap = NumViews <= kMaxSRVs ? NumViews : kMaxSRVs;                          \
             bool pr = (m_activeEye == Eye::Right);                                          \
             for (UINT i = 0; i < cap; ++i)                                                  \
                 raw[i] = UnwrapSRVForEye(                                                   \
@@ -185,8 +196,8 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetSamplers(               
         refs.emplace_back(ppSamplers ? ppSamplers[i] : nullptr);                            \
     m_frameCommands.emplace_back(                                                           \
         [this, StartSlot, NumSamplers, refs]() {                                            \
-            ID3D11SamplerState* raw[kMaxUnwrapArray] = { 0 };                               \
-            UINT cap = NumSamplers <= kMaxUnwrapArray ? NumSamplers : kMaxUnwrapArray;      \
+            ID3D11SamplerState* raw[kMaxSamplers] = { 0 };                                  \
+            UINT cap = NumSamplers <= kMaxSamplers ? NumSamplers : kMaxSamplers;            \
             for (UINT i = 0; i < cap; ++i)                                                  \
                 raw[i] = static_cast<ID3D11SamplerState*>(refs[i].p);                       \
             m_real->STAGE_PREFIX##SetSamplers(StartSlot, NumSamplers, raw);                 \
@@ -209,8 +220,8 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetConstantBuffers(        
 {                                                                                           \
     /* Stage 3c.1: unwrap wrapped buffers before forwarding. Also stage-tag */              \
     /* the proxy when VS-pipeline so 4c.1's Map filter can consult it. */                   \
-    ID3D11Buffer* rawCBs[kMaxUnwrapArray] = { 0 };                                          \
-    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;                \
+    ID3D11Buffer* rawCBs[kMaxCBs] = { 0 };                                                  \
+    UINT cap = NumBuffers <= kMaxCBs ? NumBuffers : kMaxCBs;                                \
     for (UINT i = 0; i < cap; ++i)                                                          \
     {                                                                                       \
         ID3D11Buffer* p = ppConstantBuffers ? ppConstantBuffers[i] : nullptr;               \
@@ -236,8 +247,8 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetConstantBuffers(        
         refs.emplace_back(ppConstantBuffers ? ppConstantBuffers[i] : nullptr);              \
     m_frameCommands.emplace_back(                                                           \
         [this, StartSlot, NumBuffers, refs]() {                                             \
-            ID3D11Buffer* raw[kMaxUnwrapArray] = { 0 };                                     \
-            UINT replayCap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;  \
+            ID3D11Buffer* raw[kMaxCBs] = { 0 };                                             \
+            UINT replayCap = NumBuffers <= kMaxCBs ? NumBuffers : kMaxCBs;                  \
             for (UINT i = 0; i < replayCap; ++i)                                            \
                 raw[i] = UnwrapBuf(static_cast<ID3D11Buffer*>(refs[i].p));                  \
             m_real->STAGE_PREFIX##SetConstantBuffers(StartSlot, NumBuffers, raw);           \
@@ -256,8 +267,8 @@ RECORD_CB_SET(CS, 0)
 void STDMETHODCALLTYPE Context11Proxy::VSSetConstantBuffers(
     UINT StartSlot, UINT NumBuffers, ID3D11Buffer* const* ppConstantBuffers)
 {
-    ID3D11Buffer* rawCBs[kMaxUnwrapArray] = { 0 };
-    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+    ID3D11Buffer* rawCBs[kMaxCBs] = { 0 };
+    UINT cap = NumBuffers <= kMaxCBs ? NumBuffers : kMaxCBs;
     for (UINT i = 0; i < cap; ++i)
     {
         ID3D11Buffer* p = ppConstantBuffers ? ppConstantBuffers[i] : nullptr;
@@ -287,8 +298,8 @@ void STDMETHODCALLTYPE Context11Proxy::VSSetConstantBuffers(
         refs.emplace_back(ppConstantBuffers ? ppConstantBuffers[i] : nullptr);
     m_frameCommands.emplace_back(
         [this, StartSlot, NumBuffers, refs]() {
-            ID3D11Buffer* raw[kMaxUnwrapArray] = { 0 };
-            UINT replayCap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            ID3D11Buffer* raw[kMaxCBs] = { 0 };
+            UINT replayCap = NumBuffers <= kMaxCBs ? NumBuffers : kMaxCBs;
             for (UINT i = 0; i < replayCap; ++i)
                 raw[i] = UnwrapBuf(static_cast<ID3D11Buffer*>(refs[i].p));
             m_real->VSSetConstantBuffers(StartSlot, NumBuffers, raw);
@@ -311,8 +322,8 @@ void STDMETHODCALLTYPE Context11Proxy::STAGE_PREFIX##SetShader(                 
         ciRefs.emplace_back(ppClassInstances ? ppClassInstances[i] : nullptr);              \
     m_frameCommands.emplace_back(                                                           \
         [this, shaderRef, ciRefs, NumClassInstances]() {                                    \
-            ID3D11ClassInstance* raw[kMaxUnwrapArray] = { 0 };                              \
-            UINT cap = NumClassInstances <= kMaxUnwrapArray ? NumClassInstances : kMaxUnwrapArray; \
+            ID3D11ClassInstance* raw[kMaxClassInst] = { 0 };                                \
+            UINT cap = NumClassInstances <= kMaxClassInst ? NumClassInstances : kMaxClassInst; \
             for (UINT i = 0; i < cap; ++i)                                                  \
                 raw[i] = static_cast<ID3D11ClassInstance*>(ciRefs[i].p);                    \
             m_real->STAGE_PREFIX##SetShader(                                                \
@@ -348,8 +359,8 @@ void STDMETHODCALLTYPE Context11Proxy::VSSetShader(
         ciRefs.emplace_back(ppClassInstances ? ppClassInstances[i] : nullptr);
     m_frameCommands.emplace_back(
         [this, shaderRef, ciRefs, NumClassInstances]() {
-            ID3D11ClassInstance* raw[kMaxUnwrapArray] = { 0 };
-            UINT cap = NumClassInstances <= kMaxUnwrapArray ? NumClassInstances : kMaxUnwrapArray;
+            ID3D11ClassInstance* raw[kMaxClassInst] = { 0 };
+            UINT cap = NumClassInstances <= kMaxClassInst ? NumClassInstances : kMaxClassInst;
             for (UINT i = 0; i < cap; ++i)
                 raw[i] = static_cast<ID3D11ClassInstance*>(ciRefs[i].p);
             m_real->VSSetShader(
@@ -512,11 +523,11 @@ void Context11Proxy::DoOMSetRenderTargets(
     // latter is null, so we fall back to left). Stage 4b.8 will flip
     // m_activeEye between L/R passes during the per-frame replay.
     bool pickRight = (m_activeEye == Eye::Right);
-    ID3D11RenderTargetView* realRTVs[kMaxUnwrapArray] = { 0 };
+    ID3D11RenderTargetView* realRTVs[kMaxRTVs] = { 0 };
     ID3D11RenderTargetView* const* rtvsToUse = ppRenderTargetViews;
     if (NumViews > 0 && ppRenderTargetViews)
     {
-        UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;
+        UINT cap = NumViews <= kMaxRTVs ? NumViews : kMaxRTVs;
         for (UINT i = 0; i < cap; ++i)
         {
             RTV11Proxy* p = TryUnwrapRTV(ppRenderTargetViews[i]);
@@ -563,8 +574,8 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargets(
         [this, NumViews, rtvRefs, dsvRef]()
         {
             // Rebuild raw-pointer array from the captured holders.
-            ID3D11RenderTargetView* raw[kMaxUnwrapArray] = { 0 };
-            UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;
+            ID3D11RenderTargetView* raw[kMaxRTVs] = { 0 };
+            UINT cap = NumViews <= kMaxRTVs ? NumViews : kMaxRTVs;
             for (UINT i = 0; i < cap; ++i)
                 raw[i] = static_cast<ID3D11RenderTargetView*>(rtvRefs[i].p);
             DoOMSetRenderTargets(NumViews, raw,
@@ -580,12 +591,12 @@ void Context11Proxy::DoOMSetRenderTargetsAndUnorderedAccessViews(
     const UINT* pUAVInitialCounts)
 {
     bool pickRight = (m_activeEye == Eye::Right);
-    ID3D11RenderTargetView* realRTVs[kMaxUnwrapArray] = { 0 };
+    ID3D11RenderTargetView* realRTVs[kMaxRTVs] = { 0 };
     ID3D11RenderTargetView* const* rtvsToUse = ppRenderTargetViews;
     if (NumRTVs != D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL &&
         NumRTVs > 0 && ppRenderTargetViews)
     {
-        UINT cap = NumRTVs <= kMaxUnwrapArray ? NumRTVs : kMaxUnwrapArray;
+        UINT cap = NumRTVs <= kMaxRTVs ? NumRTVs : kMaxRTVs;
         for (UINT i = 0; i < cap; ++i)
         {
             RTV11Proxy* p = TryUnwrapRTV(ppRenderTargetViews[i]);
@@ -609,12 +620,12 @@ void Context11Proxy::DoOMSetRenderTargetsAndUnorderedAccessViews(
         }
     }
     // Stage 3c.2: unwrap UAVs (eye-aware) before forwarding.
-    ID3D11UnorderedAccessView* realUAVs[kMaxUnwrapArray] = { 0 };
+    ID3D11UnorderedAccessView* realUAVs[kMaxUAVs] = { 0 };
     ID3D11UnorderedAccessView* const* uavsToUse = ppUnorderedAccessViews;
     if (NumUAVs != D3D11_KEEP_UNORDERED_ACCESS_VIEWS &&
         NumUAVs > 0 && ppUnorderedAccessViews)
     {
-        UINT ucap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+        UINT ucap = NumUAVs <= kMaxUAVs ? NumUAVs : kMaxUAVs;
         for (UINT i = 0; i < ucap; ++i)
             realUAVs[i] = UnwrapUAVForEye(ppUnorderedAccessViews[i], pickRight);
         uavsToUse = realUAVs;
@@ -661,11 +672,11 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews
         [this, NumRTVs, rtvRefs, dsvRef,
          UAVStartSlot, NumUAVs, uavRefs, initialCounts]()
         {
-            ID3D11RenderTargetView* rawRTVs[kMaxUnwrapArray] = { 0 };
+            ID3D11RenderTargetView* rawRTVs[kMaxRTVs] = { 0 };
             ID3D11RenderTargetView* const* rtvArg = nullptr;
             if (NumRTVs != D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL && !rtvRefs.empty())
             {
-                UINT cap = NumRTVs <= kMaxUnwrapArray ? NumRTVs : kMaxUnwrapArray;
+                UINT cap = NumRTVs <= kMaxRTVs ? NumRTVs : kMaxRTVs;
                 for (UINT i = 0; i < cap; ++i)
                     rawRTVs[i] = static_cast<ID3D11RenderTargetView*>(rtvRefs[i].p);
                 rtvArg = rawRTVs;
@@ -673,11 +684,11 @@ void STDMETHODCALLTYPE Context11Proxy::OMSetRenderTargetsAndUnorderedAccessViews
             // UAVs reconstructed similarly. Stage 3c.2: now wrapped, so the
             // inner DoOMSet... helper will unwrap eye-aware. Hand it the raw
             // proxies retrieved from the captured refs.
-            ID3D11UnorderedAccessView* rawUAVs[kMaxUnwrapArray] = { 0 };
+            ID3D11UnorderedAccessView* rawUAVs[kMaxUAVs] = { 0 };
             ID3D11UnorderedAccessView* const* uavArg = nullptr;
             if (!uavRefs.empty())
             {
-                UINT cap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+                UINT cap = NumUAVs <= kMaxUAVs ? NumUAVs : kMaxUAVs;
                 for (UINT i = 0; i < cap; ++i)
                     rawUAVs[i] = static_cast<ID3D11UnorderedAccessView*>(uavRefs[i].p);
                 uavArg = rawUAVs;
@@ -1134,8 +1145,8 @@ void STDMETHODCALLTYPE Context11Proxy::IASetVertexBuffers(
     const UINT* pStrides, const UINT* pOffsets)
 {
     // Stage 3c.1: unwrap each VB before forwarding to D3D11.
-    ID3D11Buffer* rawVBs[kMaxUnwrapArray] = { 0 };
-    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+    ID3D11Buffer* rawVBs[kMaxVBs] = { 0 };
+    UINT cap = NumBuffers <= kMaxVBs ? NumBuffers : kMaxVBs;
     for (UINT i = 0; i < cap; ++i)
         rawVBs[i] = ppVertexBuffers ? UnwrapBuf(ppVertexBuffers[i]) : nullptr;
     m_real->IASetVertexBuffers(StartSlot, NumBuffers,
@@ -1152,8 +1163,8 @@ void STDMETHODCALLTYPE Context11Proxy::IASetVertexBuffers(
     m_frameCommands.emplace_back(
         [this, StartSlot, NumBuffers, bufRefs, strides, offsets]()
         {
-            ID3D11Buffer* raw[kMaxUnwrapArray] = { 0 };
-            UINT replayCap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            ID3D11Buffer* raw[kMaxVBs] = { 0 };
+            UINT replayCap = NumBuffers <= kMaxVBs ? NumBuffers : kMaxVBs;
             for (UINT i = 0; i < replayCap; ++i)
                 raw[i] = UnwrapBuf(static_cast<ID3D11Buffer*>(bufRefs[i].p));
             m_real->IASetVertexBuffers(
@@ -1254,8 +1265,8 @@ void STDMETHODCALLTYPE Context11Proxy::SOSetTargets(
     UINT NumBuffers, ID3D11Buffer* const* ppSOTargets, const UINT* pOffsets)
 {
     // Stage 3c.1: unwrap each SO target before forwarding to D3D11.
-    ID3D11Buffer* rawSOs[kMaxUnwrapArray] = { 0 };
-    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+    ID3D11Buffer* rawSOs[kMaxSOBuffers] = { 0 };
+    UINT cap = NumBuffers <= kMaxSOBuffers ? NumBuffers : kMaxSOBuffers;
     for (UINT i = 0; i < cap; ++i)
         rawSOs[i] = ppSOTargets ? UnwrapBuf(ppSOTargets[i]) : nullptr;
     m_real->SOSetTargets(NumBuffers,
@@ -1270,8 +1281,8 @@ void STDMETHODCALLTYPE Context11Proxy::SOSetTargets(
     m_frameCommands.emplace_back(
         [this, NumBuffers, bufRefs, offsets]()
         {
-            ID3D11Buffer* raw[kMaxUnwrapArray] = { 0 };
-            UINT replayCap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            ID3D11Buffer* raw[kMaxSOBuffers] = { 0 };
+            UINT replayCap = NumBuffers <= kMaxSOBuffers ? NumBuffers : kMaxSOBuffers;
             for (UINT i = 0; i < replayCap; ++i)
                 raw[i] = UnwrapBuf(static_cast<ID3D11Buffer*>(bufRefs[i].p));
             m_real->SOSetTargets(
@@ -1300,8 +1311,8 @@ void STDMETHODCALLTYPE Context11Proxy::CSSetUnorderedAccessViews(
     const UINT* pUAVInitialCounts)
 {
     // Stage 3c.2: unwrap UAVs eye-aware before forwarding.
-    ID3D11UnorderedAccessView* rawSet[kMaxUnwrapArray] = { 0 };
-    UINT setCap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+    ID3D11UnorderedAccessView* rawSet[kMaxUAVs] = { 0 };
+    UINT setCap = NumUAVs <= kMaxUAVs ? NumUAVs : kMaxUAVs;
     bool pickRight = (m_activeEye == Eye::Right);
     for (UINT i = 0; i < setCap; ++i)
         rawSet[i] = UnwrapUAVForEye(ppUnorderedAccessViews ? ppUnorderedAccessViews[i]
@@ -1319,8 +1330,8 @@ void STDMETHODCALLTYPE Context11Proxy::CSSetUnorderedAccessViews(
     m_frameCommands.emplace_back(
         [this, StartSlot, NumUAVs, uavRefs, initialCounts]()
         {
-            ID3D11UnorderedAccessView* raw[kMaxUnwrapArray] = { 0 };
-            UINT cap = NumUAVs <= kMaxUnwrapArray ? NumUAVs : kMaxUnwrapArray;
+            ID3D11UnorderedAccessView* raw[kMaxUAVs] = { 0 };
+            UINT cap = NumUAVs <= kMaxUAVs ? NumUAVs : kMaxUAVs;
             bool pr = (m_activeEye == Eye::Right);
             for (UINT i = 0; i < cap; ++i)
                 raw[i] = UnwrapUAVForEye(

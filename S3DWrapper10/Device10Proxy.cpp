@@ -20,9 +20,17 @@
 
 #pragma comment(lib, "dxguid.lib")
 
-// Defensive cap on stack arrays used to unwrap CB / VB / RTV pointer arrays.
-// D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT = 8, CB slots are 14; 16 covers it.
-static constexpr UINT kMaxUnwrapArray = 16;
+// Per-resource caps on stack-allocated temp arrays for proxy unwrap.
+// MUST match the D3D10 spec slot maximum per resource type — undersizing makes
+// the runtime walk past our array into uninitialized stack memory and treat
+// random values as pointers, dereference them, and AV. See Context11Proxy.cpp
+// for the same rationale on the DX11 side (May 2026 Metro 2033 crash fix).
+static constexpr UINT kMaxSRVs       = 128;  // D3D10_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT
+static constexpr UINT kMaxSamplers   = 16;   // D3D10_COMMONSHADER_SAMPLER_SLOT_COUNT
+static constexpr UINT kMaxCBs        = 15;   // D3D10_1_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT (14 in plain D3D10)
+static constexpr UINT kMaxRTVs       = 8;    // D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT
+static constexpr UINT kMaxVBs        = 16;   // D3D10_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT
+static constexpr UINT kMaxSOBuffers  = 4;    // D3D10_SO_BUFFER_SLOT_COUNT
 
 namespace wiz3d
 {
@@ -359,8 +367,8 @@ HRESULT STDMETHODCALLTYPE Device10Proxy::CreateShaderResourceView(
 void STDMETHODCALLTYPE Device10Proxy::STAGE_PREFIX##SetConstantBuffers(                     \
     UINT StartSlot, UINT NumBuffers, ID3D10Buffer* const* ppConstantBuffers)                \
 {                                                                                           \
-    ID3D10Buffer* raw[kMaxUnwrapArray] = { 0 };                                             \
-    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;                \
+    ID3D10Buffer* raw[kMaxCBs] = { 0 };                                                     \
+    UINT cap = NumBuffers <= kMaxCBs ? NumBuffers : kMaxCBs;                                \
     for (UINT i = 0; i < cap; ++i)                                                          \
     {                                                                                       \
         ID3D10Buffer* p = ppConstantBuffers ? ppConstantBuffers[i] : nullptr;               \
@@ -386,8 +394,8 @@ void STDMETHODCALLTYPE Device10Proxy::STAGE_PREFIX##SetConstantBuffers(         
         refs.emplace_back(ppConstantBuffers ? ppConstantBuffers[i] : nullptr);              \
     m_frameCommands.emplace_back(                                                           \
         [this, StartSlot, NumBuffers, refs]() {                                             \
-            ID3D10Buffer* rraw[kMaxUnwrapArray] = { 0 };                                    \
-            UINT rcap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;       \
+            ID3D10Buffer* rraw[kMaxCBs] = { 0 };                                            \
+            UINT rcap = NumBuffers <= kMaxCBs ? NumBuffers : kMaxCBs;                       \
             for (UINT i = 0; i < rcap; ++i)                                                 \
                 rraw[i] = UnwrapBuf10(static_cast<ID3D10Buffer*>(refs[i].p));               \
             m_real->STAGE_PREFIX##SetConstantBuffers(StartSlot, NumBuffers, rraw);          \
@@ -403,8 +411,8 @@ D3D10_CB_SET(GS, 1)
 void STDMETHODCALLTYPE Device10Proxy::VSSetConstantBuffers(
     UINT StartSlot, UINT NumBuffers, ID3D10Buffer* const* ppConstantBuffers)
 {
-    ID3D10Buffer* raw[kMaxUnwrapArray] = { 0 };
-    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+    ID3D10Buffer* raw[kMaxCBs] = { 0 };
+    UINT cap = NumBuffers <= kMaxCBs ? NumBuffers : kMaxCBs;
     for (UINT i = 0; i < cap; ++i)
     {
         ID3D10Buffer* p = ppConstantBuffers ? ppConstantBuffers[i] : nullptr;
@@ -431,8 +439,8 @@ void STDMETHODCALLTYPE Device10Proxy::VSSetConstantBuffers(
         refs.emplace_back(ppConstantBuffers ? ppConstantBuffers[i] : nullptr);
     m_frameCommands.emplace_back(
         [this, StartSlot, NumBuffers, refs]() {
-            ID3D10Buffer* rraw[kMaxUnwrapArray] = { 0 };
-            UINT rcap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            ID3D10Buffer* rraw[kMaxCBs] = { 0 };
+            UINT rcap = NumBuffers <= kMaxCBs ? NumBuffers : kMaxCBs;
             for (UINT i = 0; i < rcap; ++i)
                 rraw[i] = UnwrapBuf10(static_cast<ID3D10Buffer*>(refs[i].p));
             m_real->VSSetConstantBuffers(StartSlot, NumBuffers, rraw);
@@ -454,8 +462,8 @@ void STDMETHODCALLTYPE Device10Proxy::IASetVertexBuffers(
     UINT StartSlot, UINT NumBuffers, ID3D10Buffer* const* ppVertexBuffers,
     const UINT* pStrides, const UINT* pOffsets)
 {
-    ID3D10Buffer* raw[kMaxUnwrapArray] = { 0 };
-    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+    ID3D10Buffer* raw[kMaxVBs] = { 0 };
+    UINT cap = NumBuffers <= kMaxVBs ? NumBuffers : kMaxVBs;
     for (UINT i = 0; i < cap; ++i)
         raw[i] = ppVertexBuffers ? UnwrapBuf10(ppVertexBuffers[i]) : nullptr;
     m_real->IASetVertexBuffers(StartSlot, NumBuffers,
@@ -470,8 +478,8 @@ void STDMETHODCALLTYPE Device10Proxy::IASetVertexBuffers(
     if (pOffsets) offsets.assign(pOffsets, pOffsets + NumBuffers);
     m_frameCommands.emplace_back(
         [this, StartSlot, NumBuffers, bufRefs, strides, offsets]() {
-            ID3D10Buffer* rraw[kMaxUnwrapArray] = { 0 };
-            UINT rcap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            ID3D10Buffer* rraw[kMaxVBs] = { 0 };
+            UINT rcap = NumBuffers <= kMaxVBs ? NumBuffers : kMaxVBs;
             for (UINT i = 0; i < rcap; ++i)
                 rraw[i] = UnwrapBuf10(static_cast<ID3D10Buffer*>(bufRefs[i].p));
             m_real->IASetVertexBuffers(StartSlot, NumBuffers, rraw,
@@ -496,8 +504,8 @@ void STDMETHODCALLTYPE Device10Proxy::IASetIndexBuffer(
 void STDMETHODCALLTYPE Device10Proxy::SOSetTargets(
     UINT NumBuffers, ID3D10Buffer* const* ppSOTargets, const UINT* pOffsets)
 {
-    ID3D10Buffer* raw[kMaxUnwrapArray] = { 0 };
-    UINT cap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+    ID3D10Buffer* raw[kMaxSOBuffers] = { 0 };
+    UINT cap = NumBuffers <= kMaxSOBuffers ? NumBuffers : kMaxSOBuffers;
     for (UINT i = 0; i < cap; ++i)
         raw[i] = ppSOTargets ? UnwrapBuf10(ppSOTargets[i]) : nullptr;
     m_real->SOSetTargets(NumBuffers,
@@ -511,8 +519,8 @@ void STDMETHODCALLTYPE Device10Proxy::SOSetTargets(
     if (pOffsets) offsets.assign(pOffsets, pOffsets + NumBuffers);
     m_frameCommands.emplace_back(
         [this, NumBuffers, bufRefs, offsets]() {
-            ID3D10Buffer* rraw[kMaxUnwrapArray] = { 0 };
-            UINT rcap = NumBuffers <= kMaxUnwrapArray ? NumBuffers : kMaxUnwrapArray;
+            ID3D10Buffer* rraw[kMaxSOBuffers] = { 0 };
+            UINT rcap = NumBuffers <= kMaxSOBuffers ? NumBuffers : kMaxSOBuffers;
             for (UINT i = 0; i < rcap; ++i)
                 rraw[i] = UnwrapBuf10(static_cast<ID3D10Buffer*>(bufRefs[i].p));
             m_real->SOSetTargets(NumBuffers, rraw,
@@ -533,11 +541,11 @@ static void DoOMSetRenderTargets_internal(
     UINT NumViews, ID3D10RenderTargetView* const* ppRenderTargetViews,
     ID3D10DepthStencilView* pDepthStencilView)
 {
-    ID3D10RenderTargetView* rawRTVs[kMaxUnwrapArray] = { 0 };
+    ID3D10RenderTargetView* rawRTVs[kMaxRTVs] = { 0 };
     ID3D10RenderTargetView* const* rtvsToUse = ppRenderTargetViews;
     if (NumViews > 0 && ppRenderTargetViews)
     {
-        UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;
+        UINT cap = NumViews <= kMaxRTVs ? NumViews : kMaxRTVs;
         for (UINT i = 0; i < cap; ++i)
         {
             RTV10Proxy* p = TryUnwrapRTV_10(ppRenderTargetViews[i]);
@@ -575,8 +583,8 @@ void STDMETHODCALLTYPE Device10Proxy::OMSetRenderTargets(
     ComRefHolder10 dsvRef(pDepthStencilView);
     m_frameCommands.emplace_back(
         [this, NumViews, rtvRefs, dsvRef]() {
-            ID3D10RenderTargetView* raw[kMaxUnwrapArray] = { 0 };
-            UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;
+            ID3D10RenderTargetView* raw[kMaxRTVs] = { 0 };
+            UINT cap = NumViews <= kMaxRTVs ? NumViews : kMaxRTVs;
             for (UINT i = 0; i < cap; ++i)
                 raw[i] = static_cast<ID3D10RenderTargetView*>(rtvRefs[i].p);
             bool pickRightReplay = (m_activeEye == Eye::Right);
@@ -705,8 +713,8 @@ void STDMETHODCALLTYPE Device10Proxy::ClearDepthStencilView(
 void STDMETHODCALLTYPE Device10Proxy::STAGE_PREFIX##SetShaderResources(                     \
     UINT StartSlot, UINT NumViews, ID3D10ShaderResourceView* const* ppShaderResourceViews)  \
 {                                                                                           \
-    ID3D10ShaderResourceView* rawSet[kMaxUnwrapArray] = { 0 };                              \
-    UINT setCap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;                 \
+    ID3D10ShaderResourceView* rawSet[kMaxSRVs] = { 0 };                                     \
+    UINT setCap = NumViews <= kMaxSRVs ? NumViews : kMaxSRVs;                               \
     bool pickRight = (m_activeEye == Eye::Right);                                           \
     for (UINT i = 0; i < setCap; ++i)                                                       \
         rawSet[i] = UnwrapSRV10ForEye(ppShaderResourceViews ? ppShaderResourceViews[i]      \
@@ -720,8 +728,8 @@ void STDMETHODCALLTYPE Device10Proxy::STAGE_PREFIX##SetShaderResources(         
         refs.emplace_back(ppShaderResourceViews ? ppShaderResourceViews[i] : nullptr);      \
     m_frameCommands.emplace_back(                                                           \
         [this, StartSlot, NumViews, refs]() {                                               \
-            ID3D10ShaderResourceView* raw[kMaxUnwrapArray] = { 0 };                         \
-            UINT cap = NumViews <= kMaxUnwrapArray ? NumViews : kMaxUnwrapArray;            \
+            ID3D10ShaderResourceView* raw[kMaxSRVs] = { 0 };                                \
+            UINT cap = NumViews <= kMaxSRVs ? NumViews : kMaxSRVs;                          \
             bool pr = (m_activeEye == Eye::Right);                                          \
             for (UINT i = 0; i < cap; ++i)                                                  \
                 raw[i] = UnwrapSRV10ForEye(                                                 \
@@ -747,8 +755,8 @@ void STDMETHODCALLTYPE Device10Proxy::STAGE_PREFIX##SetSamplers(                
         refs.emplace_back(ppSamplers ? ppSamplers[i] : nullptr);                            \
     m_frameCommands.emplace_back(                                                           \
         [this, StartSlot, NumSamplers, refs]() {                                            \
-            ID3D10SamplerState* raw[kMaxUnwrapArray] = { 0 };                               \
-            UINT cap = NumSamplers <= kMaxUnwrapArray ? NumSamplers : kMaxUnwrapArray;      \
+            ID3D10SamplerState* raw[kMaxSamplers] = { 0 };                                  \
+            UINT cap = NumSamplers <= kMaxSamplers ? NumSamplers : kMaxSamplers;            \
             for (UINT i = 0; i < cap; ++i)                                                  \
                 raw[i] = static_cast<ID3D10SamplerState*>(refs[i].p);                       \
             m_real->STAGE_PREFIX##SetSamplers(StartSlot, NumSamplers, raw);                 \
