@@ -36,36 +36,26 @@ void DDILog(const char* fmt, ...)
 }
 
 // ---------------------------------------------------------------------------
-// Per-frame trace appender — writes to wiz3D_frame_trace.log next to the
-// game exe when gInfo.VerboseFrameTrace > 0. Counts down to 0 at each
-// FrameTraceTickFrame() call (one per Present completion) and then stops.
+// Per-frame trace appender — emits into wiz3D_proxy.log (via DDILog) when
+// gInfo.VerboseFrameTrace > 0. Counts down to 0 at each FrameTraceTickFrame()
+// call (one per Present completion) and then stops. Previously wrote a
+// separate wiz3D_frame_trace.log file; merged into the proxy log so testers
+// only need to send a single file back.
 // ---------------------------------------------------------------------------
 int g_FrameTraceRemaining = -1;  // -1 = uninitialized, 0 = done, >0 = active
-
-static FILE* OpenFrameTraceFile()
-{
-	static FILE* fp = NULL;
-	if (fp) return fp;
-	WCHAR dir[MAX_PATH];
-	GetModuleFileNameW(NULL, dir, MAX_PATH);
-	WCHAR* pSlash = wcsrchr(dir, L'\\');
-	if (pSlash) *(pSlash + 1) = L'\0';
-	lstrcatW(dir, L"wiz3D_frame_trace.log");
-	fp = _wfopen(dir, L"w");  // truncate; only one capture session per game launch
-	if (fp) fputs("=== wiz3D frame trace ===\n", fp);
-	return fp;
-}
 
 void FrameTrace(const char* fmt, ...)
 {
 	if (g_FrameTraceRemaining <= 0) return;
-	FILE* fp = OpenFrameTraceFile();
-	if (!fp) return;
 	va_list ap;
 	va_start(ap, fmt);
-	vfprintf(fp, fmt, ap);
+	// Reuse DDILog's open-on-first-call FILE* — same wiz3D_proxy.log next to
+	// the game exe. Allocate enough headroom for the longest formatted trace
+	// line (OMSet with proxy/sibling info is the widest, ~200 chars).
+	char buf[512];
+	int n = _vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, ap);
 	va_end(ap);
-	fflush(fp);
+	if (n > 0) DDILog("%s", buf);
 }
 
 void FrameTraceTickFrame()
@@ -75,14 +65,14 @@ void FrameTraceTickFrame()
 		// First Present after wrapper init — read the config'd frame count.
 		g_FrameTraceRemaining = (int)gInfo.VerboseFrameTrace;
 		if (g_FrameTraceRemaining > 0)
-			FrameTrace("=== capturing %d frames (gInfo.VerboseFrameTrace) ===\n",
+			FrameTrace("=== frame trace begin: capturing %d frames (gInfo.VerboseFrameTrace) ===\n",
 			           g_FrameTraceRemaining);
 	}
 	if (g_FrameTraceRemaining > 0)
 	{
 		--g_FrameTraceRemaining;
 		if (g_FrameTraceRemaining == 0)
-			FrameTrace("=== trace complete (auto-disabled) ===\n");
+			FrameTrace("=== frame trace complete (auto-disabled) ===\n");
 	}
 }
 
