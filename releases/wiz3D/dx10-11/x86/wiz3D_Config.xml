@@ -101,10 +101,12 @@
 		<UseCOMWrapReplay Value="1"/>
 		<!-- DX10/11 diagnostic: capture this many frames of per-event trace into
 		     wiz3D_frame_trace.log (next to the game exe), then auto-disable.
-		     0 = off (default). 3-5 is plenty for a useful diagnostic snapshot —
-		     the trace is verbose (OMSet/Clear/Draw with per-eye context per call).
-		     Larger values produce a multi-megabyte log very fast. -->
-		<VerboseFrameTrace Value="0"/>
+		     0 = off. Default 3 — auto-stops after 3 Presents, tiny file (~3KB)
+		     and gives us the OMSet/Clear/Draw + per-eye context we need to
+		     diagnose right-eye breakage from tester reports without asking
+		     them to flip flags. Larger values produce a multi-megabyte log
+		     very fast; set explicitly to 0 to disable. -->
+		<VerboseFrameTrace Value="3"/>
 		<!-- Write debug info to log files: 0=off 1=on -->
 		<CollectDebugInformation Value="0"/>
 		<!-- Screenshot format: 0=PNG (default), 1=PNS (stereo PNG), 2=JPEG, 3=JPS (stereo JPEG), 4=BMP, 5=DDS. PNS/JPS are the same bytes as PNG/JPG but with a stereo-aware extension some 3D viewers (e.g. Stereo Photo Maker) recognise as a side-by-side pair. -->
