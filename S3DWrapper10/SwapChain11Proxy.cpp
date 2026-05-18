@@ -88,8 +88,19 @@ HRESULT STDMETHODCALLTYPE SwapChain11Proxy::QueryInterface(REFIID riid, void** p
         return S_OK;
     }
     // IDXGISwapChain2/3/4: pass through unwrapped for now. Future iteration
-    // can extend if needed by Win11-era games.
-    return m_real->QueryInterface(riid, ppvObj);
+    // can extend if needed by Win11-era games. Log so we can spot games that
+    // depend on the higher-version SC interfaces (same diagnostic pattern as
+    // Device11Proxy::QI bypass-risk lines).
+    HRESULT hr = m_real->QueryInterface(riid, ppvObj);
+    static int s_logged = 0;
+    if (s_logged < 8)
+    {
+        char iidName[64];
+        FormatGUID(riid, iidName, sizeof(iidName));
+        DDILog("  SwapChain11Proxy::QI(%s) hr=0x%08lX -- bypass risk\n", iidName, hr);
+        ++s_logged;
+    }
+    return hr;
 }
 
 HRESULT STDMETHODCALLTYPE SwapChain11Proxy::GetDevice(REFIID riid, void** ppDevice)

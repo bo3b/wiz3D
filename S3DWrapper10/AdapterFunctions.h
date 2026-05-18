@@ -17,6 +17,12 @@ void FrameTrace(const char* fmt, ...);
 void FrameTraceTickFrame();  // call once at end of each Present
 inline bool FrameTraceActive() { return g_FrameTraceRemaining > 0; }
 
+// IID → human-readable name (when it matches a known D3D/DXGI interface), else
+// {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx} hex form. Used by QI fall-through
+// "bypass risk" log lines so the actual GUID is visible — without it we just
+// know an unhandled QI happened, not what was asked for. bufLen ≥ 64 is plenty.
+void FormatGUID(REFIID riid, char* buf, size_t bufLen);
+
 // Per-trampoline entry counter for the Draw* DDI hooks. The macro-local
 // static gives one counter per call site, so each Draw variant tallies on
 // its own. Rate-limited to first 5 + every 10000th so it survives an

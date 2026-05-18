@@ -8,6 +8,19 @@
 #include <cstdarg>
 #include <cstdio>
 
+// FormatGUID's IID name table references the higher-version D3D11 and DXGI
+// interfaces (Device3, Context3, SwapChain4, etc.). Pull the SDK headers in
+// after the same DXGI_RGBA shim Device11Proxy.h uses — the bundled
+// lib/d3d9/Include header chain is renamed to .legacy_unused but the shim
+// stays defensive in case anyone reintroduces it.
+#include <d3d9types.h>
+#ifndef _DXGI_RGBA_DEFINED
+#define _DXGI_RGBA_DEFINED
+typedef D3DCOLORVALUE DXGI_RGBA;
+#endif
+#include <d3d11_3.h>
+#include <dxgi1_5.h>
+
 // ---------------------------------------------------------------------------
 // Diagnostic: append to wiz3D_proxy.log next to the game exe so the wrapper's
 // DDI path is visible in the same file as the proxy logs. ZLOg/DEBUG_MESSAGE
@@ -60,13 +73,27 @@ void FrameTrace(const char* fmt, ...)
 
 void FrameTraceTickFrame()
 {
+	// Two states tracked here:
+	//   g_FrameTracePresentsSeen — total Presents observed since wrapper init.
+	//     Increments every frame regardless of trace state. Used by the
+	//     FrameTraceStartFrame gate so a tester can skip past loading screens.
+	//   g_FrameTraceRemaining — countdown of frames left to capture.
+	//     -1 before the start gate fires, >0 while capturing, 0 when complete.
+	static int s_presentsSeen = 0;
+	++s_presentsSeen;
+
 	if (g_FrameTraceRemaining < 0)
 	{
-		// First Present after wrapper init — read the config'd frame count.
+		// Gate on FrameTraceStartFrame so loading screens don't burn our trace
+		// budget. 0 (default) starts at the first Present; >0 waits until that
+		// Present count is reached.
+		int startAt = (int)gInfo.FrameTraceStartFrame;
+		if (startAt > 0 && s_presentsSeen < startAt) return;
+
 		g_FrameTraceRemaining = (int)gInfo.VerboseFrameTrace;
 		if (g_FrameTraceRemaining > 0)
-			FrameTrace("=== frame trace begin: capturing %d frames (gInfo.VerboseFrameTrace) ===\n",
-			           g_FrameTraceRemaining);
+			FrameTrace("=== frame trace begin: capturing %d frames at Present #%d (StartFrame=%d) ===\n",
+			           g_FrameTraceRemaining, s_presentsSeen, startAt);
 	}
 	if (g_FrameTraceRemaining > 0)
 	{
@@ -74,6 +101,68 @@ void FrameTraceTickFrame()
 		if (g_FrameTraceRemaining == 0)
 			FrameTrace("=== frame trace complete (auto-disabled) ===\n");
 	}
+}
+
+// IID → name lookup for diagnostic logs. Recognises the high-traffic D3D11
+// and DXGI interfaces seen during proxy-stack QI fall-throughs; unknowns
+// fall back to {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx} so the GUID is still
+// recoverable by hand-grep against d3d11.h / dxgi*.h.
+void FormatGUID(REFIID riid, char* buf, size_t bufLen)
+{
+	struct Known { const IID* iid; const char* name; };
+	static const Known table[] = {
+		{ &__uuidof(IUnknown),              "IUnknown" },
+		// DXGI core
+		{ &__uuidof(IDXGIObject),           "IDXGIObject" },
+		{ &__uuidof(IDXGIDeviceSubObject),  "IDXGIDeviceSubObject" },
+		{ &__uuidof(IDXGIResource),         "IDXGIResource" },
+		{ &__uuidof(IDXGIResource1),        "IDXGIResource1" },
+		{ &__uuidof(IDXGISurface),          "IDXGISurface" },
+		{ &__uuidof(IDXGISurface1),         "IDXGISurface1" },
+		{ &__uuidof(IDXGISurface2),         "IDXGISurface2" },
+		{ &__uuidof(IDXGIKeyedMutex),       "IDXGIKeyedMutex" },
+		// DXGI device
+		{ &__uuidof(IDXGIDevice),           "IDXGIDevice" },
+		{ &__uuidof(IDXGIDevice1),          "IDXGIDevice1" },
+		{ &__uuidof(IDXGIDevice2),          "IDXGIDevice2" },
+		{ &__uuidof(IDXGIDevice3),          "IDXGIDevice3" },
+		// DXGI swap chain
+		{ &__uuidof(IDXGISwapChain),        "IDXGISwapChain" },
+		{ &__uuidof(IDXGISwapChain1),       "IDXGISwapChain1" },
+		{ &__uuidof(IDXGISwapChain2),       "IDXGISwapChain2" },
+		{ &__uuidof(IDXGISwapChain3),       "IDXGISwapChain3" },
+		{ &__uuidof(IDXGISwapChain4),       "IDXGISwapChain4" },
+		// D3D11 device / context
+		{ &__uuidof(ID3D11Device),          "ID3D11Device" },
+		{ &__uuidof(ID3D11Device1),         "ID3D11Device1" },
+		{ &__uuidof(ID3D11Device2),         "ID3D11Device2" },
+		{ &__uuidof(ID3D11Device3),         "ID3D11Device3" },
+		{ &__uuidof(ID3D11DeviceContext),   "ID3D11DeviceContext" },
+		{ &__uuidof(ID3D11DeviceContext1),  "ID3D11DeviceContext1" },
+		{ &__uuidof(ID3D11DeviceContext2),  "ID3D11DeviceContext2" },
+		{ &__uuidof(ID3D11DeviceContext3),  "ID3D11DeviceContext3" },
+		// D3D11 resources / views
+		{ &__uuidof(ID3D11Resource),        "ID3D11Resource" },
+		{ &__uuidof(ID3D11Texture2D),       "ID3D11Texture2D" },
+		{ &__uuidof(ID3D11Buffer),          "ID3D11Buffer" },
+		{ &__uuidof(ID3D11RenderTargetView),"ID3D11RenderTargetView" },
+		{ &__uuidof(ID3D11ShaderResourceView),"ID3D11ShaderResourceView" },
+		{ &__uuidof(ID3D11DepthStencilView),"ID3D11DepthStencilView" },
+		{ &__uuidof(ID3D11UnorderedAccessView),"ID3D11UnorderedAccessView" },
+	};
+	for (size_t i = 0; i < sizeof(table) / sizeof(table[0]); ++i)
+	{
+		if (IsEqualGUID(riid, *table[i].iid))
+		{
+			_snprintf_s(buf, bufLen, _TRUNCATE, "%s", table[i].name);
+			return;
+		}
+	}
+	_snprintf_s(buf, bufLen, _TRUNCATE,
+		"{%08lX-%04hX-%04hX-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+		(unsigned long)riid.Data1, (unsigned short)riid.Data2, (unsigned short)riid.Data3,
+		riid.Data4[0], riid.Data4[1], riid.Data4[2], riid.Data4[3],
+		riid.Data4[4], riid.Data4[5], riid.Data4[6], riid.Data4[7]);
 }
 
 static union{

@@ -90,8 +90,10 @@ HRESULT STDMETHODCALLTYPE DXGIDeviceProxy::QueryInterface(REFIID riid, void** pp
     // unwrapped. Identity won't be preserved for those riids; a future stage
     // can extend coverage as games need it.
     HRESULT hr = m_real0->QueryInterface(riid, ppvObj);
+    char iidName[64];
+    FormatGUID(riid, iidName, sizeof(iidName));
     NVDM_TRACE_FIRST_N(8,
-        "  DXGIDeviceProxy::QI(unknown IID) hr=0x%08lX -- bypass risk\n", hr);
+        "  DXGIDeviceProxy::QI(%s) hr=0x%08lX -- bypass risk\n", iidName, hr);
     return hr;
 }
 

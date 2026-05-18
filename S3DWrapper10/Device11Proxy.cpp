@@ -360,8 +360,10 @@ HRESULT STDMETHODCALLTYPE Device11Proxy::QueryInterface(REFIID riid, void** ppvO
     // Device4/5, vendor IIDs, etc.: pass through unwrapped. Identity won't
     // be preserved for these; extend if a game needs it.
     HRESULT hr = m_real->QueryInterface(riid, ppvObj);
+    char iidName[64];
+    FormatGUID(riid, iidName, sizeof(iidName));
     NVDM_TRACE_FIRST_N(16,
-        "  Device11Proxy::QI(unhandled IID) hr=0x%08lX -- bypass risk\n", hr);
+        "  Device11Proxy::QI(%s) hr=0x%08lX -- bypass risk\n", iidName, hr);
     return hr;
 }
 
