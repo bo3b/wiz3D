@@ -243,6 +243,7 @@ Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'D
 | Mass Effect 2 | DX9 | x86 | ✓ | ✅ Working |  |
 | Medal of Honor: Airborne | DX9 | x86 | ✓ | Untested |  |
 | Mercenaries 2: World in Flames | DX9 | x86 | ✓ | Untested |  |
+| Metal Gear Rising: Revengeance | DX9 | x86 | ✕ | ✅ Working | Might need shader fix. |
 | Microsoft Flight Simulator 2004: A Century of Flight | DX9 | x86 | ✓ | Untested |  |
 | Mini Ninjas | DX9 | x86 | ✓ | Untested |  |
 | Mirror's Edge | DX9 | x86 | ✓ | ✅ Working |  |
@@ -266,6 +267,7 @@ Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'D
 | Painkiller: Overdose | DX9 | x86 | ✓ | Untested |  |
 | Portal | DX9 | x86 | ✓ | ✅ Working | Use `-game Portal -dx9` command line argument. Place files in `/portal/bin/` folder. |
 | Portal 2 | DX9 | x86 | ✓ | ✅ Mostly Working | Place files in `/Portal 2/bin/` folder. Seperation initially too high, needs wall display shader mod. |
+| Portal Stories: Mel | DX9 | x86 | ✕ | ✅ Working | Needs partical glow, glass and portal shader fix. |
 | Prince of Persia (2008) | DX9 | x86 | ✕ | ✅ Working | Might need shader fix. |
 | Prince of Persia: The Forgotten Sands | DX9 | x86 | ✓ | Untested |  |
 | Pro Evolution Soccer 2017 | DX9 | x86 | ✕ | ✅ Working | Might need shader fix. |
@@ -297,6 +299,7 @@ Games that render Stereoscipic 3D themselves and display that via 3D Vision's 'D
 | Singularity | DX9 | x86 | ✓ | Untested |  |
 | Sins of a Solar Empire | DX9 | x86 | ✓ | ✅ Mostly Working | Background at wrong depth. |
 | SkyDrift | DX9 | x86 | ✕ | ❌ Not Working |  |
+| Sonic Adventure 2 | DX9 | x86 | ✕ | ❌ Not Working | Black screen |
 | Sonic & Sega All-Stars Racing | DX9 | x86 | ✕ | ✅ Working |  |
 | Sonic R (2004) | DX9 | x86 | ✕ | ✅ Mostly Working | Needs coin depth shader fix. Use with [Sonic R Updater](https://github.com/cheatfreak47/SRUpdater). |
 | Spec Ops: The Line | DX9 | x86 | ✕ | ✅ Working |  |
