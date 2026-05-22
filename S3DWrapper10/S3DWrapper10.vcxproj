@@ -106,7 +106,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;S3DWRAPPER10_EXPORTS;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <AdditionalOptions>-Zm200 %(AdditionalOptions)</AdditionalOptions>
@@ -120,7 +120,7 @@
     <Link>
       <AdditionalDependencies>Winmm.lib;d3dx10.lib;dxgi.lib;dxguid.lib;d3dcompiler.lib;ticppd.lib;minhook.lib;zlibd.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;d3dx9.lib;xerces-c_static_3D.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;..\lib\zlib\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
@@ -137,7 +137,7 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;_DEBUG;_WINDOWS;_USRDLL;S3DWRAPPER10_EXPORTS;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <AdditionalOptions>-Zm200 %(AdditionalOptions)</AdditionalOptions>
@@ -151,7 +151,7 @@
     <Link>
       <AdditionalDependencies>Winmm.lib;d3dx10.lib;dxgi.lib;dxguid.lib;d3dcompiler.lib;ticppd.lib;minhook.lib;zlibd.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;xerces-c_static_3D.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;..\lib\zlib\Lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBCMT.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -167,7 +167,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPER10_EXPORTS;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -180,7 +180,7 @@
     <Link>
       <AdditionalDependencies>Winmm.lib;d3dx10.lib;dxgi.lib;dxguid.lib;d3dcompiler.lib;ticpp.lib;minhook.lib;zlib.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;d3dx9.lib;xerces-c_static_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;..\lib\zlib\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
@@ -198,7 +198,7 @@
     </Midl>
     <ClCompile>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPER10_EXPORTS;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -211,7 +211,7 @@
     <Link>
       <AdditionalDependencies>Winmm.lib;d3dx10.lib;dxgi.lib;dxguid.lib;d3dcompiler.lib;ticpp.lib;minhook.lib;zlib.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;xerces-c_static_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\zlib\Lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
@@ -225,7 +225,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPER10_EXPORTS;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -240,7 +240,7 @@
     <Link>
       <AdditionalDependencies>Winmm.lib;d3dx10.lib;dxgi.lib;dxguid.lib;d3dcompiler.lib;ticpp.lib;minhook.lib;zlib.lib;psapi.lib;DevIL.lib;ILU.lib;d3dx9.lib;xerces-c_static_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;..\lib\zlib\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
@@ -257,7 +257,7 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPER10_EXPORTS;_SECURE_ATL=0;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;_HAS_EXCEPTIONS=0;BOOST_NO_STD_TYPEINFO;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -270,7 +270,7 @@
     <Link>
       <AdditionalDependencies>Winmm.lib;d3dx10.lib;dxgi.lib;dxguid.lib;d3dcompiler.lib;ticpp.lib;minhook.lib;zlib.lib;psapi.lib;DevIL.lib;ILU.lib;xerces-c_static_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;..\lib\zlib\Lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>

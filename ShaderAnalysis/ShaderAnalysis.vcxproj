@@ -107,7 +107,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <ExceptionHandling>Async</ExceptionHandling>
@@ -121,7 +121,7 @@
       <AdditionalOptions>-Zm111 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;..\lib\zlib\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -130,7 +130,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;_DEBUG;_LIB;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
@@ -139,14 +139,14 @@
       <AdditionalOptions>-Zm111 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;..\lib\zlib\Lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
@@ -154,7 +154,7 @@
       <DisableSpecificWarnings>4201;4510;4512;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;..\lib\zlib\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -164,7 +164,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_LIB;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -175,14 +175,14 @@
       <AdditionalOptions>-Zm111 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;..\lib\zlib\Lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -191,7 +191,7 @@
       <DisableSpecificWarnings>4201;4510;4512;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;..\lib\zlib\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x86\;..\lib\ticpp\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">
@@ -201,7 +201,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\lib\zlib\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\lib\d3d9\include\;..\S3DInjector;..\lib\ticpp\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_LIB;TIXML_USE_TICPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -211,7 +211,7 @@
       <DisableSpecificWarnings>4201;4510;4512;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;..\lib\zlib\Lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\d3d9\lib\x64\;..\lib\ticpp\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
