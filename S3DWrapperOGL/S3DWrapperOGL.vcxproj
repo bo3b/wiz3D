@@ -105,14 +105,14 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\minhook\include;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;S3DWRAPPEROGL_EXPORTS;GLEW_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;ticppd.lib;shlwapi.lib;libMinHook.x86.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityCore32.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityOpenGL32.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;ticppd.lib;shlwapi.lib;minhook.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityCore32.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityOpenGL32.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityOpenGL32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x86\;..\lib\minhook\build\VC17\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -123,14 +123,14 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\minhook\include;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;_DEBUG;_WINDOWS;_USRDLL;S3DWRAPPEROGL_EXPORTS;GLEW_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;ticppd.lib;shlwapi.lib;libMinHook.x64.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityCore.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityOpenGL.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;ticppd.lib;shlwapi.lib;minhook.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityCore.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityOpenGL.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityOpenGL.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x64\;..\lib\minhook\build\VC17\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;libcmt.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -138,14 +138,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\minhook\include;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPEROGL_EXPORTS;GLEW_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;ticpp.lib;shlwapi.lib;libMinHook.x86.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityCore32.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityOpenGL32.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;ticpp.lib;shlwapi.lib;minhook.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityCore32.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityOpenGL32.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityOpenGL32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x86\;..\lib\minhook\build\VC17\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -156,14 +156,14 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\minhook\include;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;_WINDOWS;_USRDLL;S3DWRAPPEROGL_EXPORTS;GLEW_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;ticpp.lib;shlwapi.lib;libMinHook.x64.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityCore.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityOpenGL.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;ticpp.lib;shlwapi.lib;minhook.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityCore.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityOpenGL.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityOpenGL.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x64\;..\lib\minhook\build\VC17\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -171,14 +171,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\minhook\include;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPEROGL_EXPORTS;FINAL_RELEASE;_SECURE_ATL=0;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;ticpp.lib;shlwapi.lib;libMinHook.x86.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityCore32.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityOpenGL32.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;ticpp.lib;shlwapi.lib;minhook.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityCore32.lib;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\lib\SimulatedRealityOpenGL32.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityOpenGL32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x86\;..\lib\minhook\build\VC17\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -189,14 +189,14 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\minhook\include;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\Shared\;..\lib\gl\include\;..\lib\tinyxml\include\;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\include;..\lib\Simulated Reality\simulatedreality-1.34.10-win32-Release\third_party\OpenCV\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\include;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\third_party\OpenCV\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPEROGL_EXPORTS;FINAL_RELEASE;_SECURE_ATL=0;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;ticpp.lib;shlwapi.lib;libMinHook.x64.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityCore.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityOpenGL.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;ticpp.lib;shlwapi.lib;minhook.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityCore.lib;..\lib\Simulated Reality\LeiaSR-SDK-1.36.2-win64\lib\SimulatedRealityOpenGL.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityOpenGL.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x64\;..\lib\minhook\build\VC17\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\gl\lib;..\lib\tinyxml\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>

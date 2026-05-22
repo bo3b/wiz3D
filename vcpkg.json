@@ -24,6 +24,7 @@
     "boost-type-traits",
     "boost-unordered",
     "boost-utility",
-    "boost-variant"
+    "boost-variant",
+    "minhook"
   ]
 }
