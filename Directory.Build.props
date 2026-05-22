@@ -25,4 +25,38 @@
     <VcpkgTriplet Condition="'$(Platform)' == 'Win32'">x86-windows-static</VcpkgTriplet>
     <VcpkgTriplet Condition="'$(Platform)' == 'x64'">x64-windows-static</VcpkgTriplet>
   </PropertyGroup>
+
+  <!--
+    Expose the vcpkg-installed include and lib dirs directly. We avoid
+    $(VcpkgInstalledDir) — that property is set by vcpkg's machine-wide
+    MSBuild integration (`vcpkg integrate install`), which isn't reliably
+    in place here, and we observed it expanding to empty.
+
+    Manifest-mode lays files out at
+        vcpkg_installed/<triplet>/<triplet>/{include,lib,debug/lib}
+    in this tree (the second <triplet> is vcpkg's per-install-root
+    convention). We compute against $(SolutionDir) + $(VcpkgTriplet),
+    both of which are always defined.
+
+    The directxsdk port additionally nests its headers under
+    include/directxsdk/ (to avoid colliding with same-named Windows SDK
+    headers). Project source does #include <d3dx9.h>, so that subfolder
+    needs to be on the include path explicitly.
+  -->
+  <PropertyGroup>
+    <WizVcpkgInstallRoot>$(SolutionDir)vcpkg_installed\$(VcpkgTriplet)\$(VcpkgTriplet)</WizVcpkgInstallRoot>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(WizVcpkgInstallRoot)\include\directxsdk;$(WizVcpkgInstallRoot)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)'=='Debug'">$(WizVcpkgInstallRoot)\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)'!='Debug'">$(WizVcpkgInstallRoot)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <Lib>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)'=='Debug'">$(WizVcpkgInstallRoot)\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)'!='Debug'">$(WizVcpkgInstallRoot)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
 </Project>
