@@ -29,8 +29,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $archs = if ($Arch -eq 'both') { @('Win32', 'x64') } else { @($Arch) }
 
 # Common dependency DLLs shared across most release subfolders
-$commonDeps    = @('S3DAPI.dll', 'S3DDevIL.dll', 'S3DUtils.dll', 'ZLOg.dll')
-$dx10ExtraDeps = @('S3Dilu.dll')           # dx10-11 only
+$commonDeps    = @('S3DAPI.dll', 'S3DUtils.dll', 'ZLOg.dll')
 # OpenGL wrapper only ships ZLOg.dll (statically imported via zlog::VldReportHook).
 # It has no LoadLibrary calls and never references S3DAPI/S3DUtils — those are
 # DX-wrapper helpers. nvapi is also excluded (no NvAPI usage on the OGL path).
@@ -113,8 +112,6 @@ foreach ($archName in $archs) {
     $outDirName = if ($archName -eq 'Win32') { 'Win32' } else { 'Win64' }
     $binDir    = Join-Path $repoRoot "bin\Release\$outDirName"
     $omSrcDir  = Join-Path $binDir   'OutputMethods'
-    # Vendored upstream DevIL artifacts (S3DDevIL.dll, S3Dilu.dll) — not built by sln
-    $devilFallback = Join-Path $repoRoot "lib\DevIL\lib\$archAlias"
     # wiz3D-proxy.sln output (entry-point DLLs games actually load: d3d9.dll, etc)
     $proxyBinDir       = Join-Path $repoRoot "wiz3D-proxy\bin\Release\$archName"
     $nvDirectModeBin   = Join-Path $repoRoot "NvDirectMode\bin\Release\$archName"
@@ -157,8 +154,7 @@ foreach ($archName in $archs) {
     $dst = Join-Path $repoRoot "releases\wiz3D\dx9\$archAlias"
     Copy-Files -SrcDir $binDir   -DstDir $dst                          `
                -Files (@('S3DWrapperD3D9.dll') + $commonDeps)          `
-               -Tag   "dx9/$archAlias wrappers+deps"                   `
-               -FallbackDirs @($devilFallback)
+               -Tag   "dx9/$archAlias wrappers+deps"
     Copy-Files -SrcDir $omSrcDir -DstDir (Join-Path $dst 'OutputMethods') `
                -Files $standardOMs -Tag "dx9/$archAlias OutputMethods"
     Copy-Files -SrcDir $proxyBinDir -DstDir $dst                          `
@@ -168,9 +164,8 @@ foreach ($archName in $archs) {
     # --- dx10-11 (both archs) ---
     $dst = Join-Path $repoRoot "releases\wiz3D\dx10-11\$archAlias"
     Copy-Files -SrcDir $binDir   -DstDir $dst                                          `
-               -Files (@('S3DWrapperD3D10.dll') + $commonDeps + $dx10ExtraDeps)        `
-               -Tag   "dx10-11/$archAlias wrappers+deps"                               `
-               -FallbackDirs @($devilFallback)
+               -Files (@('S3DWrapperD3D10.dll') + $commonDeps)                         `
+               -Tag   "dx10-11/$archAlias wrappers+deps"
     Copy-Files -SrcDir $omSrcDir -DstDir (Join-Path $dst 'OutputMethods')              `
                -Files $standardOMs -Tag "dx10-11/$archAlias OutputMethods"
     Copy-Files -SrcDir $proxyBinDir -DstDir $dst                                       `

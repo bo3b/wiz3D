@@ -25,6 +25,7 @@
     "boost-unordered",
     "boost-utility",
     "boost-variant",
+    "devil",
     "minhook"
   ]
 }

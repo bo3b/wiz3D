@@ -267,7 +267,7 @@
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -282,7 +282,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -295,7 +295,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -310,7 +310,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">
@@ -329,7 +329,7 @@
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">
@@ -344,7 +344,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - Anaglyph|Win32'">
@@ -359,7 +359,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - Lenovo|Win32'">
@@ -374,7 +374,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - YGT|Win32'">
@@ -389,7 +389,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - Taerim|Win32'">
@@ -404,7 +404,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - Anaglyph|x64'">
@@ -419,7 +419,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - Lenovo|x64'">
@@ -434,7 +434,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - YGT|x64'">
@@ -449,7 +449,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - Taerim|x64'">
@@ -464,7 +464,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - CMO Edition|Win32'">
@@ -479,7 +479,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release - CMO Edition|x64'">
@@ -494,7 +494,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>S3DDevIL.lib;S3Dilu.lib</AdditionalDependencies>
+      <AdditionalDependencies>DevIL.lib;ILU.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>

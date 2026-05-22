@@ -125,7 +125,7 @@
       <AdditionalOptions>-Zm160 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Psapi.lib;d3dx10.lib;shlwapi.lib;ticppd.lib;d3d9.lib;d3dx9.lib;S3DDevIL.lib;S3Dilu.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Psapi.lib;d3dx10.lib;shlwapi.lib;ticppd.lib;d3d9.lib;d3dx9.lib;DevIL.lib;ILU.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\..\lib\d3d9\lib\x86\;..\..\lib\tinyxml\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -151,7 +151,7 @@
       <AdditionalOptions>-Zm160 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Psapi.lib;d3dx10.lib;shlwapi.lib;ticppd.lib;d3d9.lib;d3dx9.lib;S3DDevIL.lib;S3Dilu.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Psapi.lib;d3dx10.lib;shlwapi.lib;ticppd.lib;d3d9.lib;d3dx9.lib;DevIL.lib;ILU.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\..\lib\d3d9\lib\x64\;..\..\lib\tinyxml\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -172,7 +172,7 @@
       <AdditionalOptions>-Zm160 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Psapi.lib;d3dx10.lib;shlwapi.lib;ticpp.lib;d3d9.lib;d3dx9.lib;S3DDevIL.lib;S3Dilu.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Psapi.lib;d3dx10.lib;shlwapi.lib;ticpp.lib;d3d9.lib;d3dx9.lib;DevIL.lib;ILU.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\..\lib\d3d9\lib\x86\;..\..\lib\tinyxml\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -197,7 +197,7 @@
       <AdditionalOptions>-Zm160 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Psapi.lib;d3dx10.lib;shlwapi.lib;ticpp.lib;d3d9.lib;d3dx9.lib;S3DDevIL.lib;S3Dilu.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Psapi.lib;d3dx10.lib;shlwapi.lib;ticpp.lib;d3d9.lib;d3dx9.lib;DevIL.lib;ILU.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\..\lib\d3d9\lib\x64\;..\..\lib\tinyxml\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
