@@ -6,7 +6,7 @@
     Directory.Build.props is auto-imported before any project evaluation.
   -->
   <PropertyGroup>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v145</PlatformToolset>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <!-- ATL is used pervasively (CComPtr, etc.) — enable it for all projects -->
     <UseOfAtl>Static</UseOfAtl>

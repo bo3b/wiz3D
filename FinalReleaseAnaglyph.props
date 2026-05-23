@@ -5,7 +5,7 @@
     <Import Project="DisableExceptions.props" />
   </ImportGroup>
   <PropertyGroup>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v145</PlatformToolset>
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
     <LinkIncremental>false</LinkIncremental>
     <_PropertySheetDisplayName>FinalReleaseAnaglyph</_PropertySheetDisplayName>
