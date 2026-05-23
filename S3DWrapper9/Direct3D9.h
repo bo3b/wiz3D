@@ -126,23 +126,16 @@ public:
 		IDirect3DDevice9** ppReturnedDeviceInterface);
 
 	/*** IDirect3D9Ex methods ***/
-	STDMETHODIMP_(UINT) GetAdapterModeCountEx( UINT Adapter,CONST D3DDISPLAYMODEFILTER* pFilter )
-	{
-		return m_Direct3D9.GetAdapterModeCountEx(GetAdapterNumber(Adapter), pFilter);
-	}
-	STDMETHODIMP EnumAdapterModesEx( UINT Adapter,CONST D3DDISPLAYMODEFILTER* pFilter,UINT Mode,D3DDISPLAYMODEEX* pMode)
-	{
-		return m_Direct3D9.EnumAdapterModesEx(GetAdapterNumber(Adapter), pFilter, Mode, pMode);
-	}
-	STDMETHODIMP GetAdapterDisplayModeEx( UINT Adapter,D3DDISPLAYMODEEX* pMode,D3DDISPLAYROTATION* pRotation)
-	{
-		return m_Direct3D9.GetAdapterDisplayModeEx(GetAdapterNumber(Adapter), pMode, pRotation);
-	}
+	// Bodies moved to Direct3D9.cpp so they can call D9Log (declared in
+	// Globals.h, which the S3DWrapper9 .cpp files include via stdafx but
+	// other projects that pull in Direct3D9.h directly — OutputLib — don't).
+	// The first-call loggers in the .cpp tell us which Ex-only method GRFS
+	// (and other probe-heavy games) escalates to on the wrapper.
+	STDMETHODIMP_(UINT) GetAdapterModeCountEx( UINT Adapter,CONST D3DDISPLAYMODEFILTER* pFilter );
+	STDMETHODIMP EnumAdapterModesEx( UINT Adapter,CONST D3DDISPLAYMODEFILTER* pFilter,UINT Mode,D3DDISPLAYMODEEX* pMode);
+	STDMETHODIMP GetAdapterDisplayModeEx( UINT Adapter,D3DDISPLAYMODEEX* pMode,D3DDISPLAYROTATION* pRotation);
 	STDMETHODIMP CreateDeviceEx( UINT Adapter,D3DDEVTYPE DeviceType,HWND hFocusWindow,DWORD BehaviorFlags,
 		D3DPRESENT_PARAMETERS* pPresentationParameters,D3DDISPLAYMODEEX* pFullscreenDisplayMode,
 		IDirect3DDevice9Ex** ppReturnedDeviceInterface);
-	STDMETHODIMP GetAdapterLUID( UINT Adapter,LUID * pLUID)
-	{
-		return m_Direct3D9.GetAdapterLUID(GetAdapterNumber(Adapter), pLUID);
-	}
+	STDMETHODIMP GetAdapterLUID( UINT Adapter,LUID * pLUID);
 };

@@ -150,5 +150,41 @@ PROXYMETHOD(GetAdapterLUID)(UINT Adapter, LUID * pLUID)
 	return CALLORIGINALEX(GetAdapterLUID)(Adapter, pLUID);
 }
 
+// Read the IDirect3D9Ex vtable and patch the Ex-only slots into
+// m_fpOriginal.func[]. The base IDirect3D9 slots (0..MAX_METHODS-1) were
+// already populated by ProxyBase::refreshPointers from the plain IDirect3D9
+// vtable; here we extend coverage to MAX_METHODS..MAX_METHODS_EX-1 so any
+// CALLORIGINALEX dispatch in EXMODE_NONE doesn't hit a NULL function pointer.
+// Idempotent: safe to call multiple times.
+inline void ProxyDirect9::patchExSlotsFromEx(IDirect3D9Ex* pRealEx)
+{
+	if (!pRealEx) return;
+	void** exVtable = *(void***)pRealEx;
+	for (DWORD i = IDirect3D9MethodNames::FunctionList::MAX_METHODS;
+	     i < IDirect3D9MethodNames::FunctionList::MAX_METHODS_EX; ++i)
+	{
+		m_fpOriginal.func[i] = UniqueGetCode(exVtable[i]);
+	}
+}
+
+inline void ProxyDirect9::dumpFunctionPointerTable(const char* tag)
+{
+	const DWORD cnt = IDirect3D9MethodNames::FunctionList::MAX_METHODS_EX;
+	int nullCount = 0;
+	for (DWORD i = 0; i < cnt; ++i)
+		if (!m_fpOriginal.func[i]) ++nullCount;
+	D9Log("  ProxyDirect9::vtable [%s] exMode=%d methodCount=%lu nullSlots=%d\n",
+		tag, (int)m_ExMode, (unsigned long)m_MethodCount, nullCount);
+	if (nullCount == 0) return;  // common-case: log only the NULL slots when something's wrong
+	for (DWORD i = 0; i < cnt; ++i)
+	{
+		if (!m_fpOriginal.func[i])
+		{
+			const TCHAR* name = IDirect3D9MethodNames::FunctionList::GetFunctionName((int)i);
+			D9Log("    slot[%2lu] %ls = NULL\n", (unsigned long)i, name ? name : L"?");
+		}
+	}
+}
+
 
 #endif
