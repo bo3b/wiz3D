@@ -135,4 +135,18 @@ public:
 	PROXYDIRECTMETHOD(GetAdapterDisplayModeEx)(UINT Adapter, D3DDISPLAYMODEEX* pMode, D3DDISPLAYROTATION* pRotation);
 	PROXYDIRECTMETHOD(CreateDeviceEx)(UINT Adapter, D3DDEVTYPE DeviceType, HWND hFocusWindow, DWORD BehaviorFlags, D3DPRESENT_PARAMETERS* pPresentationParameters, D3DDISPLAYMODEEX* pFullscreenDisplayMode, IDirect3DDevice9Ex** ppReturnedDeviceInterface);
 	PROXYDIRECTMETHOD(GetAdapterLUID)(UINT Adapter, LUID * pLUID);
+
+	// Patch the IDirect3D9Ex-only vtable slots (CreateDeviceEx, GetAdapterLUID,
+	// etc.) into m_fpOriginal.func[] using a real IDirect3D9Ex pointer. Called
+	// from CDirect3D9::DoInitialize for EXMODE_NONE to make CALLORIGINALEX
+	// dispatches safe — without this, a game that QI's our wrapper for
+	// IDirect3D9Ex (which we claim with `this` since 0.2.4) and then calls an
+	// Ex-only method dispatches through a NULL slot. Crashes GRFS on the 5th
+	// Direct3DCreate9 probe in EIP=0 with our wrapper one frame down the stack.
+	void patchExSlotsFromEx(IDirect3D9Ex* pRealEx);
+
+	// Diagnostic: dump every slot in m_fpOriginal.func[] to wiz3D_proxy.log
+	// with the method name + cached function pointer. Use after initialize()
+	// and any patchExSlotsFromEx() to confirm no slot is left NULL.
+	void dumpFunctionPointerTable(const char* tag);
 };

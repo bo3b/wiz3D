@@ -109,21 +109,37 @@ STDMETHODIMP_(ULONG) CDirect3D9::Release()
 void CDirect3D9::DoInitialize(IDirect3D9* pReal, PROXY_EXMODE exMode)
 {
 	m_Direct3D9.setExMode(exMode);
-	
+
 	//--- Steam perhaps hooks Direct3DCreate9(), we MUST use QueryInterface for getting original IDirect3D9 ---
 	if(exMode == EXMODE_NONE)
 	{
 		CComPtr<IDirect3D9> pReal_Original;
 		pReal->QueryInterface(IID_IDirect3D9, (void**)&pReal_Original);
 		m_Direct3D9.initialize(pReal_Original);
+
+		// Populate IDirect3D9Ex-only slots (CreateDeviceEx / GetAdapterLUID /
+		// GetAdapterModeCountEx / EnumAdapterModesEx / GetAdapterDisplayModeEx)
+		// even though the game called plain Direct3DCreate9. Required because
+		// CDirect3D9::QueryInterface(IID_IDirect3D9Ex) now (0.2.4) returns
+		// `this` whenever the real supports Ex, so any subsequent Ex method
+		// call on the wrapper dispatches through CALLORIGINALEX → m_fpOriginal
+		// slot N where N ≥ MAX_METHODS. Without this patch those slots are
+		// NULL → EIP=0 crash. Surfaced by GRFS DX9, where the 5th Create9
+		// probe escalates to an Ex method that fell off this cliff.
+		CComPtr<IDirect3D9Ex> pRealEx;
+		HRESULT hrEx = pReal->QueryInterface(IID_IDirect3D9Ex, (void**)&pRealEx);
+		if (SUCCEEDED(hrEx) && pRealEx)
+			m_Direct3D9.patchExSlotsFromEx(pRealEx);
+		m_Direct3D9.dumpFunctionPointerTable("DoInitialize EXMODE_NONE");
 	}
 	else
 	{
 		CComPtr<IDirect3D9Ex> pRealEx_Original;
 		pReal->QueryInterface(IID_IDirect3D9Ex, (void**)&pRealEx_Original);
 		m_Direct3D9.initialize(pRealEx_Original);
+		m_Direct3D9.dumpFunctionPointerTable("DoInitialize EX");
 	}
-	
+
 	g_pDirectWrapperList.AddWrapper(m_Direct3D9.GetReal(), this);
 	if(gInfo.RouterType == ROUTER_TYPE_HOOK)
 		HookIDirect3D9All();
@@ -279,8 +295,48 @@ STDMETHODIMP CDirect3D9::CreateDevice( UINT Adapter, D3DDEVTYPE DeviceType, HWND
 	return hResult;
 }
 
+STDMETHODIMP_(UINT) CDirect3D9::GetAdapterModeCountEx(UINT Adapter, CONST D3DDISPLAYMODEFILTER* pFilter)
+{
+	static volatile LONG s_first = 0;
+	if (InterlockedCompareExchange(&s_first, 1, 0) == 0)
+		D9Log("  CDirect3D9::GetAdapterModeCountEx first call wrapper=%p\n", (void*)this);
+	return m_Direct3D9.GetAdapterModeCountEx(GetAdapterNumber(Adapter), pFilter);
+}
+
+STDMETHODIMP CDirect3D9::EnumAdapterModesEx(UINT Adapter, CONST D3DDISPLAYMODEFILTER* pFilter, UINT Mode, D3DDISPLAYMODEEX* pMode)
+{
+	static volatile LONG s_first = 0;
+	if (InterlockedCompareExchange(&s_first, 1, 0) == 0)
+		D9Log("  CDirect3D9::EnumAdapterModesEx first call wrapper=%p\n", (void*)this);
+	return m_Direct3D9.EnumAdapterModesEx(GetAdapterNumber(Adapter), pFilter, Mode, pMode);
+}
+
+STDMETHODIMP CDirect3D9::GetAdapterDisplayModeEx(UINT Adapter, D3DDISPLAYMODEEX* pMode, D3DDISPLAYROTATION* pRotation)
+{
+	static volatile LONG s_first = 0;
+	if (InterlockedCompareExchange(&s_first, 1, 0) == 0)
+		D9Log("  CDirect3D9::GetAdapterDisplayModeEx first call wrapper=%p\n", (void*)this);
+	return m_Direct3D9.GetAdapterDisplayModeEx(GetAdapterNumber(Adapter), pMode, pRotation);
+}
+
+STDMETHODIMP CDirect3D9::GetAdapterLUID(UINT Adapter, LUID* pLUID)
+{
+	static volatile LONG s_first = 0;
+	if (InterlockedCompareExchange(&s_first, 1, 0) == 0)
+		D9Log("  CDirect3D9::GetAdapterLUID first call wrapper=%p\n", (void*)this);
+	return m_Direct3D9.GetAdapterLUID(GetAdapterNumber(Adapter), pLUID);
+}
+
 STDMETHODIMP CDirect3D9::CreateDeviceEx( UINT Adapter,D3DDEVTYPE DeviceType,HWND hFocusWindow,DWORD BehaviorFlags, D3DPRESENT_PARAMETERS* pPresentationParameters,D3DDISPLAYMODEEX* pFullscreenDisplayMode, IDirect3DDevice9Ex** ppReturnedDeviceInterface )
 {
+	// Suspect path for the GRFS 5th-Create9 crash — first-call logged so we
+	// can confirm whether the game escalates to CreateDeviceEx after the
+	// initial 4 plain CreateDevice probes fail. With the patchExSlotsFromEx
+	// fix in DoInitialize the dispatch should now be safe regardless.
+	static volatile LONG s_first = 0;
+	if (InterlockedCompareExchange(&s_first, 1, 0) == 0)
+		D9Log("  CDirect3D9::CreateDeviceEx first call wrapper=%p Adapter=%u DevType=%d\n",
+			(void*)this, (unsigned)Adapter, (int)DeviceType);
 	HRESULT hResult = S_OK;
 	if (gInfo.UseMonoDeviceWrapper)
 	{
