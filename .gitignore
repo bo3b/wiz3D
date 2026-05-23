@@ -405,12 +405,12 @@ lib/UDK_Documentation/
 # the wrapper .vcxproj include paths from these local copies to the
 # Windows SDK is tracked separately — until that lands, dev machines with
 # these folders locally will still build.)
-lib/d3d7/
 lib/d3d9/
 lib/d3d10/
-# DX8 is the exception — Microsoft removed it from the Windows SDK ~20
-# years ago, so vendoring its headers is the only practical way for the
-# DX8 wrapper to build. Tracked.
+# DX7 + DX8 are the exception — Microsoft removed both from the Windows
+# SDK ~20 years ago, so vendoring those headers is the only practical way
+# for the DX7 / DX8 wrappers to build. Tracked. (Same retro-modding
+# standard practice as the rest of the legacy-DX community.)
 
 # Other lib/ subfolders kept local-only (Helifax wrapper reference,
 # Tutorial07 demo source, VR sample apps, etc.) — useful for development
@@ -421,6 +421,13 @@ lib/VRScreenCap/
 lib/opengl-3d-vision-bridge/
 # Build-output staging directory (pure intermediate artefacts).
 lib/Preparing/
+
+# LlamaXML — replaced by our LGPL 2.1 ticpp-backed shim at S3DAPI/LlamaXML/.
+# The upstream lib/LlamaXML/ contains GPL v2 source which would taint the
+# combined wiz3D binary (Section 3 of LGPL 2.1 forces conversion to GPL).
+# Kept here so any contributor with a stale local copy can't accidentally
+# re-introduce the GPL code by `git add lib/LlamaXML/`.
+lib/LlamaXML/
 
 # Intermediate build artefacts inside the vendored deps (MSBuild .recipe
 # bookkeeping etc.). The deps' actual built outputs live in lib/<name>/lib/
