@@ -508,28 +508,22 @@
     <CustomBuild Include="res\Shaders.psh">
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compiling shaders</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">pushd "$(MSBuildProjectDirectory)" &amp;&amp; call ".\compile_shaders.bat" &amp;&amp; popd
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Shaders\shaderSimple.h;Shaders\shaderSimpleRAWZ.h;Shaders\shaderSimpleDepth.h;Shaders\shaderSimpleDepthRAWZ.h;Shaders\shaderViewDepth.h;Shaders\VSFont.h;Shaders\PSFont.h;%(Outputs)</Outputs>
+	  </Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling shaders</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">pushd "$(MSBuildProjectDirectory)" &amp;&amp; call ".\compile_shaders.bat" &amp;&amp; popd
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Shaders\shaderSimple.h;Shaders\shaderSimpleRAWZ.h;Shaders\shaderSimpleDepth.h;Shaders\shaderSimpleDepthRAWZ.h;Shaders\shaderViewDepth.h;Shaders\VSFont.h;Shaders\PSFont.h;%(Outputs)</Outputs>
+	  </Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">Compiling shaders</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">pushd "$(MSBuildProjectDirectory)" &amp;&amp; call ".\compile_shaders.bat" &amp;&amp; popd
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">Shaders\shaderSimple.h;Shaders\shaderSimpleRAWZ.h;Shaders\shaderSimpleDepth.h;Shaders\shaderSimpleDepthRAWZ.h;Shaders\shaderViewDepth.h;Shaders\VSFont.h;Shaders\PSFont.h;%(Outputs)</Outputs>
+	  </Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">Compiling shaders</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">pushd "$(MSBuildProjectDirectory)" &amp;&amp; call ".\compile_shaders.bat" &amp;&amp; popd
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">Shaders\shaderSimple.h;Shaders\shaderSimpleRAWZ.h;Shaders\shaderSimpleDepth.h;Shaders\shaderSimpleDepthRAWZ.h;Shaders\shaderViewDepth.h;Shaders\VSFont.h;Shaders\PSFont.h;%(Outputs)</Outputs>
+	  </Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compiling shaders</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">pushd "$(MSBuildProjectDirectory)" &amp;&amp; call ".\compile_shaders.bat" &amp;&amp; popd
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Shaders\shaderSimple.h;Shaders\shaderSimpleRAWZ.h;Shaders\shaderSimpleDepth.h;Shaders\shaderSimpleDepthRAWZ.h;Shaders\shaderViewDepth.h;Shaders\VSFont.h;Shaders\PSFont.h;%(Outputs)</Outputs>
+	  </Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling shaders</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">pushd "$(MSBuildProjectDirectory)" &amp;&amp; call ".\compile_shaders.bat" &amp;&amp; popd
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Shaders\shaderSimple.h;Shaders\shaderSimpleRAWZ.h;Shaders\shaderSimpleDepth.h;Shaders\shaderSimpleDepthRAWZ.h;Shaders\shaderViewDepth.h;Shaders\VSFont.h;Shaders\PSFont.h;%(Outputs)</Outputs>
+	  </Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
