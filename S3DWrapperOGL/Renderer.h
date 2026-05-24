@@ -96,6 +96,11 @@ class Renderer
 	// window so an idle frame between game phases doesn't flip mode.
 	BOOL	m_bSawQbsThisFrame;
 	BOOL	m_bSawQbsLastFrame;
+	// One-shot guard for the context-capability diag line (GL_STEREO /
+	// GL_DOUBLEBUFFER). Logged on the first SwapBuffers from the game's own
+	// context so we record whether the game even got a quad-buffer stereo
+	// pixel format — true even for mono games that never trigger a PBuffer.
+	BOOL	m_bLoggedContextCaps;
 
 public:
 	Renderer(void);

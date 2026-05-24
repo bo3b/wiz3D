@@ -103,6 +103,30 @@ static void DiagLogOnce(const char* tag,
 	fclose(f);
 }
 
+// One-shot context-capability logger. GL_STEREO is the spec-defined positive
+// test for a quad-buffer stereo context (the game requested PFD_STEREO /
+// WGL_STEREO_ARB) — it is FALSE for anaglyph / SBS-in-shader games, which
+// render into a mono context, so GL_STEREO=0 plus no AnaglyphSteal trace line
+// means the title isn't capturable by either of our OGL paths. GL_DOUBLEBUFFER
+// is logged alongside for completeness. Queried from the game's own current
+// context at the first SwapBuffers (see Renderer::SwapBuffers), before the
+// no-PBuffer early-return, so even mono games that never trigger capture still
+// record this once.
+static void DiagLogContextCaps(BOOL ctxStereo, BOOL ctxDoubleBuffer)
+{
+	TCHAR path[MAX_PATH];
+	_tcscpy_s(path, MAX_PATH, gInfo.DriverDirectory);
+	_tcscat_s(path, MAX_PATH, _T("\\OpenGLQuadBufferStereo.log"));
+	FILE* f = NULL;
+	_tfopen_s(&f, path, _T("a"));
+	if (!f) return;
+	fprintf(f, "[wiz3D-OGL diag context-caps] GL_STEREO=%d GL_DOUBLEBUFFER=%d "
+		"(STEREO=1 => quad-buffer context; =0 => mono: anaglyph / SBS-in-shader / no stereo)\n",
+		ctxStereo ? 1 : 0, ctxDoubleBuffer ? 1 : 0);
+	fflush(f);
+	fclose(f);
+}
+
 // GL FBO entry points — same pattern SRWeaveOGL uses. We resolve them once
 // via wglGetProcAddress when we first need them in the back-buffer context,
 // then reuse for the overlay FBO management. Core names tried first, EXT
@@ -914,6 +938,19 @@ BOOL	Renderer::SwapBuffers()
 {
 	BOOL bStereo = GetStereoRender();
 	DEBUG_TRACE2("\tStereo(on = %d)\n", bStereo);
+	// One-shot: record whether the game's window actually got a quad-buffer
+	// stereo context. The game's own context is current here (before any of our
+	// wglMakeCurrent calls below), and this sits ahead of the no-PBuffer early
+	// return, so mono games that never trigger capture still log it exactly
+	// once. GL_STEREO=0 + no AnaglyphSteal trace = nothing we can capture.
+	if (!m_bLoggedContextCaps)
+	{
+		m_bLoggedContextCaps = TRUE;
+		GLboolean ctxStereo = GL_FALSE, ctxDouble = GL_FALSE;
+		glGetBooleanv(GL_STEREO, &ctxStereo);
+		glGetBooleanv(GL_DOUBLEBUFFER, &ctxDouble);
+		DiagLogContextCaps(ctxStereo != GL_FALSE, ctxDouble != GL_FALSE);
+	}
 	if (!m_hPBuffer)
 		return pfnOrig_wglSwapBuffers(m_hApplicationDC);
 	m_bSwapBuffersCalled = TRUE;
