@@ -52,10 +52,22 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>$(WizVcpkgInstallRoot)\include\directxsdk;$(WizVcpkgInstallRoot)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- DevIL's IL/il.h defaults its API decls to __declspec(dllimport), which
+           emits __imp__ symbols at the callsite. We link the *-windows-static
+           triplet's DevIL.lib, which only provides the plain symbols, so the
+           header must be told this is a static-lib build. -->
+      <PreprocessorDefinitions>IL_STATIC_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories Condition="'$(Configuration)'=='Debug'">$(WizVcpkgInstallRoot)\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition="'$(Configuration)'!='Debug'">$(WizVcpkgInstallRoot)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <!-- vcpkg's DxErr.lib (and other legacy DX libs) references _vsnwprintf /
+           _vsnprintf as external symbols. These used to live inline in the CRT
+           headers but were externalized; the Windows SDK ships them in
+           legacy_stdio_definitions.lib. Without this, anything linking DxErr
+           (directly or via OutputLib.lib, which merges DxErr's .objs in)
+           fails with "unresolved external symbol __vsnwprintf". -->
+      <AdditionalDependencies>legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Lib>
       <AdditionalLibraryDirectories Condition="'$(Configuration)'=='Debug'">$(WizVcpkgInstallRoot)\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
