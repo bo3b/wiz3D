@@ -118,7 +118,7 @@
       <AdditionalOptions>-Zm200 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\LlamaXML\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxmld.lib;LlamaXMLd.lib;squish.lib;zsd.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -136,7 +136,7 @@
       <AdditionalOptions>-Zm200 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\LlamaXML\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxmld.lib;LlamaXMLd.lib;squish.lib;zsd.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -153,7 +153,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\LlamaXML\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxml.lib;LlamaXML.lib;squish.lib;zs.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -174,7 +174,7 @@
       <AdditionalOptions>-Zm200 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\LlamaXML\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxml.lib;LlamaXML.lib;squish.lib;zs.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -187,7 +187,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\LlamaXML\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxml.lib;LlamaXML.lib;squish.lib;zs.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -205,7 +205,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\LlamaXML\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxml.lib;LlamaXML.lib;squish.lib;zs.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
