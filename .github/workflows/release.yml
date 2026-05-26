@@ -13,10 +13,10 @@ jobs:
         configuration: [Debug, Release]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       - name: Strip builtin-baseline from vcpkg.json
         # Local builds (VS2026-bundled vcpkg) require a baseline for manifest
@@ -32,7 +32,7 @@ jobs:
         run: msbuild S3DDriver.sln /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} /m /nologo /verbosity:minimal
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: wiz3D-${{ matrix.configuration }}-${{ matrix.platform }}
           path: bin/
