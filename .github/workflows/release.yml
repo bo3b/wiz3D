@@ -1,0 +1,21 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [Win32, x64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build S3DDriver.sln
+        run: msbuild S3DDriver.sln /p:Configuration=Release /p:Platform=${{ matrix.platform }} /m /nologo /verbosity:minimal
