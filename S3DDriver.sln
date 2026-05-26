@@ -100,15 +100,15 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ArchiveFile", "ArchiveFile\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DX10GenerateCodeFromDump", "DX10GenerateCodeFromDump\DX10GenerateCodeFromDump.vcxproj", "{3E269A04-0E75-4F4F-9CA0-FA66E40F9E29}"
 	ProjectSection(ProjectDependencies) = postProject
-		{BFF89902-765E-409E-9B62-A1FABBAF5ED4} = {BFF89902-765E-409E-9B62-A1FABBAF5ED4}
-		{1A6F9CD3-E915-4C1C-AC06-B87D7B21DE35} = {1A6F9CD3-E915-4C1C-AC06-B87D7B21DE35}
 		{174875F4-C653-44A6-A21F-8269F6500578} = {174875F4-C653-44A6-A21F-8269F6500578}
+		{1A6F9CD3-E915-4C1C-AC06-B87D7B21DE35} = {1A6F9CD3-E915-4C1C-AC06-B87D7B21DE35}
+		{BFF89902-765E-409E-9B62-A1FABBAF5ED4} = {BFF89902-765E-409E-9B62-A1FABBAF5ED4}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DX10SharedLibrary", "DX10SharedLibrary\DX10SharedLibrary.vcxproj", "{282AB9FD-7695-4BA1-AE9D-CB88C0A7FDB9}"
 	ProjectSection(ProjectDependencies) = postProject
-		{BFF89902-765E-409E-9B62-A1FABBAF5ED4} = {BFF89902-765E-409E-9B62-A1FABBAF5ED4}
 		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+		{BFF89902-765E-409E-9B62-A1FABBAF5ED4} = {BFF89902-765E-409E-9B62-A1FABBAF5ED4}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DX10ShaderAnalysis", "ShaderAnalysis\ShaderAnalysis.vcxproj", "{29BE529B-94D2-4DA4-A0AC-1D177548ABBA}"
@@ -179,14 +179,19 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OutputLib", "OutputMethods\OutputLib\OutputLib.vcxproj", "{A9359B0C-631A-4DC3-BC68-2FAB517022DB}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "S3D120HzProjectorsOutput", "OutputMethods\S3D120HzProjectorsOutput\S3D120HzProjectorsOutput.vcxproj", "{0455B3BC-2E70-424F-83FF-7C033E925234}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "S3DMarkedOutput", "OutputMethods\S3DMarkedOutput\S3DMarkedOutput.vcxproj", "{7A3994D8-511C-4104-A5D3-30C98B29D3EA}"
 	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
 		{75B0730F-143E-4CD8-9908-1020F103E21B} = {75B0730F-143E-4CD8-9908-1020F103E21B}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "S3DOutput", "OutputMethods\S3DOutput\S3DOutput.vcxproj", "{0D834C89-C271-4ADC-8A14-AEF80D1A0BD1}"
 	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
 		{75B0730F-143E-4CD8-9908-1020F103E21B} = {75B0730F-143E-4CD8-9908-1020F103E21B}
 	EndProjectSection
 EndProject
@@ -231,6 +236,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DX9ShaderModifyingTest", "T
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LenovoOutput", "OutputMethods\LenovoOutput\LenovoOutput.vcxproj", "{D35B1453-A282-4BE8-A942-43D8BA1AB565}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Preparing", "Preparing\Preparing.vcxproj", "{11A86740-8F7F-41EE-A2C1-461C32E9DA9C}"
 EndProject
@@ -244,17 +252,33 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ZLOg", "ZLOg\ZLOg.vcxproj", "{C538D122-90DB-4D2B-ACCB-D5B43EABC2CC}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AMDHD3DOutput", "OutputMethods\AMDHD3DOutput\AMDHD3DOutput.vcxproj", "{6CF8BC47-517A-4874-9C2C-4EF411B807EC}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AmdQbProxy", "AmdQbProxy\AmdQbProxy.vcxproj", "{A5E3B2F1-4C8D-4E9A-B617-2D3C1A0E9B47}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxgiVendorProxy", "DxgiVendorProxy\DxgiVendorProxy.vcxproj", "{B3C7A8D1-9F2E-4B56-A734-8E1C3D0F6A29}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "D3d11VendorProxy", "D3d11VendorProxy\D3d11VendorProxy.vcxproj", "{C4E2F8A3-7D1B-4E95-B826-0F5A39D2C748}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AmdAdlProxy", "AmdAdlProxy\AmdAdlProxy.vcxproj", "{D7F3A9B2-5E4C-4A18-9C35-6B8D2F1E7A04}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "D3d12VendorProxy", "D3d12VendorProxy\D3d12VendorProxy.vcxproj", "{A7F3B2C1-9E4D-4F8A-B162-3C7D85E9A024}"
 	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
 		{A5E3B2F1-4C8D-4E9A-B617-2D3C1A0E9B47} = {A5E3B2F1-4C8D-4E9A-B617-2D3C1A0E9B47}
 		{D7F3A9B2-5E4C-4A18-9C35-6B8D2F1E7A04} = {D7F3A9B2-5E4C-4A18-9C35-6B8D2F1E7A04}
 	EndProjectSection
@@ -263,9 +287,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DX9GenerateCodeFromDump", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ControlCenter", "ControlCenter\ControlCenter.csproj", "{19210C6A-A869-4E88-BC37-31905FEF4F82}"
 	ProjectSection(ProjectDependencies) = postProject
-		{F3C17604-B7E5-43AF-8C84-E2BFB594453D} = {F3C17604-B7E5-43AF-8C84-E2BFB594453D}
 		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
 		{AA2FE8C3-57B3-4E19-AEF9-7889A9948353} = {AA2FE8C3-57B3-4E19-AEF9-7889A9948353}
+		{F3C17604-B7E5-43AF-8C84-E2BFB594453D} = {F3C17604-B7E5-43AF-8C84-E2BFB594453D}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SmallObjectAllocatorTest", "TestsPack\SmallObjectAllocatorTest\SmallObjectAllocatorTest.vcxproj", "{A433D630-D3AC-44FE-9100-69048BEFD76D}"
@@ -278,17 +302,27 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "XML Files", "XML Files", "{
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "iZShutterOutput", "OutputMethods\iZShutterOutput\iZShutterOutput.vcxproj", "{C7AE2F0B-7F1F-4E1C-9F8E-49B440416CF8}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConvertPerfomanceTest", "TestsPack\ConvertPerfomanceTest\ConvertPerfomanceTest.vcxproj", "{6B912CB6-FF44-4AAB-9CD6-485BBF3B5336}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AvitridOutput", "OutputMethods\AvitridOutput\AvitridOutput.vcxproj", "{A406FDD8-BC0C-43F2-B710-D29A36B2965F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DX10CommandBufferTest", "TestsPack\DX10CommandBufferTest\DX10CommandBufferTest.vcxproj", "{7045B296-63AF-41FF-B680-447D411DA46F}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TaerimOutput", "OutputMethods\TaerimOutput\TaerimOutput.vcxproj", "{95B56ECF-774C-4314-815A-A1A0BB11F19B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SimulatedRealityWeaveOutput", "OutputMethods\SimulatedRealityWeaveOutput\SimulatedRealityWeaveOutput.vcxproj", "{A1B2C3D4-9999-9999-9999-000000000001}"
 	ProjectSection(ProjectDependencies) = postProject
+		{11A86740-8F7F-41EE-A2C1-461C32E9DA9C} = {11A86740-8F7F-41EE-A2C1-461C32E9DA9C}
 		{A9359B0C-631A-4DC3-BC68-2FAB517022DB} = {A9359B0C-631A-4DC3-BC68-2FAB517022DB}
 	EndProjectSection
 EndProject
@@ -1073,10 +1107,10 @@ Global
 		{A1B2C3D4-9999-9999-9999-000000000001} = {90F5C2D9-8871-4610-91BD-8FE197500701}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {81FC60A0-544B-447F-8BB8-F081DCD707E7}
-		AMDCaPersistentConfig = Final Release|Win32
-		AMDCaPersistentStartup = S3DWrapperD3D10
 		AMDCaProjectFile = D:\Programming\Driver_dx10_optimization\CodeAnalyst\S3DDriver.caw
+		AMDCaPersistentStartup = S3DWrapperD3D10
+		AMDCaPersistentConfig = Final Release|Win32
+		SolutionGuid = {81FC60A0-544B-447F-8BB8-F081DCD707E7}
 	EndGlobalSection
 	GlobalSection(SubversionScc) = preSolution
 		Svn-Managed = True
