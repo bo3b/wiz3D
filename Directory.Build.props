@@ -62,18 +62,18 @@
 		</ClCompile>
 	</ItemDefinitionGroup>
 
-	<!-- vcpkg's DxErr.lib (and other legacy DX libs) references _vsnwprintf /
-           _vsnprintf as external symbols. These used to live inline in the CRT
-           headers but were externalized; the Windows SDK ships them in
-           legacy_stdio_definitions.lib. Without this, anything linking DxErr
-           (directly or via OutputLib.lib, which merges DxErr's .objs in)
-           fails with "unresolved external symbol __vsnwprintf". -->
-	<!--
-      <AdditionalDependencies>legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <Lib>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)'=='Debug'">$(WizVcpkgInstallRoot)\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalLibraryDirectories Condition="'$(Configuration)'!='Debug'">$(WizVcpkgInstallRoot)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Lib>
-  </ItemDefinitionGroup>-->
+	<!--BOOST_ALL_NO_LIB disables Boost's #pragma comment(lib, ...) auto-link
+        directives. Our code only uses header-only Boost (shared_ptr,
+        lexical_cast, pool, bind, etc.) but a transitive include chain emits an
+        auto-link for boost_thread's *release* variant, which triggers an
+        LNK2038 RuntimeLibrary mismatch in Debug builds (Debug is /MTd, the
+        release boost_thread is /MT). With auto-link off and no actual boost
+        compiled-lib symbol use, nothing needs to be added explicitly.
+	-->
+	<ItemDefinitionGroup>
+		<ClCompile>
+			<PreprocessorDefinitions>BOOST_ALL_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+		</ClCompile>
+	</ItemDefinitionGroup>
+
 </Project>
