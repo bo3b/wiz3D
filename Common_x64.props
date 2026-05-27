@@ -8,7 +8,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\Shared\;$(SolutionDir)\lib\d3d10\include\;$(SolutionDir)\lib\madCHook;$(SolutionDir)\ThirdPartyLibs\TinyXML_v2.6.2\Include\;$(SolutionDir)\ThirdPartyLibs\LlamaXML_v1.0.1\Include\;$(SolutionDir)\lib\wxWidgets\include\;$(SolutionDir)\lib\wxWidgets\include\msvc\;$(SolutionDir)\lib\vld\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\Shared\;$(SolutionDir)\lib\d3d10\include\;$(SolutionDir)\lib\madCHook;$(SolutionDir)\ThirdPartyLibs\TinyXML_v2.6.2\Include\;$(SolutionDir)\ThirdPartyLibs\LlamaXML_v1.0.1\Include\;$(SolutionDir)\lib\vld\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS;XERCES_STATIC_LIBRARY;XML_LIBRARY;STRSAFE_NO_DEPRECATE;WIN64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <DisableSpecificWarnings>4127;4201;4203;4342;4347;4514;4710;4820;4986;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
