@@ -128,7 +128,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>dxerr.lib;d3dx9.lib</AdditionalDependencies>
+      <AdditionalDependencies>dxerr.lib;d3dx9d.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -141,7 +141,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Lib>
-      <AdditionalDependencies>dxerr.lib;d3dx9.lib</AdditionalDependencies>
+      <AdditionalDependencies>dxerr.lib;d3dx9d.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

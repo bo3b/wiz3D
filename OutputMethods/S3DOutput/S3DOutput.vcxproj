@@ -116,7 +116,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>dxerr.lib;tinyxmld.lib;d3dx9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dxerr.lib;tinyxmld.lib;d3dx9d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -132,7 +132,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>dxerr.lib;tinyxmld.lib;d3dx9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dxerr.lib;tinyxmld.lib;d3dx9d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>

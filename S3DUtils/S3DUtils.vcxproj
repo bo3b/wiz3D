@@ -348,7 +348,7 @@
       <Culture>0x0419</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxmld.lib;xerces-c_3D.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d9.lib;d3dx9d.lib;Winmm.lib;Psapi.lib;tinyxmld.lib;xerces-c_3D.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
       <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
@@ -386,7 +386,7 @@
       <Culture>0x0419</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxmld.lib;xerces-c_3D.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d9.lib;d3dx9d.lib;Winmm.lib;Psapi.lib;tinyxmld.lib;xerces-c_3D.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
       <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
