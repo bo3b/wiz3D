@@ -84,7 +84,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;DISABLE_D3DDEVICE_WRAPPER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -95,7 +95,7 @@
       <AdditionalOptions>-Zm128 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
@@ -110,7 +110,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;DISABLE_D3DDEVICE_WRAPPER;_HAS_EXCEPTIONS=0;_SECURE_ATL=0;_SECURE_SCL=0;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -121,7 +121,7 @@
       <AdditionalOptions>-Zm128 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
@@ -135,7 +135,7 @@
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;DISABLE_D3DDEVICE_WRAPPER;_HAS_EXCEPTIONS=0;_SECURE_ATL=0;_SECURE_SCL=0;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -144,7 +144,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -160,7 +160,7 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;DISABLE_D3DDEVICE_WRAPPER;_HAS_EXCEPTIONS=0;_SECURE_ATL=0;_SECURE_SCL=0;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -172,7 +172,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>

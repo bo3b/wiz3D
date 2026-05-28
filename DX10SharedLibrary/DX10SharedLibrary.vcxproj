@@ -113,7 +113,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -124,7 +124,7 @@
       <AdditionalOptions>-Zm200 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10d.lib;dxgi.lib;dxguid.lib;tinyxmld.lib;LlamaXMLd.lib;squishd.lib;zsd.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -134,7 +134,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
@@ -142,7 +142,7 @@
       <AdditionalOptions>-Zm200 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10d.lib;dxgi.lib;dxguid.lib;tinyxmld.lib;LlamaXMLd.lib;squishd.lib;zsd.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -150,7 +150,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -159,7 +159,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxml.lib;LlamaXML.lib;squish.lib;zs.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -170,7 +170,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -180,20 +180,20 @@
       <AdditionalOptions>-Zm200 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxml.lib;LlamaXML.lib;squish.lib;zs.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxml.lib;LlamaXML.lib;squish.lib;zs.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
@@ -204,14 +204,14 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\ThirdPartyLibs\TinyXML_v2.6.2\Include;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ShaderAnalysis;..\lib\d3d10\include\;..\S3DInjector;..\S3DWrapper10;..\lib\libpng\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
-      <AdditionalLibraryDirectories>..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Winmm.lib;d3d10.lib;d3dx10.lib;dxgi.lib;dxguid.lib;tinyxml.lib;LlamaXML.lib;squish.lib;zs.lib;psapi.lib;DevIL.lib;ILU.lib;DxErr.lib;</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>

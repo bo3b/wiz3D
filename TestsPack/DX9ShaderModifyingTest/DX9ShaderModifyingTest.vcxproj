@@ -119,7 +119,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\Include\;..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;DEBUGANALYSING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -130,7 +130,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>shlwapi.lib;tinyxmld.lib;d3d9.lib;d3dx9d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
     </Link>
@@ -141,7 +141,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\Include\;..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;_DEBUG;_CONSOLE;DEBUGANALYSING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -152,7 +152,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>shlwapi.lib;tinyxmld.lib;d3d9.lib;d3dx9d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
     </Link>
@@ -160,7 +160,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\Include\;..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;DEBUGANALYSING;_SECURE_ATL=0;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;_HAS_EXCEPTIONS=0;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
@@ -170,7 +170,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>shlwapi.lib;tinyxml.lib;d3d9.lib;d3dx9.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -183,7 +183,7 @@
     </Midl>
     <ClCompile>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\Include\;..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_CONSOLE;DEBUGANALYSING;_SECURE_ATL=0;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;_HAS_EXCEPTIONS=0;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
@@ -193,7 +193,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>shlwapi.lib;tinyxml.lib;d3d9.lib;d3dx9.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -205,7 +205,7 @@
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
-      <AdditionalIncludeDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\Include\;..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;DEBUGANALYSING;_SECURE_ATL=0;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;_HAS_EXCEPTIONS=0;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>
       </ExceptionHandling>
@@ -217,7 +217,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>shlwapi.lib;tinyxml.lib;d3d9.lib;d3dx9.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -232,7 +232,7 @@
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
-      <AdditionalIncludeDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\Include\;..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\S3DWrapper9\;..\..\Shared\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_CONSOLE;DEBUGANALYSING;_SECURE_ATL=0;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;_HAS_EXCEPTIONS=0;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>
       </ExceptionHandling>
@@ -244,7 +244,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>shlwapi.lib;tinyxml.lib;d3d9.lib;d3dx9.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\ThirdPartyLibs\TinyXML_v2.6.2\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
