@@ -32,7 +32,7 @@ typedef __success(return >= 0) LONG NTSTATUS, *PNTSTATUS;
 #include "SharedInclude.h" 
 
 #include <vector>
-#include "memmgr.h""
+#include "memmgr.h"
 
 // _CRTDBG_MAP_ALLOC (via SharedInclude.h) redefines 'free' as '_free_dbg',
 // which corrupts boost::object_pool::free(). Shield the Pool header only.
