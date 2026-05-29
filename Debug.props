@@ -4,8 +4,6 @@
     <Import Project="Common.props" />
   </ImportGroup>
   <PropertyGroup>
-    <PlatformToolset>v145</PlatformToolset>
-    <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup>

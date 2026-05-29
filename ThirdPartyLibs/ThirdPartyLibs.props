@@ -1,34 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
-  <PropertyGroup>
-    <_TPL>$(MSBuildThisFileDirectory)</_TPL>
-    <_ArchDir Condition="'$(Platform)' == 'Win32'">x86</_ArchDir>
-    <_ArchDir Condition="'$(Platform)' == 'x64'">x64</_ArchDir>
-  </PropertyGroup>
+	<PropertyGroup>
+		<_TPL>$(MSBuildThisFileDirectory)</_TPL>
+		<_ArchDir Condition="'$(Platform)' == 'Win32'">x86</_ArchDir>
+		<_ArchDir Condition="'$(Platform)' == 'x64'">x64</_ArchDir>
+	</PropertyGroup>
 
-  <ItemDefinitionGroup>
-    <ClCompile>
-      <AdditionalIncludeDirectories>
-        $(_TPL)TinyXML_v2.6.2\Include;
-        $(_TPL)LlamaXML_v1.0.1\Include;
-        %(AdditionalIncludeDirectories)
-      </AdditionalIncludeDirectories>
-    </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories>
-        $(_TPL)TinyXML_v2.6.2\lib\$(_ArchDir);
-        $(_TPL)LlamaXML_v1.0.1\lib\$(_ArchDir);
-        %(AdditionalLibraryDirectories)
-      </AdditionalLibraryDirectories>
-    </Link>
-    <Lib>
-      <AdditionalLibraryDirectories>
-        $(_TPL)TinyXML_v2.6.2\lib\$(_ArchDir);
-        $(_TPL)LlamaXML_v1.0.1\lib\$(_ArchDir);
-        %(AdditionalLibraryDirectories)
-      </AdditionalLibraryDirectories>
-    </Lib>
-  </ItemDefinitionGroup>
+	<ItemDefinitionGroup>
+		<ClCompile>
+			<AdditionalIncludeDirectories>
+				$(_TPL)TinyXML_v2.6.2\Include;
+				$(_TPL)LlamaXML_v1.0.1\Include;
+				%(AdditionalIncludeDirectories)
+			</AdditionalIncludeDirectories>
+		</ClCompile>
+		<Link>
+			<AdditionalLibraryDirectories>
+				$(_TPL)TinyXML_v2.6.2\lib\$(_ArchDir);
+				$(_TPL)LlamaXML_v1.0.1\lib\$(_ArchDir);
+				%(AdditionalLibraryDirectories)
+			</AdditionalLibraryDirectories>
+		</Link>
+		<Lib>
+			<AdditionalLibraryDirectories>
+				$(_TPL)TinyXML_v2.6.2\lib\$(_ArchDir);
+				$(_TPL)LlamaXML_v1.0.1\lib\$(_ArchDir);
+				%(AdditionalLibraryDirectories)
+			</AdditionalLibraryDirectories>
+		</Lib>
+	</ItemDefinitionGroup>
 
 </Project>

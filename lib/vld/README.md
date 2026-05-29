@@ -13,9 +13,8 @@ the wiring is kept on purpose so a developer can quickly re-enable it.
   / `vld_x64.lib` via `#pragma comment(lib, ...)` when included).
 - `vld.ini` — runtime configuration (report mode, callstack depth, etc.).
 - **No `.lib` binaries.** If VLD is re-enabled, the matching `vld_x86.lib` /
-  `vld_x64.lib` must be re-vendored under `lib/vld/lib/{x86,x64}/`. The
-  `AdditionalLibraryDirectories` entries in `Common.props` and `Common_x64.props`
-  already point at those paths.
+  `vld_x64.lib` must be re-vendored under `lib/vld/lib/{x86,x64}/`, and that
+  path added to the consuming project's `AdditionalLibraryDirectories`.
 
 ## How it's referenced (and why it's dormant)
 

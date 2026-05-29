@@ -24,9 +24,9 @@ the kernel-mode driver path was dropped.
 
 ## What's globally included
 
-`Common.props` and `Common_x64.props` add `$(SolutionDir)\lib\d3d10\include\`
-to every project's `AdditionalIncludeDirectories`. Removing the folder
-breaks ~30 source files.
+Projects that use the D3D10 UMD DDI headers add `lib\d3d10\include\` to their
+own `AdditionalIncludeDirectories` (the S3DWrapper* and OutputMethods projects).
+Removing the folder breaks ~30 source files.
 
 ## Header → consumer map (high-traffic only)
 
