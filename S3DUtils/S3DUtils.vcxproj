@@ -276,7 +276,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -292,7 +291,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxml.lib;xerces-c_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
@@ -312,7 +310,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -328,7 +325,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxml.lib;xerces-c_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
@@ -350,7 +346,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -366,7 +361,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9d.lib;Winmm.lib;Psapi.lib;tinyxmld.lib;xerces-c_3D.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
@@ -388,7 +382,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;_DEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -404,7 +397,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9d.lib;Winmm.lib;Psapi.lib;tinyxmld.lib;xerces-c_3D.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
@@ -424,7 +416,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;_HAS_EXCEPTIONS=0;BOOST_NO_STD_TYPEINFO;FINAL_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -440,7 +431,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxml.lib;xerces-c_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
@@ -644,7 +634,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -660,7 +649,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxml.lib;xerces-c_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
@@ -681,7 +669,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -697,7 +684,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxml.lib;xerces-c_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
@@ -755,7 +741,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -771,7 +756,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxml.lib;xerces-c_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
@@ -829,7 +813,6 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
@@ -845,7 +828,6 @@
     <Link>
       <AdditionalDependencies>d3d9.lib;d3dx9.lib;Winmm.lib;Psapi.lib;tinyxml.lib;xerces-c_3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>.\$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>d3d9.dll;d3dx9_42.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>

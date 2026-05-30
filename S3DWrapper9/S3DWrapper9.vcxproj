@@ -96,6 +96,14 @@
     <Import Project="..\Debug_x64.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)lib\madCHook\;$(SolutionDir)lib\d3d10\Include\;$(SolutionDir)OutputMethods\OutputLib\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>winmm.lib;dxguid.lib;psapi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <PropertyGroup>
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)bin\$(Configuration)\$(Platform)\</OutDir>
@@ -115,7 +123,6 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\madCHook;..\lib\tinyxml\include\;..\lib\alglib\include\;..\lib\DbgHelp\inc\;..\OutputMethods\OutputLib\;..\lib\PerfSDK\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;S3DWRAPPER9_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -126,14 +133,13 @@
       </Message>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>LlamaXMLd.lib;Psapi.lib;Setupapi.lib;dxerr.lib;d3dx9d.lib;dxguid.lib;Winmm.lib;tinyxmld.lib;comctl32.lib;d3d10.lib;d3dx10d.lib;xerces-c_3D.lib;DevIL.lib;ILU.lib;ddraw.lib;version.lib;minhook.x32d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\lib\x86\;..\lib\madCHook;..\lib\PerfSDK\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>LIBCMT;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>version.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <SubSystem>Windows</SubSystem>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <AdditionalDependencies>minhook.x32d.lib;tinyxmld.lib;LlamaXMLd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Xdcmake>
       <OutputFile>$(IntDir)$(TargetName).xml</OutputFile>
@@ -159,7 +165,6 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\madCHook;..\lib\tinyxml\include\;..\lib\alglib\include\;..\lib\DbgHelp\inc\;..\OutputMethods\OutputLib\;..\lib\PerfSDK\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;_DEBUG;_WINDOWS;_USRDLL;S3DWRAPPER9_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -170,15 +175,14 @@
       </Message>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>LlamaXMLd.lib;libcmtd.lib;Psapi.lib;Setupapi.lib;dxerr.lib;d3dx9d.lib;dxguid.lib;Winmm.lib;minhook.x64d.lib;tinyxmld.lib;strsafe.lib;d3d10.lib;d3dx10d.lib;xerces-c_3D.lib;DevIL.lib;ILU.lib;ddraw.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>version.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <SubSystem>Windows</SubSystem>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <AdditionalDependencies>minhook.x64d.lib;tinyxmld.lib;LlamaXMLd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Xdcmake>
       <OutputFile>$(IntDir)$(TargetName).xml</OutputFile>
@@ -201,7 +205,6 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\madCHook;..\lib\tinyxml\include\;..\lib\alglib\include\;..\lib\DbgHelp\inc\;..\OutputMethods\OutputLib\;..\lib\PerfSDK\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPER9_EXPORTS;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -212,15 +215,14 @@
       </Command>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>LlamaXML.lib;Psapi.lib;Setupapi.lib;dxerr.lib;d3dx9.lib;dxguid.lib;Winmm.lib;tinyxml.lib;comctl32.lib;d3d10.lib;d3dx10.lib;xerces-c_3.lib;ddraw.lib;DevIL.lib;ILU.lib;version.lib;minhook.x32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\lib\x86\;..\lib\madCHook;..\lib\PerfSDK\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>version.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <SubSystem>Windows</SubSystem>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
       <GenerateMapFile>true</GenerateMapFile>
       <MapFileName>$(OutDir)$(ProjectName).map</MapFileName>
+      <AdditionalDependencies>minhook.x32.lib;tinyxml.lib;LlamaXML.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Xdcmake>
       <OutputFile>$(IntDir)$(TargetName).xml</OutputFile>
@@ -246,7 +248,6 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\madCHook;..\lib\tinyxml\include\;..\lib\alglib\include\;..\lib\DbgHelp\inc\;..\OutputMethods\OutputLib\;..\lib\PerfSDK\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPER9_EXPORTS;XERCES_STATIC_LIBRARY;XML_LIBRARY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -257,13 +258,12 @@
       </Command>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>LlamaXML.lib;libcmt.lib;Psapi.lib;Setupapi.lib;dxerr.lib;d3dx9.lib;dxguid.lib;Winmm.lib;minhook.x64.lib;tinyxml.lib;strsafe.lib;d3d10.lib;d3dx10.lib;xerces-c_3.lib;ddraw.lib;DevIL.lib;ILU.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\lib\x64\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>version.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <SubSystem>Windows</SubSystem>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <AdditionalDependencies>minhook.x64.lib;tinyxml.lib;LlamaXML.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Xdcmake>
       <OutputFile>$(IntDir)$(TargetName).xml</OutputFile>
@@ -286,7 +286,6 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\madCHook;..\lib\tinyxml\include\;..\lib\alglib\include\;..\lib\DbgHelp\inc\;..\OutputMethods\OutputLib\;..\lib\PerfSDK\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPER9_EXPORTS;BOOST_NO_STD_TYPEINFO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -297,13 +296,12 @@
       </Command>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>LlamaXML.lib;Psapi.lib;Setupapi.lib;dxerr.lib;d3dx9.lib;dxguid.lib;Winmm.lib;tinyxml.lib;comctl32.lib;xerces-c_3.lib;version.lib;DevIL.lib;ILU.lib;minhook.x32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\lib\x86\;..\lib\madCHook;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>version.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <SubSystem>Windows</SubSystem>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <AdditionalDependencies>minhook.x32.lib;tinyxml.lib;LlamaXML.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Xdcmake>
       <OutputFile>$(IntDir)$(TargetName).xml</OutputFile>
@@ -329,7 +327,6 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\Shared\;..\lib\madCHook;..\lib\tinyxml\include\;..\lib\alglib\include\;..\lib\DbgHelp\inc\;..\OutputMethods\OutputLib\;..\lib\PerfSDK\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_USRDLL;S3DWRAPPER9_EXPORTS;BOOST_NO_STD_TYPEINFO;XERCES_STATIC_LIBRARY;XML_LIBRARY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
@@ -340,14 +337,13 @@
       </Command>
     </PreLinkEvent>
     <Link>
-      <AdditionalDependencies>LlamaXML.lib;Psapi.lib;Setupapi.lib;dxerr.lib;d3dx9.lib;dxguid.lib;Winmm.lib;tinyxml.lib;comctl32.lib;xerces-c_3.lib;version.lib;DevIL.lib;ILU.lib;minhook.x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
-      <AdditionalLibraryDirectories>..\lib\tinyxml\lib\x64\;..\lib\madCHook..;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <DelayLoadDLLs>version.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <SubSystem>Windows</SubSystem>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <AdditionalDependencies>minhook.x64.lib;tinyxml.lib;LlamaXML.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Xdcmake>
       <OutputFile>$(IntDir)$(TargetName).xml</OutputFile>
