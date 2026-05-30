@@ -28,7 +28,6 @@
     "devil",
     "directxsdk",
     "libsquish",
-    "minhook",
     {
       "name": "xerces-c",
       "features": ["xmlch-wchar"]

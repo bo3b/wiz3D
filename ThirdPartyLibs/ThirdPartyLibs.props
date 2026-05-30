@@ -7,9 +7,23 @@
 		<_ArchDir Condition="'$(Platform)' == 'x64'">x64</_ArchDir>
 	</PropertyGroup>
 
+	<!-- Per-lib import names. Projects reference these (e.g. $(MinHookLib)) in their
+	     <AdditionalDependencies> instead of hand-typing the arch/config-specific
+	     filename, so the right variant is picked here once and can't drift per
+	     project/config. MinHook's filenames use x32/x64 (not x86) with a 'd' suffix
+	     in Debug. As more libs move out of vcpkg into ThirdPartyLibs, add their
+	     name properties here alongside it. -->
+	<PropertyGroup>
+		<_MhArch Condition="'$(Platform)' == 'Win32'">x32</_MhArch>
+		<_MhArch Condition="'$(Platform)' == 'x64'">x64</_MhArch>
+		<MinHookLib>minhook.$(_MhArch).lib</MinHookLib>
+		<MinHookLib Condition="'$(Configuration)' == 'Debug'">minhook.$(_MhArch)d.lib</MinHookLib>
+	</PropertyGroup>
+
 	<ItemDefinitionGroup>
 		<ClCompile>
 			<AdditionalIncludeDirectories>
+				$(_TPL)MinHook_v1.3.4\include;
 				$(_TPL)TinyXML_v2.6.2\Include;
 				$(_TPL)LlamaXML_v1.0.1\Include;
 				%(AdditionalIncludeDirectories)
@@ -17,18 +31,12 @@
 		</ClCompile>
 		<Link>
 			<AdditionalLibraryDirectories>
+				$(_TPL)MinHook_v1.3.4\lib\$(_ArchDir)\$(_Config);
 				$(_TPL)TinyXML_v2.6.2\lib\$(_ArchDir);
 				$(_TPL)LlamaXML_v1.0.1\lib\$(_ArchDir);
 				%(AdditionalLibraryDirectories)
 			</AdditionalLibraryDirectories>
 		</Link>
-		<Lib>
-			<AdditionalLibraryDirectories>
-				$(_TPL)TinyXML_v2.6.2\lib\$(_ArchDir);
-				$(_TPL)LlamaXML_v1.0.1\lib\$(_ArchDir);
-				%(AdditionalLibraryDirectories)
-			</AdditionalLibraryDirectories>
-		</Lib>
 	</ItemDefinitionGroup>
 
 </Project>
