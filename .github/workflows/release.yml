@@ -6,6 +6,14 @@ on:
 jobs:
   build:
     runs-on: windows-2025-vs2026
+    # Enable vcpkg binary caching backed by the GitHub Actions cache. vcpkg keys
+    # each package by an ABI hash (port + triplet + compiler + deps), so unchanged
+    # dependencies restore in seconds on later runs instead of rebuilding from
+    # source. "clear" drops the default sources; "x-gha,readwrite" both restores
+    # and uploads. Orthogonal to the baseline strip below — this caches build
+    # output only and never fetches the registry baseline.
+    env:
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
     strategy:
       fail-fast: false
       matrix:
@@ -17,6 +25,16 @@ jobs:
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
+
+      - name: Export GitHub Actions cache env for vcpkg
+        # The x-gha binary cache provider needs ACTIONS_CACHE_URL and
+        # ACTIONS_RUNTIME_TOKEN. GitHub injects these into the Actions runtime
+        # but not into the plain shell env, so re-export them here.
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Strip builtin-baseline from vcpkg.json
         # Local builds (VS2026-bundled vcpkg) require a baseline for manifest
@@ -35,7 +53,7 @@ jobs:
 
       - name: Build S3DDriver.sln
         # Build all 6 targets (Debug/Release/Final Release x Win32/x64) from the same solution.
-        run: msbuild S3DDriver.sln /p:Configuration="${{ matrix.configuration }}" /p:Platform=${{ matrix.platform }} /m /nologo /verbosity:detailed
+        run: msbuild S3DDriver.sln /p:Configuration="${{ matrix.configuration }}" /p:Platform=${{ matrix.platform }} /m /nologo /verbosity:minimal
 
       - name: Build wiz3D-proxy.sln
         # Proxy solution only defines Debug/Release (no Final Release target).
