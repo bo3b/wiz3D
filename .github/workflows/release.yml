@@ -6,14 +6,18 @@ on:
 jobs:
   build:
     runs-on: windows-2025-vs2026
-    # Enable vcpkg binary caching backed by the GitHub Actions cache. vcpkg keys
-    # each package by an ABI hash (port + triplet + compiler + deps), so unchanged
-    # dependencies restore in seconds on later runs instead of rebuilding from
-    # source. "clear" drops the default sources; "x-gha,readwrite" both restores
-    # and uploads. Orthogonal to the baseline strip below — this caches build
-    # output only and never fetches the registry baseline.
+    # Enable vcpkg binary caching. vcpkg keys each package by an ABI hash
+    # (port + triplet + compiler + deps), so unchanged dependencies restore in
+    # seconds on later runs instead of rebuilding from source. The "files,"
+    # provider writes packages to a local directory; we wrap that directory
+    # with actions/cache below so it persists across runs.
+    # ("clear" drops the default sources; ",readwrite" both restores and uploads.)
+    # Orthogonal to the baseline strip below — this caches build output only and
+    # never fetches the registry baseline.
+    # (Previously used "x-gha", which was removed when GitHub retired the v1
+    # Actions Cache Service.)
     env:
-      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-cache,readwrite"
     strategy:
       fail-fast: false
       matrix:
@@ -26,15 +30,20 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
 
-      - name: Export GitHub Actions cache env for vcpkg
-        # The x-gha binary cache provider needs ACTIONS_CACHE_URL and
-        # ACTIONS_RUNTIME_TOKEN. GitHub injects these into the Actions runtime
-        # but not into the plain shell env, so re-export them here.
-        uses: actions/github-script@v7
+      - name: Restore vcpkg binary cache
+        # Cache the directory vcpkg writes its binary packages to (see the
+        # VCPKG_BINARY_SOURCES env on the job). Key per platform only, not
+        # per configuration: vcpkg keys archives by triplet, not by the
+        # consuming project's MSBuild Configuration. Static triplets package
+        # both debug and release libs together, so all 3 configurations on a
+        # platform hit the same archives. Cache invalidates when vcpkg.json
+        # changes; the restore-keys prefix gives partial hits otherwise.
+        uses: actions/cache@v5
         with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+          path: ${{ github.workspace }}/vcpkg-cache
+          key: vcpkg-${{ matrix.platform }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ matrix.platform }}-
 
       - name: Strip builtin-baseline from vcpkg.json
         # Local builds (VS2026-bundled vcpkg) require a baseline for manifest
@@ -68,13 +77,6 @@ jobs:
         # both above).
         if: matrix.configuration == 'Final Release'
         run: .\bin\deploy_to_releases.ps1 -Arch ${{ matrix.platform }}
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: wiz3D-${{ matrix.configuration }}-${{ matrix.platform }}
-          path: bin/
-          if-no-files-found: error
 
       - name: Upload releases tree
         if: matrix.configuration == 'Final Release'
