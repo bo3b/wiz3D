@@ -3,25 +3,36 @@
 
 	<PropertyGroup>
 		<_TPL>$(MSBuildThisFileDirectory)</_TPL>
-		<_ArchDir Condition="'$(Platform)' == 'Win32'">x86</_ArchDir>
-		<_ArchDir Condition="'$(Platform)' == 'x64'">x64</_ArchDir>
+		<!-- The two arch spellings vendors use for their lib folders/filenames.
+		     Pick the one a given lib happens to ship. -->
+		<_Arch86 Condition="'$(Platform)' == 'Win32'">x86</_Arch86>
+		<_Arch86 Condition="'$(Platform)' == 'x64'">x64</_Arch86>
+		<_Arch32 Condition="'$(Platform)' == 'Win32'">x32</_Arch32>
+		<_Arch32 Condition="'$(Platform)' == 'x64'">x64</_Arch32>
 		<!-- Libs only ship Debug and Release lib folders; Final Release reuses
 		     the optimized Release libs (there is no "Final Release" folder). -->
 		<_Config>$(Configuration)</_Config>
 		<_Config Condition="'$(Configuration)' == 'Final Release'">Release</_Config>
 	</PropertyGroup>
 
-	<!-- Per-lib import names. Projects reference these (e.g. $(MinHookLib)) in their
+	<PropertyGroup>
+		<!-- Per-lib import names. Projects reference these (e.g. $(MinHookLib)) in their
 	     <AdditionalDependencies> instead of hand-typing the arch/config-specific
 	     filename, so the right variant is picked here once and can't drift per
 	     project/config. MinHook's filenames use x32/x64 (not x86) with a 'd' suffix
 	     in Debug. As more libs move out of vcpkg into ThirdPartyLibs, add their
 	     name properties here alongside it. -->
-	<PropertyGroup>
-		<_MhArch Condition="'$(Platform)' == 'Win32'">x32</_MhArch>
-		<_MhArch Condition="'$(Platform)' == 'x64'">x64</_MhArch>
-		<MinHookLib>minhook.$(_MhArch).lib</MinHookLib>
-		<MinHookLib Condition="'$(Configuration)' == 'Debug'">minhook.$(_MhArch)d.lib</MinHookLib>
+		<MinHookLib>minhook.$(_Arch32).lib</MinHookLib>
+		<MinHookLib Condition="'$(Configuration)' == 'Debug'">minhook.$(_Arch32)d.lib</MinHookLib>
+
+		<!-- SR-Lib ships four CRT variants per arch (mt/mtd/md/mdd) and uses
+		     x32/x64 folder names. Every config builds with the static CRT
+		     (/MTd Debug, /MT Release+Final Release), so we pick the mt/mtd
+		     variant on Configuration; the md/mdd DLL-CRT libs go unused. The
+		     consumer that links $(SRLib) must delay-load the SR runtime DLLs
+		     (see SR.hpp). -->
+		<SRLib>SR-mt.lib</SRLib>
+		<SRLib Condition="'$(Configuration)' == 'Debug'">SR-mtd.lib</SRLib>
 	</PropertyGroup>
 
 	<ItemDefinitionGroup>
@@ -30,14 +41,16 @@
 				$(_TPL)MinHook_v1.3.4\include;
 				$(_TPL)TinyXML_v2.6.2\Include;
 				$(_TPL)LlamaXML_v1.0.1\Include;
+				$(_TPL)SR-Lib_v1.1.2\include;
 				%(AdditionalIncludeDirectories)
 			</AdditionalIncludeDirectories>
 		</ClCompile>
 		<Link>
 			<AdditionalLibraryDirectories>
-				$(_TPL)MinHook_v1.3.4\lib\$(_ArchDir)\$(_Config);
-				$(_TPL)TinyXML_v2.6.2\lib\$(_ArchDir);
-				$(_TPL)LlamaXML_v1.0.1\lib\$(_ArchDir);
+				$(_TPL)MinHook_v1.3.4\lib\$(_Arch86)\$(_Config);
+				$(_TPL)TinyXML_v2.6.2\lib\$(_Arch86);
+				$(_TPL)LlamaXML_v1.0.1\lib\$(_Arch86);
+				$(_TPL)SR-Lib_v1.1.2\lib\$(_Arch32)\$(_Config);
 				%(AdditionalLibraryDirectories)
 			</AdditionalLibraryDirectories>
 		</Link>
