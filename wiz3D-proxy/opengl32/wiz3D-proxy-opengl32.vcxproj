@@ -53,22 +53,22 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetName>opengl32</TargetName>
     <OutDir>$(SolutionDir)bin\Debug\Win32\</OutDir>
-    <IntDir>$(ProjectDir)obj\Debug\Win32\</IntDir>
+    <IntDir>$(ProjectDir)obj\$(Configuration)\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetName>opengl32</TargetName>
     <OutDir>$(SolutionDir)bin\Release\Win32\</OutDir>
-    <IntDir>$(ProjectDir)obj\Release\Win32\</IntDir>
+    <IntDir>$(ProjectDir)obj\$(Configuration)\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetName>opengl32</TargetName>
     <OutDir>$(SolutionDir)bin\Debug\x64\</OutDir>
-    <IntDir>$(ProjectDir)obj\Debug\x64\</IntDir>
+    <IntDir>$(ProjectDir)obj\$(Configuration)\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>opengl32</TargetName>
     <OutDir>$(SolutionDir)bin\Release\x64\</OutDir>
-    <IntDir>$(ProjectDir)obj\Release\x64\</IntDir>
+    <IntDir>$(ProjectDir)obj\$(Configuration)\$(Platform)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
