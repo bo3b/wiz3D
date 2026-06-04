@@ -116,7 +116,8 @@
       <AdditionalIncludeDirectories>$(SolutionDir)lib\gl\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityOpenGL32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalDependencies>shlwapi.lib;$(MinHookLib);tinyxmld.lib;$(SRLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityDirectX32.dll;SimulatedRealityOpenGL32.dll;opencv_world343.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -132,7 +133,8 @@
       <AdditionalIncludeDirectories>$(SolutionDir)lib\gl\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityOpenGL.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalDependencies>shlwapi.lib;$(MinHookLib);tinyxmld.lib;$(SRLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityDirectX.dll;SimulatedRealityOpenGL.dll;opencv_world343.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;libcmt.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -145,7 +147,8 @@
       <AdditionalIncludeDirectories>$(SolutionDir)lib\gl\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityOpenGL32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalDependencies>shlwapi.lib;$(MinHookLib);tinyxml.lib;$(SRLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityDirectX32.dll;SimulatedRealityOpenGL32.dll;opencv_world343.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -161,7 +164,8 @@
       <AdditionalIncludeDirectories>$(SolutionDir)lib\gl\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityOpenGL.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalDependencies>shlwapi.lib;$(MinHookLib);tinyxml.lib;$(SRLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityDirectX.dll;SimulatedRealityOpenGL.dll;opencv_world343.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -174,7 +178,8 @@
       <AdditionalIncludeDirectories>$(SolutionDir)lib\gl\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityOpenGL32.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalDependencies>shlwapi.lib;$(MinHookLib);tinyxml.lib;$(SRLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>SimulatedRealityCore32.dll;SimulatedRealityDirectX32.dll;SimulatedRealityOpenGL32.dll;opencv_world343.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -190,7 +195,8 @@
       <AdditionalIncludeDirectories>$(SolutionDir)lib\gl\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityOpenGL.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalDependencies>shlwapi.lib;$(MinHookLib);tinyxml.lib;$(SRLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>SimulatedRealityCore.dll;SimulatedRealityDirectX.dll;SimulatedRealityOpenGL.dll;opencv_world343.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <IgnoreSpecificDefaultLibraries>LIBC.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <ModuleDefinitionFile>$(ProjectName).def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
@@ -199,15 +205,7 @@
   <ItemGroup>
     <ClCompile Include="Modified.cpp" />
     <ClCompile Include="Renderer.cpp" />
-    <ClCompile Include="SRWeaveOGL.cpp">
-      <!-- SR SDK exceptions: re-enable C++ exception unwinding for this TU.
-           The rest of the project compiles with _HAS_EXCEPTIONS=0 + empty
-           ExceptionHandling (via DisableExceptions.props). SR throws
-           ServerNotAvailableException etc. that we need to catch. -->
-      <ExceptionHandling>Sync</ExceptionHandling>
-      <PreprocessorDefinitions>_HAS_EXCEPTIONS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <DisableSpecificWarnings>4946;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-    </ClCompile>
+    <ClCompile Include="SRWeaveOGL.cpp" />
     <ClCompile Include="S3DWrapperOGL.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
