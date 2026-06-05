@@ -26,7 +26,6 @@
     "boost-utility",
     "boost-variant",
     "devil",
-    "directxsdk",
-    "libsquish"
+    "directxsdk"
   ]
 }
