@@ -2,7 +2,6 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ImportGroup Label="PropertySheets">
     <Import Project="Common.props" />
-    <Import Project="DisableExceptions.props" />
   </ImportGroup>
   <PropertyGroup>
     <LinkIncremental>false</LinkIncremental>
@@ -13,7 +12,8 @@
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <PreprocessorDefinitions>IZ3D_BUILD;FINAL_RELEASE;_SECURE_ATL=0;_SECURE_SCL=0;ATLENSURE(expr)=(expr);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>IZ3D_BUILD;FINAL_RELEASE;_HAS_EXCEPTIONS=0;BOOST_NO_STD_TYPEINFO;_SECURE_ATL=0;_SECURE_SCL=0;ATLENSURE(expr)=(expr);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ExceptionHandling>false</ExceptionHandling>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
