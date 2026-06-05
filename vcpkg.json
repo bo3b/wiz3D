@@ -27,10 +27,6 @@
     "boost-variant",
     "devil",
     "directxsdk",
-    "libsquish",
-    {
-      "name": "xerces-c",
-      "features": ["xmlch-wchar"]
-    }
+    "libsquish"
   ]
 }

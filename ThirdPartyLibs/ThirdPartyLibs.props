@@ -38,6 +38,12 @@
 		     kept as-is on vendor drop so existing consumer references stay valid. -->
 		<ZlibLib>zs.lib</ZlibLib>
 		<ZlibLib Condition="'$(Configuration)' == 'Debug'">zsd.lib</ZlibLib>
+
+		<!-- xerces-c 3.3 (built with the xmlch-wchar feature so XMLCh == wchar_t).
+		     vcpkg artifact names are xerces-c_3.lib / xerces-c_3D.lib (Debug). The
+		     XERCES_STATIC_LIBRARY define lives in Common.props (global). -->
+		<XercesLib>xerces-c_3.lib</XercesLib>
+		<XercesLib Condition="'$(Configuration)' == 'Debug'">xerces-c_3D.lib</XercesLib>
 	</PropertyGroup>
 
 	<ItemDefinitionGroup>
@@ -48,6 +54,7 @@
 				$(_TPL)LlamaXML_v1.0.1\Include;
 				$(_TPL)SR-Lib_v1.1.2\include;
 				$(_TPL)zlib_v1.3.2\Include;
+				$(_TPL)xerces-c_v3.3.0\Include;
 				%(AdditionalIncludeDirectories)
 			</AdditionalIncludeDirectories>
 		</ClCompile>
@@ -58,6 +65,7 @@
 				$(_TPL)LlamaXML_v1.0.1\lib\$(_Arch86);
 				$(_TPL)SR-Lib_v1.1.2\lib\$(_Arch32)\$(_Config);
 				$(_TPL)zlib_v1.3.2\lib\$(_Arch86)\$(_Config);
+				$(_TPL)xerces-c_v3.3.0\lib\$(_Arch86)\$(_Config);
 				%(AdditionalLibraryDirectories)
 			</AdditionalLibraryDirectories>
 		</Link>
