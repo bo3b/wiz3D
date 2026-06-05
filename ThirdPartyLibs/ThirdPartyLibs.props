@@ -46,6 +46,13 @@
 		     XERCES_DLL_EXPORT, which it leaves undefined). -->
 		<XercesLib>xerces-c_3.lib</XercesLib>
 		<XercesLib Condition="'$(Configuration)' == 'Debug'">xerces-c_3D.lib</XercesLib>
+
+		<!-- TinyXML 2.6.2: both variants live in the same arch folder (no Debug/
+		     Release subfolder), distinguished by the 'd' suffix, so the lib dir has
+		     no $(_Config) segment. Predates the name-property convention; migrated
+		     2026-06-04. -->
+		<TinyXMLLib>tinyxml.lib</TinyXMLLib>
+		<TinyXMLLib Condition="'$(Configuration)' == 'Debug'">tinyxmld.lib</TinyXMLLib>
 	</PropertyGroup>
 
 	<ItemDefinitionGroup>
