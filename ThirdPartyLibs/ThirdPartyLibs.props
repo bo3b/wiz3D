@@ -33,6 +33,11 @@
 		     (see SR.hpp). -->
 		<SRLib>SR-mt.lib</SRLib>
 		<SRLib Condition="'$(Configuration)' == 'Debug'">SR-mtd.lib</SRLib>
+
+		<!-- zlib: vcpkg port artifact names are zs.lib (Release) / zsd.lib (Debug);
+		     kept as-is on vendor drop so existing consumer references stay valid. -->
+		<ZlibLib>zs.lib</ZlibLib>
+		<ZlibLib Condition="'$(Configuration)' == 'Debug'">zsd.lib</ZlibLib>
 	</PropertyGroup>
 
 	<ItemDefinitionGroup>
@@ -42,6 +47,7 @@
 				$(_TPL)TinyXML_v2.6.2\Include;
 				$(_TPL)LlamaXML_v1.0.1\Include;
 				$(_TPL)SR-Lib_v1.1.2\include;
+				$(_TPL)zlib_v1.3.2\Include;
 				%(AdditionalIncludeDirectories)
 			</AdditionalIncludeDirectories>
 		</ClCompile>
@@ -51,6 +57,7 @@
 				$(_TPL)TinyXML_v2.6.2\lib\$(_Arch86);
 				$(_TPL)LlamaXML_v1.0.1\lib\$(_Arch86);
 				$(_TPL)SR-Lib_v1.1.2\lib\$(_Arch32)\$(_Config);
+				$(_TPL)zlib_v1.3.2\lib\$(_Arch86)\$(_Config);
 				%(AdditionalLibraryDirectories)
 			</AdditionalLibraryDirectories>
 		</Link>

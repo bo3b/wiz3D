@@ -31,7 +31,6 @@
     {
       "name": "xerces-c",
       "features": ["xmlch-wchar"]
-    },
-    "zlib"
+    }
   ]
 }
