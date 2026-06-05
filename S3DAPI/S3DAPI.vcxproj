@@ -118,7 +118,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);d3dx9d.lib;dxerr.lib;Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -133,7 +133,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);d3dx9d.lib;dxerr.lib;Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -145,7 +145,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);d3dx9.lib;dxerr.lib;Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -160,7 +160,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);d3dx9.lib;dxerr.lib;Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -172,7 +172,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);d3dx9.lib;Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -187,7 +187,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);d3dx9.lib;Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
     </Link>

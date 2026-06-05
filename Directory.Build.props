@@ -33,13 +33,6 @@
 		<VcpkgTriplet Condition="'$(Platform)' == 'x64'">x64-windows-static</VcpkgTriplet>
 	</PropertyGroup>
 
-	<!--The DX SDK is one level too deep, so we need to add a specific path to find d3d9x.h.-->
-	<ItemDefinitionGroup>
-		<ClCompile>
-			<AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)vcpkg_installed\$(VcpkgTriplet)\$(VcpkgTriplet)\include\directxsdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-		</ClCompile>
-	</ItemDefinitionGroup>
-
 	<!-- vcpkg's DxErr.lib (and other legacy DX libs) references _vsnwprintf /
            _vsnprintf as external symbols. These used to live inline in the CRT
            headers but were externalized; the Windows SDK ships them in

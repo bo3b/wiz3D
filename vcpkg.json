@@ -24,7 +24,6 @@
     "boost-type-traits",
     "boost-unordered",
     "boost-utility",
-    "boost-variant",
-    "directxsdk"
+    "boost-variant"
   ]
 }

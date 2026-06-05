@@ -70,6 +70,24 @@
 		<LibPngLib>libpng16.lib</LibPngLib>
 		<LibPngLib Condition="'$(Configuration)' == 'Debug'">libpng16d.lib</LibPngLib>
 		<JpegLib>jpeg.lib</JpegLib>
+
+		<!-- DirectX SDK (June 2010): legacy D3DX, vendored for the retro D3D9/10/11
+		     paths. d3dx9/10/11 are import libs for the d3dx*_43.dll redistributables
+		     (provided by the DirectX End-User Runtime, not shipped here), each with a
+		     'd'-suffix Debug variant. DxErr.lib is byte-identical in Debug/Release
+		     (no variant). d3dxof.lib and dsetup.lib are vendored faithfully but
+		     unused. d3d9.lib is also vendored (the Jun2010 import lib, no variant) and
+		     linked by literal name where needed; on the prepended search path it keeps
+		     the whole tree on the Jun2010 D3D9 surface, coherent with the vendored
+		     d3d9.h. It is functionally identical to the Windows SDK copy (both merely
+		     import the system d3d9.dll). -->
+		<D3DX9Lib>d3dx9.lib</D3DX9Lib>
+		<D3DX9Lib Condition="'$(Configuration)' == 'Debug'">d3dx9d.lib</D3DX9Lib>
+		<D3DX10Lib>d3dx10.lib</D3DX10Lib>
+		<D3DX10Lib Condition="'$(Configuration)' == 'Debug'">d3dx10d.lib</D3DX10Lib>
+		<D3DX11Lib>d3dx11.lib</D3DX11Lib>
+		<D3DX11Lib Condition="'$(Configuration)' == 'Debug'">d3dx11d.lib</D3DX11Lib>
+		<DxErrLib>DxErr.lib</DxErrLib>
 	</PropertyGroup>
 
 	<ItemDefinitionGroup>
@@ -83,6 +101,7 @@
 				$(_TPL)Xerces-C_v3.3.0\Include;
 				$(_TPL)libsquish_v1.15\Include;
 				$(_TPL)DevIL_v1.8.0\Include;
+				$(_TPL)DirectXSDK_Jun2010\Include;
 				%(AdditionalIncludeDirectories)
 			</AdditionalIncludeDirectories>
 		</ClCompile>
@@ -96,6 +115,7 @@
 				$(_TPL)Xerces-C_v3.3.0\lib\$(_Arch86)\$(_Config);
 				$(_TPL)libsquish_v1.15\lib\$(_Arch86)\$(_Config);
 				$(_TPL)DevIL_v1.8.0\lib\$(_Arch86)\$(_Config);
+				$(_TPL)DirectXSDK_Jun2010\lib\$(_Arch86)\$(_Config);
 				%(AdditionalLibraryDirectories)
 			</AdditionalLibraryDirectories>
 		</Link>
