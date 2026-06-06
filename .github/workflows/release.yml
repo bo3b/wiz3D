@@ -14,18 +14,6 @@ on:
 jobs:
   build:
     runs-on: windows-2025-vs2026
-    # Enable vcpkg binary caching. vcpkg keys each package by an ABI hash
-    # (port + triplet + compiler + deps), so unchanged dependencies restore in
-    # seconds on later runs instead of rebuilding from source. The "files,"
-    # provider writes packages to a local directory; we wrap that directory
-    # with actions/cache below so it persists across runs.
-    # ("clear" drops the default sources; ",readwrite" both restores and uploads.)
-    # Orthogonal to the baseline strip below — this caches build output only and
-    # never fetches the registry baseline.
-    # (Previously used "x-gha", which was removed when GitHub retired the v1
-    # Actions Cache Service.)
-    env:
-      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-cache,readwrite"
     # Matrix on configuration only — both Win32 and x64 are built sequentially
     # within each leg via doubled msbuild calls. Debug and Release legs are
     # smoke-tests; Final Release is the shipped config and the only one that
@@ -40,31 +28,6 @@ jobs:
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
-
-      - name: Restore vcpkg binary cache
-        # Cache the directory vcpkg writes its binary packages to (see the
-        # VCPKG_BINARY_SOURCES env on the job). Single key now that both
-        # Win32 and x64 build within one job: static triplets package debug
-        # and release libs together, so all configurations share the same
-        # archives. Cache invalidates when vcpkg.json changes; the
-        # restore-keys prefix gives partial hits otherwise.
-        uses: actions/cache@v5
-        with:
-          path: ${{ github.workspace }}/vcpkg-cache
-          key: vcpkg-${{ hashFiles('vcpkg.json') }}
-          restore-keys: |
-            vcpkg-
-
-      - name: Strip builtin-baseline from vcpkg.json
-        # Local builds (VS2026-bundled vcpkg) require a baseline for manifest
-        # mode. The runner's standalone vcpkg cannot. Keep the baseline in
-        # vcpkg.json for local dev and strip it here.
-        # The change is to the runner's ephemeral checkout only; never committed.
-        run: (Get-Content vcpkg.json) | Where-Object { $_ -notmatch '"builtin-baseline"' } | Set-Content vcpkg.json
-
-      - name: Integrate vcpkg with MSBuild
-        # temporary build setup, will be revised.
-        run: vcpkg integrate install
 
       - name: Generate version header
         # Writes bin/temp_version.h from VERSION.txt + git SHA before any build.
