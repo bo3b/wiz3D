@@ -14,6 +14,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Internal Tools", "Internal 
 	ProjectSection(SolutionItems) = preProject
 		Internal Tools\header.txt = Internal Tools\header.txt
 		Internal Tools\HeaderProcessor.vb = Internal Tools\HeaderProcessor.vb
+		TestsPack\README.md = TestsPack\README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Localization Files", "Localization Files", "{66228070-FC87-4457-9889-52D16AB05107}"
@@ -573,7 +574,9 @@ Global
 		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Debug|x64.ActiveCfg = Debug|x64
 		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Debug|x64.Build.0 = Debug|x64
 		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Final Release|Win32.ActiveCfg = Release|Win32
+		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Final Release|Win32.Build.0 = Release|Win32
 		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Final Release|x64.ActiveCfg = Release|x64
+		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Final Release|x64.Build.0 = Release|x64
 		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Release|Win32.ActiveCfg = Release|Win32
 		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Release|Win32.Build.0 = Release|Win32
 		{4E65F5F0-477A-406F-A104-3A1BD16E2F4E}.Release|x64.ActiveCfg = Release|x64
@@ -583,7 +586,9 @@ Global
 		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Debug|x64.ActiveCfg = Debug|x64
 		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Debug|x64.Build.0 = Debug|x64
 		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Final Release|Win32.ActiveCfg = Release|Win32
+		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Final Release|Win32.Build.0 = Release|Win32
 		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Final Release|x64.ActiveCfg = Release|x64
+		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Final Release|x64.Build.0 = Release|x64
 		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Release|Win32.ActiveCfg = Release|Win32
 		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Release|Win32.Build.0 = Release|Win32
 		{F08D3940-12E7-48D6-9423-C0D17223FB29}.Release|x64.ActiveCfg = Release|x64
@@ -592,6 +597,7 @@ Global
 		{8DF4C702-52A5-4047-BADC-F656E1852C9C}.Debug|Win32.Build.0 = Debug|Win32
 		{8DF4C702-52A5-4047-BADC-F656E1852C9C}.Debug|x64.ActiveCfg = Debug|Win32
 		{8DF4C702-52A5-4047-BADC-F656E1852C9C}.Final Release|Win32.ActiveCfg = Release|Win32
+		{8DF4C702-52A5-4047-BADC-F656E1852C9C}.Final Release|Win32.Build.0 = Release|Win32
 		{8DF4C702-52A5-4047-BADC-F656E1852C9C}.Final Release|x64.ActiveCfg = Release|Win32
 		{8DF4C702-52A5-4047-BADC-F656E1852C9C}.Release|Win32.ActiveCfg = Release|Win32
 		{8DF4C702-52A5-4047-BADC-F656E1852C9C}.Release|Win32.Build.0 = Release|Win32

@@ -138,7 +138,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -149,7 +149,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -162,7 +162,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">
@@ -174,7 +174,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -186,7 +186,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">
@@ -197,7 +197,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

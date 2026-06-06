@@ -88,6 +88,20 @@
 		<D3DX11Lib>d3dx11.lib</D3DX11Lib>
 		<D3DX11Lib Condition="'$(Configuration)' == 'Debug'">d3dx11d.lib</D3DX11Lib>
 		<DxErrLib>DxErr.lib</DxErrLib>
+		
+		<!-- Boost 1.91.0 unit_test_framework: the only compiled boost lib in use,
+		     linked by the dormant-but-kept TestsPack regression suite. BOOST_ALL_NO_LIB
+		     disables boost's #pragma auto-link, so the test projects name it explicitly.
+		     Unlike the other vendored libs, boost's filenames already encode every
+		     variant axis: toolset (vc145), threading (mt), the debug tag (gd), address
+		     model (x32/x64), and version (1_91). So the drop is a single FLAT lib\ folder
+		     holding all four self-named variants (no arch\config subtree) — a minimal,
+		     deliberately-different layout. We select by name: $(_Arch32) supplies the
+		     x32/x64 address-model tag (Win32->x32, x64->x64) and Debug adds the '-gd-'
+		     infix; Final Release uses the plain release lib. -->
+		<BoostLib>boost_unit_test_framework-vc145-mt-$(_Arch32)-1_91.lib</BoostLib>
+		<BoostLib Condition="'$(Configuration)' == 'Debug'">boost_unit_test_framework-vc145-mt-gd-$(_Arch32)-1_91.lib</BoostLib>
+
 	</PropertyGroup>
 
 	<ItemDefinitionGroup>
@@ -102,6 +116,7 @@
 				$(_TPL)libsquish_v1.15\Include;
 				$(_TPL)DevIL_v1.8.0\Include;
 				$(_TPL)DirectXSDK_Jun2010\Include;
+				$(_TPL)boost_v1.91.0\Include;
 				%(AdditionalIncludeDirectories)
 			</AdditionalIncludeDirectories>
 		</ClCompile>
@@ -116,6 +131,7 @@
 				$(_TPL)libsquish_v1.15\lib\$(_Arch86)\$(_Config);
 				$(_TPL)DevIL_v1.8.0\lib\$(_Arch86)\$(_Config);
 				$(_TPL)DirectXSDK_Jun2010\lib\$(_Arch86)\$(_Config);
+				$(_TPL)boost_v1.91.0\lib;
 				%(AdditionalLibraryDirectories)
 			</AdditionalLibraryDirectories>
 		</Link>

@@ -96,6 +96,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>$(BoostLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>"$(TargetPath)" --result_code=no --report_level=no --catch_system_error=yes</Command>
@@ -114,6 +115,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>$(BoostLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>If "%PROCESSOR_ARCHITEW6432%" == "AMD64" (
@@ -130,6 +132,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>$(BoostLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>"$(TargetPath)" --result_code=no --report_level=no --catch_system_error=yes</Command>
@@ -147,6 +150,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>$(BoostLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>If "%PROCESSOR_ARCHITEW6432%" == "AMD64" (

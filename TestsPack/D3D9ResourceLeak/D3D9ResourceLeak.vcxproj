@@ -90,7 +90,7 @@
       </PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>
@@ -110,7 +110,7 @@
       </PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>
@@ -126,7 +126,7 @@
       </PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>
@@ -145,7 +145,7 @@
       </PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(BoostLib);d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>

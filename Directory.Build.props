@@ -15,25 +15,7 @@
 		<UseOfAtl>Static</UseOfAtl>
 	</PropertyGroup>
 
-	<!--
-    vcpkg manifest-mode integration. Requires `vcpkg integrate install` to have
-    been run once per machine (installs the global props/targets that pick these
-    properties up). 
-    -->
-
-	<!--Enable Manifest Mode so that vcpkg runs and fetches vcpkg.json dependencies.-->
-	<PropertyGroup>
-		<VcpkgEnableManifest>true</VcpkgEnableManifest>
-	</PropertyGroup>
-
-	<!--Triplets are *-windows-static so we link static .libs that
-    match the /MT runtime used by Release/FinalRelease configs..-->
-	<PropertyGroup>
-		<VcpkgTriplet Condition="'$(Platform)' == 'Win32'">x86-windows-static</VcpkgTriplet>
-		<VcpkgTriplet Condition="'$(Platform)' == 'x64'">x64-windows-static</VcpkgTriplet>
-	</PropertyGroup>
-
-	<!-- vcpkg's DxErr.lib (and other legacy DX libs) references _vsnwprintf /
+	<!-- DirectXSDK DxErr.lib (and other legacy DX libs) references _vsnwprintf /
            _vsnprintf as external symbols. These used to live inline in the CRT
            headers but were externalized; the Windows SDK ships them in
            legacy_stdio_definitions.lib. Without this, anything linking DxErr
