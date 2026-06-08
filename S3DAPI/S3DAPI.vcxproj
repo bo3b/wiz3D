@@ -113,14 +113,15 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\Include;$(SolutionDir)lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;S3DAPI_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>tinyxmld.lib;$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -128,26 +129,28 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\Include;$(SolutionDir)lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;S3DAPI_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>tinyxmld.lib;$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\Include;$(SolutionDir)lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DAPI_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>tinyxml.lib;$(SquishLib);$(D3DX9Lib);Winmm.lib;dinput8.lib;$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -155,26 +158,28 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\Include;$(SolutionDir)lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DAPI_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>tinyxml.lib;$(SquishLib);$(D3DX9Lib);$(DxErrLib);Winmm.lib;dinput8.lib;$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\Include;$(SolutionDir)lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DAPI_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>tinyxml.lib;$(SquishLib);$(D3DX9Lib);Winmm.lib;dinput8.lib;$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final Release|x64'">
@@ -182,14 +187,15 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\Include;$(SolutionDir)lib\madCHook;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;S3DAPI_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SquishLib);$(D3DX9Lib);Winmm.lib;dinput8.lib;$(MinHookLib);$(TinyXMLLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>tinyxml.lib;$(SquishLib);$(D3DX9Lib);Winmm.lib;dinput8.lib;$(MinHookLib);%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>S3DAPI.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)ThirdPartyLibs\TinyXML_v2.6.2\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
