@@ -109,7 +109,6 @@
 			<AdditionalIncludeDirectories>
 				$(_TPL)MinHook_v1.3.4\include;
 				$(_TPL)TinyXML_v2.6.2\Include;
-				$(_TPL)LlamaXML_v1.0.1\Include;
 				$(_TPL)SR-Lib_v1.1.2\include;
 				$(_TPL)zlib_v1.3.2\Include;
 				$(_TPL)Xerces-C_v3.3.0\Include;
@@ -124,7 +123,6 @@
 			<AdditionalLibraryDirectories>
 				$(_TPL)MinHook_v1.3.4\lib\$(_Arch86)\$(_Config);
 				$(_TPL)TinyXML_v2.6.2\lib\$(_Arch86);
-				$(_TPL)LlamaXML_v1.0.1\lib\$(_Arch86);
 				$(_TPL)SR-Lib_v1.1.2\lib\$(_Arch32)\$(_Config);
 				$(_TPL)zlib_v1.3.2\lib\$(_Arch86)\$(_Config);
 				$(_TPL)Xerces-C_v3.3.0\lib\$(_Arch86)\$(_Config);
