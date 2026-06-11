@@ -11,10 +11,8 @@
 # The proxy ships its Release build (no Final Release config on that solution).
 #
 # This script does NOT handle:
-# - Vendor-path proxy DLLs that auto-deploy via their own vcxproj OutDir:
-#   atidxx32/64.dll (AmdQbProxy), atiadlxy.dll (AmdAdlProxy),
-#   dxgi.dll (DxgiVendorProxy) — these go into releases/wiz3D/hd3d/. The DX12 HD3D variant (D3d12VendorProxy) is
-#   no longer deployed; AmdQbProxy covers DX12 games via the dxgi.dll path.
+# - The DX12 HD3D variant (D3d12VendorProxy) — no longer deployed; AmdQbProxy
+#   covers DX12 games via the dxgi.dll path.
 #
 # Usage:
 #   .\bin\deploy_to_releases.ps1                # both Win32 + x64
@@ -187,7 +185,7 @@ foreach ($archName in $archs) {
         Copy-Files -SrcDir $omSrcDir -DstDir (Join-Path $dst 'OutputMethods') `
                    -Files $openglOMs -Tag "opengl-qbs/$archAlias OutputMethods"
     } else {
-        Write-Host ("  {0,-22}  (none — OGL uses built-in modes)" -f "opengl-qbs/$archAlias OutputMethods")
+        Write-Host ("  {0,-22}  (none - OGL uses built-in modes)" -f "opengl-qbs/$archAlias OutputMethods")
     }
     Copy-Files -SrcDir $proxyBinDir -DstDir $dst                          `
                -Files @('opengl32.dll')                                   `
@@ -253,7 +251,18 @@ foreach ($archName in $archs) {
         Write-Host ("  ndm/$archAlias            SKIP (NvDirectMode bin not built: $nvDirectModeBin)") -ForegroundColor Yellow
     }
 
-    # hd3d/* not handled here — those vendor proxy DLLs auto-deploy via vcxproj OutDir.
+    # --- hd3d (AMD HD3D vendor-path proxies) ---
+    # atidxx32/64 (AmdQbProxy), atiadlxy/atiadlxx (AmdAdlProxy), dxgi
+    # (DxgiVendorProxy), d3d11 (D3d11VendorProxy) — all built by S3DDriver.sln,
+    # shipped from Final Release like the rest of that solution.
+    # (Uninstall_HD3D.bat is checked in directly under the hd3d leaves.)
+    $hd3dDst   = Join-Path $repoRoot "releases\wiz3D\hd3d\$archAlias"
+    $hd3dFiles = if ($archAlias -eq 'x86') {
+        @('atidxx32.dll', 'atiadlxy.dll', 'dxgi.dll', 'd3d11.dll')
+    } else {
+        @('atidxx64.dll', 'atiadlxx.dll', 'dxgi.dll', 'd3d11.dll')
+    }
+    Copy-Files -SrcDir $binDir -DstDir $hd3dDst -Files $hd3dFiles -Tag "hd3d/$archAlias"
 }
 
 # --- Spread nvapi[64].dll across all api subfolders that need it ---

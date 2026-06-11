@@ -1,9 +1,14 @@
 # wiz3D - build_and_deploy.ps1
 #
-# One-shot: builds all three wiz3D solutions (S3DDriver.sln, wiz3D-proxy.sln,
-# NvDirectMode.sln) for one or both architectures (Release), then runs
-# deploy_to_releases.ps1 to copy every freshly-built DLL into the appropriate
-# releases/wiz3D/ subfolder.
+# One-shot: builds all three wiz3D solutions for one or both architectures,
+# then runs deploy_to_releases.ps1 to copy every freshly-built DLL into the
+# appropriate releases/wiz3D/ subfolder.
+#
+# Configurations match what deploy_to_releases.ps1 ships:
+#   S3DDriver.sln    -> Final Release (the shipping config; deploy reads
+#                       bin/Final Release/<arch>/)
+#   wiz3D-proxy.sln  -> Release (no Final Release config on that solution)
+#   NvDirectMode.sln -> Release
 #
 # Usage:
 #   .\bin\build_and_deploy.ps1                       # all slns, both archs
@@ -49,10 +54,11 @@ if (-not $SkipNvDirectMode -and (Test-Path $nvDirectModeSln)) {
 if (-not $SkipBuild) {
     foreach ($s in $slnsToBuild) {
         $slnName = Split-Path -Leaf $s
+        $cfg = if ($s -eq $mainSln) { 'Final Release' } else { 'Release' }
         foreach ($a in $archs) {
             Write-Host ""
-            Write-Host "=== Building $slnName  Release|$a ===" -ForegroundColor Cyan
-            & $msbuild $s /p:Configuration=Release /p:Platform=$a /m /nologo /verbosity:minimal
+            Write-Host "=== Building $slnName  $cfg|$a ===" -ForegroundColor Cyan
+            & $msbuild $s "/p:Configuration=$cfg" /p:Platform=$a /m /nologo /verbosity:minimal
             # MSBuild returns nonzero when ANY project fails. Most failing
             # projects are pre-existing test EXEs (boost x64, DXUT D3DX9
             # stubs); the user-facing release DLLs build first and deploy
