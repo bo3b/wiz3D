@@ -13,8 +13,7 @@
 # This script does NOT handle:
 # - Vendor-path proxy DLLs that auto-deploy via their own vcxproj OutDir:
 #   atidxx32/64.dll (AmdQbProxy), atiadlxy.dll (AmdAdlProxy),
-#   dxgi.dll (DxgiVendorProxy), nvapi/nvapi64.dll (NvApiProxy) — these go
-#   into releases/wiz3D/hd3d/. The DX12 HD3D variant (D3d12VendorProxy) is
+#   dxgi.dll (DxgiVendorProxy) — these go into releases/wiz3D/hd3d/. The DX12 HD3D variant (D3d12VendorProxy) is
 #   no longer deployed; AmdQbProxy covers DX12 games via the dxgi.dll path.
 #
 # Usage:
@@ -257,9 +256,9 @@ foreach ($archName in $archs) {
     # hd3d/* not handled here — those vendor proxy DLLs auto-deploy via vcxproj OutDir.
 }
 
-# --- Spread auto-deployed shared DLLs across all api subfolders ---
-# NvApiProxy auto-deploys to releases/wiz3D/dx9/<arch>/ via its vcxproj OutDir,
-# but games using other render APIs need their own copy. Mirror them here.
+# --- Spread nvapi[64].dll across all api subfolders that need it ---
+# NvApiProxy builds with NvDirectMode.sln into NvDirectMode/bin/Release/<arch>/;
+# every DX leaf ships a copy beside its proxy DLL.
 # (Other OutputMethods incl. SimulatedRealityWeaveOutput build to the standard
 #  bin/Final Release/<arch>/OutputMethods/ and are distributed by the loops above.)
 function Spread-File {
@@ -282,15 +281,17 @@ function Spread-File {
 Write-Host ""
 Write-Host "=== Spreading shared DLLs ===" -ForegroundColor Cyan
 $relRoot = Join-Path $repoRoot 'releases\wiz3D'
-foreach ($archAlias in $archs | ForEach-Object { if ($_ -eq 'Win32') { 'x86' } else { 'x64' } }) {
+foreach ($archName in $archs) {
+    $archAlias = if ($archName -eq 'Win32') { 'x86' } else { 'x64' }
     $nvapiName = if ($archAlias -eq 'x86') { 'nvapi.dll' } else { 'nvapi64.dll' }
-    $srcNvapi  = Join-Path $relRoot "dx9\$archAlias\$nvapiName"
+    $srcNvapi  = Join-Path $repoRoot "NvDirectMode\bin\Release\$archName\$nvapiName"
     # nvapi spreads into:
-    #   - regular wiz3D dx10-11 (3D Vision-aware games using passive)
-    #   - all four 3d-vision-direct/<api>/<arch>/ leaves (Direct Mode games need NvApiProxy
+    #   - regular wiz3D dx9 and dx10-11 (3D Vision-aware games using passive)
+    #   - all three 3d-vision-direct/<api>/<arch>/ leaves (Direct Mode games need NvApiProxy
     #     beside the NvDirectMode proxy DLL because they call NvAPI_Stereo_SetActiveEye etc.)
     # NOT into opengl-quad-buffer-stereo: the OGL wrapper never touches NvAPI.
     $nvapiTargets = @(
+        "$relRoot\dx9\$archAlias",
         "$relRoot\dx10-11\$archAlias",
         "$relRoot\3d-vision-direct\dx9\$archAlias",
         "$relRoot\3d-vision-direct\dx10\$archAlias",

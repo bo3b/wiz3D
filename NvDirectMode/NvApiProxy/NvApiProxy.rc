@@ -5,7 +5,7 @@
 // Preparing project's pre-build step from the repo-root VERSION.txt).
 
 #include <windows.h>
-#include "..\Shared\version.h"
+#include "..\..\Shared\version.h"
 
 // On x86 the proxy ships as nvapi.dll (matching NVIDIA's 32-bit driver name);
 // on x64 it ships as nvapi64.dll.
