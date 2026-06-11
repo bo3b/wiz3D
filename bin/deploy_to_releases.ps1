@@ -288,8 +288,22 @@ function Spread-File {
 }
 
 Write-Host ""
-Write-Host "=== Spreading shared DLLs ===" -ForegroundColor Cyan
+Write-Host "=== Spreading shared files ===" -ForegroundColor Cyan
 $relRoot = Join-Path $repoRoot 'releases\wiz3D'
+
+# --- BaseProfile.xml into every DX wrapper folder ---
+$baseProfileSrc = Join-Path $repoRoot 'S3DDriverSetup\Content\BaseProfile.xml'
+$profileTargets = @(
+    "$relRoot\dx7",
+    "$relRoot\dx8",
+    "$relRoot\dx9\x86",
+    "$relRoot\dx9\x64",
+    "$relRoot\dx10-11\x86",
+    "$relRoot\dx10-11\x64"
+)
+Spread-File -SrcPath $baseProfileSrc -DstDirs $profileTargets -Tag 'BaseProfile.xml'
+
+# --- nvapi[64].dll across DX subfolders that need it ---
 foreach ($archName in $archs) {
     $archAlias = if ($archName -eq 'Win32') { 'x86' } else { 'x64' }
     $nvapiName = if ($archAlias -eq 'x86') { 'nvapi.dll' } else { 'nvapi64.dll' }
