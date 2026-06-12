@@ -303,6 +303,14 @@ $profileTargets = @(
 )
 Spread-File -SrcPath $baseProfileSrc -DstDirs $profileTargets -Tag 'BaseProfile.xml'
 
+# --- Root docs: license + notices + user quick-start ---
+# Canonical copies live at the repo root (they're part of the GitHub repo);
+# the release root gets LICENSE renamed to LICENSE.txt for Windows users.
+Copy-Item -Path (Join-Path $repoRoot 'LICENSE')                  -Destination (Join-Path $relRoot 'LICENSE.txt') -Force
+Copy-Item -Path (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.txt')  -Destination $relRoot -Force
+Copy-Item -Path (Join-Path $repoRoot 'README.txt')               -Destination $relRoot -Force
+Write-Host ("  {0,-30}  copied to release root" -f 'LICENSE.txt, NOTICES, README')
+
 # --- nvapi[64].dll across DX subfolders that need it ---
 foreach ($archName in $archs) {
     $archAlias = if ($archName -eq 'Win32') { 'x86' } else { 'x64' }
