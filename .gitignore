@@ -42,6 +42,10 @@ bld/
 !releases/**/*.bat
 !releases/**/wiz3D_Config.xml
 
+# Specifically avoid the releases/3d-vision-direct directory, because the
+# originals properly live in root of the NvDirectMode project, not here.
+/releases/wiz3D/3d-vision-direct
+
 # Track wiz3D scripts at the repo's bin/ root. Other contents of bin/ stay
 # ignored (build artefacts, unrelated tools).
 !/bin/
